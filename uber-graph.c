@@ -22,6 +22,8 @@
 
 #include "uber-graph.h"
 
+#define BASE_CLASS (GTK_WIDGET_CLASS(uber_graph_parent_class))
+
 G_DEFINE_TYPE(UberGraph, uber_graph, GTK_TYPE_DRAWING_AREA)
 
 /**
@@ -73,6 +75,23 @@ uber_graph_new (void)
 
 	graph = g_object_new(UBER_TYPE_GRAPH, NULL);
 	return GTK_WIDGET(graph);
+}
+
+/**
+ * uber_graph_render_thread:
+ * @graph: A #UberGraph.
+ *
+ * Render thread that updates portions of the various pixmaps as needed
+ * so that they may be blitted to the screen in the main thread.
+ *
+ * Returns: None.
+ * Side effects: Everything.
+ */
+static gpointer
+uber_graph_render_thread (gpointer user_data)
+{
+	g_usleep(G_USEC_PER_SEC * 1000);
+	return NULL;
 }
 
 /**
@@ -206,6 +225,12 @@ static void
 uber_graph_destroy_graph_info (UberGraph *graph, /* IN */
                                GraphInfo *info)  /* IN */
 {
+	if (info->axis_layout) {
+		g_object_unref(info->axis_layout);
+	}
+	if (info->tick_layout) {
+		g_object_unref(info->tick_layout);
+	}
 	if (info->bg_cairo) {
 		cairo_destroy(info->bg_cairo);
 	}
@@ -238,8 +263,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
-	GTK_WIDGET_CLASS(uber_graph_parent_class)->size_allocate(widget, alloc);
-
+	BASE_CLASS->size_allocate(widget, alloc);
 	priv = UBER_GRAPH(widget)->priv;
 	/*
 	 * Adjust the sizing of the blit pixmaps.
@@ -248,6 +272,54 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[0]);
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
 	g_static_rw_lock_writer_unlock(&priv->rw_lock);
+}
+
+/**
+ * uber_graph_expose_event:
+ * @widget: A #UberGraph.
+ * @expose: A #GdkEventExpose.
+ *
+ * Handles the "expose-event" for the GtkWidget.  The current server-side
+ * pixmaps are blitted as necessary.
+ *
+ * Returns: %TRUE if handler chain should stop; otherwise %FALSE.
+ * Side effects: None.
+ */
+static gboolean
+uber_graph_expose_event (GtkWidget      *widget, /* IN */
+                         GdkEventExpose *expose) /* IN */
+{
+	UberGraphPrivate *priv;
+	GdkDrawable *dst;
+	GraphInfo *info;
+	GdkGC *gc;
+
+	priv = UBER_GRAPH(widget)->priv;
+	dst = GDK_DRAWABLE(gtk_widget_get_window(widget));
+	gc = gdk_gc_new(GDK_DRAWABLE(dst));
+	g_static_rw_lock_reader_lock(&priv->rw_lock);
+	info = &priv->info[priv->flipped];
+	/*
+	 * Blit the background for the exposure area.
+	 */
+	if (G_LIKELY(info->bg_pixmap)) {
+		gdk_draw_drawable(dst, gc, GDK_DRAWABLE(info->bg_pixmap),
+		                  expose->area.x, expose->area.y,
+		                  expose->area.x, expose->area.y,
+		                  expose->area.width, expose->area.height);
+	}
+	/*
+	 * Blit the foreground for the exposure area.
+	 */
+	if (G_LIKELY(info->fg_pixmap)) {
+		gdk_draw_drawable(dst, gc, GDK_DRAWABLE(info->fg_pixmap),
+		                  expose->area.x, expose->area.y,
+		                  expose->area.x, expose->area.y,
+		                  expose->area.width, expose->area.height);
+	}
+	g_static_rw_lock_reader_unlock(&priv->rw_lock);
+	g_object_unref(gc);
+	return FALSE;
 }
 
 /**
@@ -292,6 +364,7 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 
 	widget_class = GTK_WIDGET_CLASS(klass);
 	widget_class->size_allocate = uber_graph_size_allocate;
+	widget_class->expose_event = uber_graph_expose_event;
 }
 
 /**
@@ -306,6 +379,7 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 static void
 uber_graph_init (UberGraph *graph) /* IN */
 {
+	static gsize initialized = FALSE;
 	UberGraphPrivate *priv;
 
 	#define GET_PRIVATE G_TYPE_INSTANCE_GET_PRIVATE
@@ -313,4 +387,12 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv = graph->priv;
 
 	g_static_rw_lock_init(&priv->rw_lock);
+
+	/*
+	 * Start the render thread if needed.
+	 */
+	if (g_once_init_enter(&initialized)) {
+		g_thread_create(uber_graph_render_thread, NULL, FALSE, NULL);
+		g_once_init_leave(&initialized, TRUE);
+	}
 }
