@@ -51,6 +51,7 @@ create_main_window (void)
 	gtk_widget_show(window);
 
 	graph = uber_graph_new();
+	g_object_set(graph, "title", "CPU Usage", NULL);
 	gtk_container_add(GTK_CONTAINER(window), graph);
 	gtk_widget_show(graph);
 

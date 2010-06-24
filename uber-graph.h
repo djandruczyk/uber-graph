@@ -48,8 +48,11 @@ struct _UberGraphClass
 	GtkDrawingAreaClass parent_class;
 };
 
-GType      uber_graph_get_type (void) G_GNUC_CONST;
-GtkWidget* uber_graph_new      (void);
+GType        uber_graph_get_type  (void) G_GNUC_CONST;
+GtkWidget*   uber_graph_new       (void);
+void         uber_graph_set_title (UberGraph   *graph,
+                                   const gchar *title);
+const gchar* uber_graph_get_title (UberGraph *graph);
 
 G_END_DECLS
 
