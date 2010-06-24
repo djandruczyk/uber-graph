@@ -100,17 +100,13 @@ create_main_window (void)
 	GtkWidget *graph;
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
 	gtk_window_set_title(GTK_WINDOW(window), _("UberGraph"));
 	gtk_window_set_default_size(GTK_WINDOW(window), 640, 200);
 	gtk_widget_show(window);
 	graph = uber_graph_new();
 	uber_graph_set_data(UBER_GRAPH(graph), (const gdouble **)data_set,
 	                    G_N_ELEMENTS(data_set));
-	g_object_set(graph,
-	             "title", "CPU Usage",
-	             "x-label", "Time",
-	             "y-label", "% CPU",
-	             NULL);
 	gtk_container_add(GTK_CONTAINER(window), graph);
 	gtk_widget_show(graph);
 	return window;
