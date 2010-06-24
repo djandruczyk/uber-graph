@@ -93,6 +93,8 @@ enum
 {
 	PROP_0,
 	PROP_TITLE,
+	PROP_X_LABEL,
+	PROP_Y_LABEL,
 };
 
 const GdkColor colors[] = {
@@ -136,6 +138,38 @@ uber_graph_get_title (UberGraph *graph) /* IN */
 }
 
 /**
+ * uber_graph_get_xlabel:
+ * @graph: A UberGraph.
+ *
+ * Retrieves the "x-label" property.
+ *
+ * Returns: A string containing the x-label.
+ * Side effects: None.
+ */
+const gchar *
+uber_graph_get_xlabel (UberGraph *graph) /* IN */
+{
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), NULL);
+	return graph->priv->x_label;
+}
+
+/**
+ * uber_graph_get_ylabel:
+ * @graph: A UberGraph.
+ *
+ * Retrieves the "y-label" property.
+ *
+ * Returns: A strin gcontaining the y-label.
+ * Side effects: None.
+ */
+const gchar *
+uber_graph_get_ylabel (UberGraph *graph) /* IN */
+{
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), NULL);
+	return graph->priv->y_label;
+}
+
+/**
  * uber_graph_set_title:
  * @graph: A UberGraph.
  * @title: The new title.
@@ -165,6 +199,83 @@ uber_graph_set_title (UberGraph   *graph, /* IN */
 	 * Force redraw/relayout of the graph.
 	 */
 	uber_graph_calculate_rects(graph);
+}
+
+/**
+ * uber_graph_set_xlabel:
+ * @graph: A UberGraph.
+ *
+ * Sets the "x-label" property.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_xlabel (UberGraph   *graph,  /* IN */
+                       const gchar *xlabel) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	g_static_rw_lock_writer_lock(&priv->rw_lock);
+	g_free(priv->x_label);
+	priv->x_label = g_strdup(xlabel);
+	g_static_rw_lock_writer_unlock(&priv->rw_lock);
+	/*
+	 * Force redraw/relayout of the graph.
+	 */
+	uber_graph_calculate_rects(graph);
+}
+
+/**
+ * uber_graph_set_ylabel:
+ * @graph: A UberGraph.
+ *
+ * Sets the "x-label" property.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_ylabel (UberGraph   *graph,  /* IN */
+                       const gchar *ylabel) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	g_static_rw_lock_writer_lock(&priv->rw_lock);
+	g_free(priv->y_label);
+	priv->y_label = g_strdup(ylabel);
+	g_static_rw_lock_writer_unlock(&priv->rw_lock);
+	/*
+	 * Force redraw/relayout of the graph.
+	 */
+	uber_graph_calculate_rects(graph);
+}
+
+/**
+ * uber_graph_set_data:
+ * @graph: A UberGraph.
+ *
+ * Sets the basic data set for the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_data (UberGraph      *graph, /* IN */
+                     const gdouble **data,  /* IN */
+                     gsize           count) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
 }
 
 /**
@@ -258,8 +369,8 @@ uber_graph_prepare_layout (UberGraph   *graph,  /* IN */
 		break;
 	case LAYOUT_X_TICK:
 	case LAYOUT_Y_TICK:
-		pango_font_description_set_family(desc, "Sans");
-		pango_font_description_set_size(desc, 6 * PANGO_SCALE);
+		pango_font_description_set_family(desc, "MONOSPACE");
+		pango_font_description_set_size(desc, 8 * PANGO_SCALE);
 		break;
 	default:
 		g_assert_not_reached();
@@ -307,8 +418,9 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	GdkWindow *window;
 	PangoLayout *pl;
 	cairo_t *cr;
-	gint w;
-	gint h;
+	gdouble tmp0;
+	gint tick_w;
+	gint tick_h;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
@@ -336,26 +448,30 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	uber_graph_prepare_layout(graph, pl, LAYOUT_Y_LABEL);
 	pango_layout_set_text(pl, priv->y_label, -1);
 	pango_layout_get_pixel_rectangle(pl, &priv->y_label_rect);
-	priv->y_label_rect.x = alloc.height - priv->y_label_rect.height;
-	priv->y_label_rect.y = alloc.width - (priv->y_label_rect.width / 2.);
+	priv->y_label_rect.x = 0;
+	priv->y_label_rect.y = (alloc.height + priv->y_label_rect.width) / 2.;
+	tmp0 = priv->y_label_rect.width;
+	priv->y_label_rect.width = priv->y_label_rect.height;
+	priv->y_label_rect.height = tmp0;
 	/*
 	 * Calculate the size/position of the X-Axis label.
 	 */
 	uber_graph_prepare_layout(graph, pl, LAYOUT_X_LABEL);
 	pango_layout_set_text(pl, priv->x_label, -1);
 	pango_layout_get_pixel_rectangle(pl, &priv->x_label_rect);
-	priv->y_label_rect.y = alloc.height - (priv->x_label_rect.width / 2.);
+	priv->x_label_rect.y = alloc.height - priv->x_label_rect.height;
+	priv->x_label_rect.x = (alloc.width - priv->x_label_rect.width) / 2.;
 	/*
 	 * Determine largest size of tick labels.
 	 */
 	uber_graph_prepare_layout(graph, pl, LAYOUT_X_TICK);
 	pango_layout_set_text(pl, "XXXX", -1);
-	pango_layout_get_pixel_size(pl, &w, &h);
+	pango_layout_get_pixel_size(pl, &tick_w, &tick_h);
 	/*
 	 * Calculate the X-Axis tick area.
 	 */
-	priv->x_tick_rect.height = priv->tick_len + h;
-	priv->x_tick_rect.x = priv->x_label_rect.width + w + priv->tick_len;
+	priv->x_tick_rect.height = priv->tick_len + tick_w;
+	priv->x_tick_rect.x = priv->y_label_rect.x + priv->y_label_rect.width + priv->tick_len + tick_w;
 	priv->x_tick_rect.width = alloc.width - priv->x_tick_rect.x;
 	priv->x_tick_rect.y = alloc.height - priv->x_label_rect.height - priv->x_tick_rect.height;
 	/*
@@ -363,8 +479,8 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 */
 	priv->y_tick_rect.height = priv->x_tick_rect.y - priv->title_rect.height;
 	priv->y_tick_rect.y = priv->title_rect.height;
-	priv->y_tick_rect.x = priv->x_label_rect.x + priv->x_label_rect.width;
-	priv->y_tick_rect.width = w + priv->tick_len;
+	priv->y_tick_rect.x = priv->y_label_rect.x + priv->y_label_rect.width;
+	priv->y_tick_rect.width = tick_w + priv->tick_len;
 	/*
 	 * Calculate the content region.
 	 */
@@ -434,17 +550,34 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	pango_layout_set_markup(info->title_layout, priv->title, -1);
 	pango_cairo_show_layout(info->bg_cairo, info->title_layout);
 	/*
+	 * Render the X-Axis label.
+	 */
+	cairo_move_to(info->bg_cairo, priv->x_label_rect.x, priv->x_label_rect.y);
+	cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
+	pango_layout_set_markup(info->axis_layout, priv->x_label, -1);
+	pango_cairo_show_layout(info->bg_cairo, info->axis_layout);
+	/*
+	 * Render the Y-Axis label.
+	 */
+	cairo_save(info->bg_cairo);
+	cairo_move_to(info->bg_cairo, priv->y_label_rect.x, priv->y_label_rect.y);
+	cairo_rotate(info->bg_cairo, -G_PI / 2.);
+	cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
+	pango_layout_set_markup(info->axis_layout, priv->y_label, -1);
+	pango_cairo_show_layout(info->bg_cairo, info->axis_layout);
+	cairo_restore(info->bg_cairo);
+	/*
 	 * Render the X-Axis ticks.
 	 */
-	gdk_cairo_rectangle_clean(info->bg_cairo, &priv->x_tick_rect);
-	cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
-	cairo_fill(info->bg_cairo);
+	//gdk_cairo_rectangle_clean(info->bg_cairo, &priv->x_tick_rect);
+	//cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
+	//cairo_fill(info->bg_cairo);
 	/*
 	 * Render the Y-Axis ticks.
 	 */
-	gdk_cairo_rectangle_clean(info->bg_cairo, &priv->y_tick_rect);
-	cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
-	cairo_fill(info->bg_cairo);
+	//gdk_cairo_rectangle_clean(info->bg_cairo, &priv->y_tick_rect);
+	//cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
+	//cairo_fill(info->bg_cairo);
 	/*
 	 * Cleanup.
 	 */
@@ -804,6 +937,12 @@ uber_graph_get_property (GObject    *object,  /* IN */
 	case PROP_TITLE:
 		g_value_set_string(value, uber_graph_get_title(graph));
 		break;
+	case PROP_X_LABEL:
+		g_value_set_string(value, uber_graph_get_xlabel(graph));
+		break;
+	case PROP_Y_LABEL:
+		g_value_set_string(value, uber_graph_get_ylabel(graph));
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
 	}
@@ -820,6 +959,12 @@ uber_graph_set_property (GObject      *object,  /* IN */
 	switch (prop_id) {
 	case PROP_TITLE:
 		uber_graph_set_title(graph, g_value_get_string(value));
+		break;
+	case PROP_X_LABEL:
+		uber_graph_set_xlabel(graph, g_value_get_string(value));
+		break;
+	case PROP_Y_LABEL:
+		uber_graph_set_ylabel(graph, g_value_get_string(value));
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -858,6 +1003,22 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 	                                g_param_spec_string("title",
 	                                                    "title",
 	                                                    "Title",
+	                                                    NULL,
+	                                                    G_PARAM_READWRITE));
+
+	g_object_class_install_property(object_class,
+	                                PROP_X_LABEL,
+	                                g_param_spec_string("x-label",
+	                                                    "x-label",
+	                                                    "XLabel",
+	                                                    NULL,
+	                                                    G_PARAM_READWRITE));
+
+	g_object_class_install_property(object_class,
+	                                PROP_Y_LABEL,
+	                                g_param_spec_string("y-label",
+	                                                    "y-label",
+	                                                    "YLabel",
 	                                                    NULL,
 	                                                    G_PARAM_READWRITE));
 }

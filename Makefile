@@ -24,14 +24,20 @@ WARNINGS =								\
 
 INCLUDES = -DHAVE_CONFIG_H=0
 
-SOURCES = uber-graph.c uber-graph.h main.c
+uber-graph.o: uber-graph.c uber-graph.h
+	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-graph.c $(shell pkg-config --cflags gtk+-2.0)
 
-uber-graph: $(SOURCES)
-	$(CC) -g -o $@.o $(WARNINGS) $(INCLUDES) $(SOURCES) $(shell pkg-config --libs --cflags gtk+-2.0)
-	@mv $@.o $@
+uber-data-set.o: uber-data-set.c uber-data-set.h
+	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-data-set.c $(shell pkg-config --cflags gtk+-2.0)
+
+main.o: main.c
+	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) main.c $(shell pkg-config --cflags gtk+-2.0)
+
+uber-graph: uber-graph.o uber-data-set.o main.o
+	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0) uber-graph.o uber-data-set.o main.o
 
 clean:
-	rm -f uber-graph
+	rm -f uber-graph *.o
 
 run: uber-graph
 	./uber-graph

@@ -21,6 +21,8 @@
 
 #include <gtk/gtk.h>
 
+#include "uber-data-set.h"
+
 G_BEGIN_DECLS
 
 #define UBER_TYPE_GRAPH            (uber_graph_get_type())
@@ -50,9 +52,18 @@ struct _UberGraphClass
 
 GType        uber_graph_get_type  (void) G_GNUC_CONST;
 GtkWidget*   uber_graph_new       (void);
-void         uber_graph_set_title (UberGraph   *graph,
-                                   const gchar *title);
-const gchar* uber_graph_get_title (UberGraph *graph);
+void         uber_graph_set_title (UberGraph       *graph,
+                                   const gchar     *title);
+const gchar* uber_graph_get_title (UberGraph       *graph);
+void         uber_graph_set_xlabel (UberGraph      *graph,
+                                   const gchar     *xlabel);
+const gchar* uber_graph_get_xlabel (UberGraph      *graph);
+void         uber_graph_set_ylabel (UberGraph      *graph,
+                                   const gchar     *ylabel);
+const gchar* uber_graph_get_ylabel (UberGraph      *graph);
+void         uber_graph_set_data   (UberGraph      *graph,
+                                    const gdouble **data,
+                                    gsize           count);
 
 G_END_DECLS
 
