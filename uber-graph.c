@@ -156,6 +156,7 @@ uber_graph_push (UberGraph *graph, /* IN */
 
 	priv = graph->priv;
 	uber_buffer_append(priv->buffer, value);
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
 
 /**
@@ -183,6 +184,31 @@ uber_graph_set_stride (UberGraph *graph, /* IN */
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
 	g_static_rw_lock_writer_unlock(&priv->rw_lock);
+}
+
+/**
+ * uber_graph_set_yrange:
+ * @graph: A UberGraph.
+ * @range: An #UberRange.
+ *
+ * Sets the vertical range the graph should contain.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_yrange (UberGraph       *graph,  /* IN */
+                       const UberRange *yrange) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	g_static_rw_lock_writer_lock(&priv->rw_lock);
+	priv->yrange = *yrange;
+	g_static_rw_lock_writer_unlock(&priv->rw_lock);
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
 
 /**
@@ -430,6 +456,85 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	cairo_restore(info->bg_cairo);
 }
 
+typedef struct
+{
+	UberGraph *graph;
+	UberGraphPrivate *priv;
+	GraphInfo *info;
+	gdouble    each;
+	gdouble    x;
+	UberRange  pixel_range;
+	UberRange *value_range;
+} RenderClosure;
+
+static gboolean
+uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
+                           gdouble     value,     /* IN */
+                           gpointer    user_data) /* IN */
+{
+	RenderClosure *closure = user_data;
+	gdouble y;
+
+	g_assert(closure->priv);
+	g_assert(closure->priv->scale != NULL);
+	g_assert(closure->value_range);
+
+	y = value;
+	if (!closure->priv->scale(closure->graph,
+	                          closure->value_range,
+	                          &closure->pixel_range,
+	                          &y)) {
+		return FALSE;
+	}
+	//g_debug("%f,%f (value=%f, each=%f)", closure->x, y, value, closure->each);
+	cairo_line_to(closure->info->fg_cairo, closure->x, y);
+	//cairo_curve_to(closure->info->fg_cairo,
+	closure->x -= closure->each;
+	return FALSE;
+}
+
+static void
+uber_graph_render_fg_task (UberGraph *graph, /* IN */
+                           GraphInfo *info)  /* IN */
+{
+	UberGraphPrivate *priv;
+	GtkAllocation alloc;
+	RenderClosure closure = { 0 };
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(info != NULL);
+
+	priv = graph->priv;
+	closure.graph = graph;
+	closure.priv = priv;
+	closure.info = info;
+	closure.value_range = &priv->yrange;
+	closure.x = priv->content_rect.x + priv->content_rect.width;
+	closure.pixel_range.begin = priv->content_rect.y;
+	closure.pixel_range.end = priv->content_rect.y + priv->content_rect.height;
+	closure.each = (gdouble)priv->content_rect.width / (gdouble)priv->buffer->len;
+	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
+	/*
+	 * Clear the background.
+	 */
+	cairo_save(info->fg_cairo);
+	cairo_set_operator(info->fg_cairo, CAIRO_OPERATOR_CLEAR);
+	cairo_rectangle(info->fg_cairo, 0, 0, alloc.width, alloc.height);
+	cairo_fill(info->fg_cairo);
+	cairo_restore(info->fg_cairo);
+
+	cairo_save(info->fg_cairo);
+	cairo_set_line_cap(info->fg_cairo, CAIRO_LINE_CAP_ROUND);
+	cairo_set_line_join(info->fg_cairo, CAIRO_LINE_JOIN_ROUND);
+	cairo_move_to(info->fg_cairo,
+	              priv->content_rect.x + priv->content_rect.width,
+	              priv->content_rect.y + priv->content_rect.height);
+	uber_buffer_foreach(priv->buffer, uber_graph_render_fg_each, &closure);
+	cairo_set_source_rgb(info->fg_cairo, .3, .4, .5);
+	cairo_stroke(info->fg_cairo);
+	cairo_restore(info->fg_cairo);
+}
+
 /**
  * uber_graph_init_graph_info:
  * @graph: A #UberGraph.
@@ -638,6 +743,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	info = &priv->info[priv->flipped];
 #if 1 /* Synchronous Drawing */
 	uber_graph_render_bg_task(UBER_GRAPH(widget), info);
+	uber_graph_render_fg_task(UBER_GRAPH(widget), info);
 #endif
 	/*
 	 * Blit the background for the exposure area.
@@ -714,16 +820,16 @@ uber_graph_realize (GtkWidget *widget) /* IN */
 	dst = GDK_DRAWABLE(gtk_widget_get_window(widget));
 	priv->bg_gc = gdk_gc_new(dst);
 	priv->fg_gc = gdk_gc_new(dst);
-	gdk_gc_set_function(priv->fg_gc, GDK_OR);
+	gdk_gc_set_function(priv->fg_gc, GDK_XOR);
 }
 
 gboolean
-uber_scale_linear (UberGraph *graph,  /* IN */
-                   UberRange *values, /* IN */
-                   UberRange *pixels, /* IN */
-                   gdouble   *value)  /* IN/OUT */
+uber_scale_linear (UberGraph       *graph,  /* IN */
+                   const UberRange *values, /* IN */
+                   const UberRange *pixels, /* IN */
+                   gdouble         *value)  /* IN/OUT */
 {
-	return FALSE;
+	return TRUE;
 }
 
 /**

@@ -100,6 +100,7 @@ static GtkWidget*
 create_main_window (void)
 {
 	GtkWidget *window;
+	UberRange range = { 0., 200. };
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
@@ -107,6 +108,7 @@ create_main_window (void)
 	gtk_window_set_default_size(GTK_WINDOW(window), 640, 200);
 	gtk_widget_show(window);
 	graph = uber_graph_new();
+	uber_graph_set_yrange(UBER_GRAPH(graph), &range);
 	gtk_container_add(GTK_CONTAINER(window), graph);
 	gtk_widget_show(graph);
 	return window;
@@ -117,7 +119,7 @@ next_data (gpointer data)
 {
 	static gint offset = 0;
 
-	g_debug("Pushing %f onto the graph", data_set[offset][1]);
+	//g_debug("Pushing %f onto the graph", data_set[offset][1]);
 	uber_graph_push(UBER_GRAPH(graph), data_set[offset][1]);
 	offset = (offset + 1) % G_N_ELEMENTS(data_set);
 	return TRUE;
@@ -224,7 +226,7 @@ main (gint   argc,
 	/* run the test gui */
 	window = create_main_window();
 	g_signal_connect(window, "delete-event", gtk_main_quit, NULL);
-	g_timeout_add_seconds(1, next_data, NULL);
+	g_timeout_add(500, next_data, NULL);
 	gtk_main();
 
 	return EXIT_SUCCESS;

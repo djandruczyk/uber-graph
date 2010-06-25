@@ -36,10 +36,10 @@ typedef struct _UberGraphClass   UberGraphClass;
 typedef struct _UberGraphPrivate UberGraphPrivate;
 typedef struct _UberRange        UberRange;
 
-typedef gboolean (*UberScale) (UberGraph *graph,
-                               UberRange *values,
-                               UberRange *pixels,
-                               gdouble   *value);
+typedef gboolean (*UberScale) (UberGraph       *graph,
+                               const UberRange *values,
+                               const UberRange *pixels,
+                               gdouble         *value);
 
 struct _UberRange
 {
@@ -62,16 +62,18 @@ struct _UberGraphClass
 
 GType          uber_graph_get_type        (void) G_GNUC_CONST;
 GtkWidget*     uber_graph_new             (void);
-void           uber_graph_push            (UberGraph     *graph,
-                                           gdouble        value);
-void           uber_graph_set_scale       (UberGraph     *graph,
-                                           UberScale      scale);
-void           uber_graph_set_stride      (UberGraph     *graph,
-                                           gint           stride);
-gboolean       uber_scale_linear          (UberGraph     *graph,
-                                           UberRange     *values,
-                                           UberRange     *pixels,
-                                           gdouble       *value);
+void           uber_graph_push            (UberGraph       *graph,
+                                           gdouble          value);
+void           uber_graph_set_yrange      (UberGraph       *graph,
+                                           const UberRange *range);
+void           uber_graph_set_scale       (UberGraph       *graph,
+                                           UberScale        scale);
+void           uber_graph_set_stride      (UberGraph       *graph,
+                                           gint             stride);
+gboolean       uber_scale_linear          (UberGraph       *graph,
+                                           const UberRange *values,
+                                           const UberRange *pixels,
+                                           gdouble         *value);
 
 G_END_DECLS
 

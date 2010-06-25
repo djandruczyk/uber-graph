@@ -84,19 +84,15 @@ uber_buffer_set_size (UberBuffer *buffer, /* IN */
 	if (size == buffer->len) {
 		return;
 	}
-	g_debug("%s():%d", G_STRFUNC, __LINE__);
 	if (size > buffer->len) {
-		g_debug("%s():%d", G_STRFUNC, __LINE__);
 		buffer->buffer = g_realloc_n(buffer->buffer, size, sizeof(gdouble));
 		memset(&buffer->buffer[buffer->len], 0,
 		       (size - buffer->len) * sizeof(gdouble));
 		if ((count = buffer->len - buffer->pos)) {
-			g_debug("%s():%d", G_STRFUNC, __LINE__);
 			memmove(&buffer->buffer[size - count],
 			        &buffer->buffer[buffer->pos],
 			        count * sizeof(gdouble));
 			if (size - count > buffer->pos) {
-				g_debug("%s():%d", G_STRFUNC, __LINE__);
 				memset(&buffer->buffer[buffer->pos], 0,
 				       (size - count - buffer->pos) * sizeof(gdouble));
 			}
@@ -105,7 +101,6 @@ uber_buffer_set_size (UberBuffer *buffer, /* IN */
 		return;
 	}
 	if (size >= buffer->pos) {
-		g_debug("%s():%d", G_STRFUNC, __LINE__);
 		memmove(&buffer->buffer[buffer->pos],
 		        &buffer->buffer[size],
 		        (buffer->len - size) * sizeof(gdouble));
@@ -113,7 +108,6 @@ uber_buffer_set_size (UberBuffer *buffer, /* IN */
 		buffer->len = size;
 		return;
 	}
-	g_debug("%s():%d", G_STRFUNC, __LINE__);
 	memmove(buffer->buffer, &buffer->buffer[buffer->pos - size],
 	        size * sizeof(gdouble));
 	buffer->buffer = g_realloc_n(buffer->buffer, size, sizeof(gdouble));
@@ -141,12 +135,11 @@ uber_buffer_foreach (UberBuffer        *buffer,    /* IN */
 	g_return_if_fail(buffer != NULL);
 	g_return_if_fail(func != NULL);
 
-		/*
-		 * Iterate through data starting from current position working our
-		 * way towards the beginning of the buffer.
-		 */
+	/*
+	 * Iterate through data starting from current position working our
+	 * way towards the beginning of the buffer.
+	 */
 	for (i = buffer->pos - 1; i >= 0; i--) {
-		g_debug("Loop0, %d", i);
 		if (func(buffer, buffer->buffer[i], user_data)) {
 			return;
 		}
@@ -157,7 +150,6 @@ uber_buffer_foreach (UberBuffer        *buffer,    /* IN */
 	 * beginning.
 	 */
 	for (i = buffer->len - 1; i >= buffer->pos; i--) {
-		g_debug("Loop1, %d", i);
 		if (func(buffer, buffer->buffer[i], user_data)) {
 			return;
 		}
