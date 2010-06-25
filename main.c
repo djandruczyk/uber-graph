@@ -34,6 +34,7 @@
 #include <gtk/gtk.h>
 
 #include "uber-graph.h"
+#include "uber-buffer.h"
 
 static GOptionEntry options[] = {
 	{ NULL }
@@ -93,11 +94,12 @@ static const gdouble data_set[][2] = {
 	{ 1277362753, 166 },
 };
 
+static GtkWidget *graph = NULL;
+
 static GtkWidget*
 create_main_window (void)
 {
 	GtkWidget *window;
-	GtkWidget *graph;
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
@@ -105,11 +107,88 @@ create_main_window (void)
 	gtk_window_set_default_size(GTK_WINDOW(window), 640, 200);
 	gtk_widget_show(window);
 	graph = uber_graph_new();
-	uber_graph_set_data(UBER_GRAPH(graph), (const gdouble **)data_set,
-	                    G_N_ELEMENTS(data_set));
 	gtk_container_add(GTK_CONTAINER(window), graph);
 	gtk_widget_show(graph);
 	return window;
+}
+
+static gboolean
+next_data (gpointer data)
+{
+	static gint offset = 0;
+
+	g_debug("Pushing %f onto the graph", data_set[offset][1]);
+	uber_graph_push(UBER_GRAPH(graph), data_set[offset][1]);
+	offset = (offset + 1) % G_N_ELEMENTS(data_set);
+	return TRUE;
+}
+
+static gboolean
+test_4_foreach (UberBuffer *buffer,
+                gdouble     value,
+                gpointer    user_data)
+{
+	static gint count = 0;
+	gint v = value;
+
+	g_assert_cmpint(v, ==, 4 - count);
+	count++;
+	return (value == 1.);
+}
+
+static gboolean
+test_2_foreach (UberBuffer *buffer,
+                gdouble     value,
+                gpointer    user_data)
+{
+	static gint count = 0;
+	gint v = value;
+
+	g_assert_cmpint(v, ==, 4 - count);
+	count++;
+	return (value == 3.);
+}
+
+static gboolean
+test_2e_foreach (UberBuffer *buffer,
+                 gdouble     value,
+                 gpointer    user_data)
+{
+	static gint count = 0;
+	gint v = value;
+
+	if (count == 0 || count == 1) {
+		g_assert_cmpint(v, ==, 4 - count);
+	} else {
+		g_assert_cmpint(v, ==, 0);
+	}
+	count++;
+	return FALSE;
+}
+
+static void
+run_buffer_tests (void)
+{
+	UberBuffer *buf;
+
+	buf = uber_buffer_new();
+	g_assert(buf);
+
+	uber_buffer_append(buf, 1.);
+	uber_buffer_append(buf, 2.);
+	uber_buffer_append(buf, 3.);
+	uber_buffer_append(buf, 4.);
+	uber_buffer_foreach(buf, test_4_foreach, NULL);
+
+	uber_buffer_set_size(buf, 2);
+	g_assert_cmpint(buf->len, ==, 2);
+	g_assert_cmpint(buf->pos, ==, 0);
+	uber_buffer_foreach(buf, test_2_foreach, NULL);
+
+	uber_buffer_set_size(buf, 32);
+	g_assert_cmpint(buf->len, ==, 32);
+	g_assert_cmpint(buf->pos, ==, 0);
+	uber_buffer_foreach(buf, test_2e_foreach, NULL);
 }
 
 gint
@@ -139,8 +218,13 @@ main (gint   argc,
 		return EXIT_FAILURE;
 	}
 
+	/* run the UberBuffer tests */
+	run_buffer_tests();
+
+	/* run the test gui */
 	window = create_main_window();
 	g_signal_connect(window, "delete-event", gtk_main_quit, NULL);
+	g_timeout_add_seconds(1, next_data, NULL);
 	gtk_main();
 
 	return EXIT_SUCCESS;

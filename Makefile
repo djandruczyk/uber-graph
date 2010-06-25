@@ -7,7 +7,6 @@ WARNINGS =								\
 	-Wdeclaration-after-statement					\
 	-Wredundant-decls						\
 	-Wmissing-noreturn						\
-	-Wshadow							\
 	-Wcast-align							\
 	-Wwrite-strings							\
 	-Winline							\
@@ -22,19 +21,21 @@ WARNINGS =								\
 	-Wmissing-format-attribute					\
 	-Wnested-externs
 
+#	-Wshadow
+
 INCLUDES = -DHAVE_CONFIG_H=0
 
 uber-graph.o: uber-graph.c uber-graph.h
 	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-graph.c $(shell pkg-config --cflags gtk+-2.0)
 
-uber-data-set.o: uber-data-set.c uber-data-set.h
-	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-data-set.c $(shell pkg-config --cflags gtk+-2.0)
+uber-buffer.o: uber-buffer.c uber-buffer.h
+	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-buffer.c $(shell pkg-config --cflags gtk+-2.0)
 
 main.o: main.c
 	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) main.c $(shell pkg-config --cflags gtk+-2.0)
 
-uber-graph: uber-graph.o uber-data-set.o main.o
-	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0) uber-graph.o uber-data-set.o main.o
+uber-graph: uber-graph.o main.o uber-buffer.o
+	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0) uber-graph.o main.o uber-buffer.o
 
 clean:
 	rm -f uber-graph *.o

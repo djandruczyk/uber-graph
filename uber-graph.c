@@ -21,16 +21,11 @@
 #endif
 
 #include "uber-graph.h"
+#include "uber-buffer.h"
 
-#define BASE_CLASS (GTK_WIDGET_CLASS(uber_graph_parent_class))
-
-static void gdk_cairo_rectangle_clean        (cairo_t      *cr,
-                                              GdkRectangle *rect);
-static void gdk_pixmap_scale_simple          (GdkPixmap    *src,
-                                              GdkPixmap    *dst);
-static void pango_layout_get_pixel_rectangle (PangoLayout  *layout,
-                                              GdkRectangle *rect);
-static void uber_graph_calculate_rects       (UberGraph    *graph);
+#define BASE_CLASS   (GTK_WIDGET_CLASS(uber_graph_parent_class))
+#define DEFAULT_SIZE (64)
+#define GET_PRIVATE  G_TYPE_INSTANCE_GET_PRIVATE
 
 /**
  * SECTION:uber-graph
@@ -63,6 +58,9 @@ struct _UberGraphPrivate
 	GraphInfo      info[2];  /* Two GraphInfo's for swapping. */
 	gboolean       flipped;  /* Which GraphInfo is active. */
 	gint           tick_len; /* Length of axis ticks in pixels. */
+	UberScale      scale;    /* Scaling of values to pixels. */
+	UberRange      yrange;
+	UberBuffer    *buffer;
 
 	GdkGC         *bg_gc;    /* Drawing context for blitting background */
 	GdkGC         *fg_gc;    /* Drawing context for blitting foreground */
@@ -83,6 +81,16 @@ const GdkColor colors[] = {
 	{ 0, 0xA0C0, 0xA0C0, 0xA0C0 },
 };
 
+static void gdk_cairo_rectangle_clean        (cairo_t      *cr,
+                                              GdkRectangle *rect);
+static void gdk_pixmap_scale_simple          (GdkPixmap    *src,
+                                              GdkPixmap    *dst);
+static void pango_layout_get_pixel_rectangle (PangoLayout  *layout,
+                                              GdkRectangle *rect);
+static void uber_graph_calculate_rects       (UberGraph    *graph);
+static void uber_graph_init_graph_info       (UberGraph    *graph,
+                                              GraphInfo    *info);
+
 /**
  * uber_graph_new:
  *
@@ -101,24 +109,80 @@ uber_graph_new (void)
 }
 
 /**
- * uber_graph_set_data:
- * @graph: A UberGraph.
+ * uber_graph_set_scale:
+ * @graph: An #UberGraph.
+ * @scale: The scale function.
  *
- * Sets the basic data set for the graph.
+ * Sets the transformation scale from input values to pixels.
  *
  * Returns: None.
  * Side effects: None.
  */
 void
-uber_graph_set_data (UberGraph      *graph, /* IN */
-                     const gdouble **data,  /* IN */
-                     gsize           count) /* IN */
+uber_graph_set_scale (UberGraph *graph, /* IN */
+                      UberScale  scale) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(scale != NULL);
+
+	priv = graph->priv;
+	g_static_rw_lock_writer_lock(&priv->rw_lock);
+	priv->scale = scale;
+	uber_graph_init_graph_info(graph, &priv->info[0]);
+	uber_graph_init_graph_info(graph, &priv->info[1]);
+	uber_graph_calculate_rects(graph);
+	g_static_rw_lock_writer_unlock(&priv->rw_lock);
+}
+
+/**
+ * uber_graph_push:
+ * @graph: A #UberGraph.
+ *
+ * Pushes a new value onto the graph. The value is translated by the scale
+ * before being rendered.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_push (UberGraph *graph, /* IN */
+                 gdouble    value) /* IN */
 {
 	UberGraphPrivate *priv;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
+	uber_buffer_append(priv->buffer, value);
+}
+
+/**
+ * uber_graph_set_stride:
+ * @graph: A UberGraph.
+ *
+ * Sets the number of x-axis points allowed in the circular buffer.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_stride (UberGraph *graph, /* IN */
+                       gint       stride) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(stride > 0);
+
+	priv = graph->priv;
+	g_static_rw_lock_writer_lock(&priv->rw_lock);
+	uber_buffer_set_size(priv->buffer, stride);
+	uber_graph_init_graph_info(graph, &priv->info[0]);
+	uber_graph_init_graph_info(graph, &priv->info[1]);
+	uber_graph_calculate_rects(graph);
+	g_static_rw_lock_writer_unlock(&priv->rw_lock);
 }
 
 /**
@@ -653,6 +717,15 @@ uber_graph_realize (GtkWidget *widget) /* IN */
 	gdk_gc_set_function(priv->fg_gc, GDK_OR);
 }
 
+gboolean
+uber_scale_linear (UberGraph *graph,  /* IN */
+                   UberRange *values, /* IN */
+                   UberRange *pixels, /* IN */
+                   gdouble   *value)  /* IN/OUT */
+{
+	return FALSE;
+}
+
 /**
  * uber_graph_finalize:
  * @object: A #UberGraph.
@@ -747,12 +820,13 @@ uber_graph_init (UberGraph *graph) /* IN */
 	static gsize initialized = FALSE;
 	UberGraphPrivate *priv;
 
-	#define GET_PRIVATE G_TYPE_INSTANCE_GET_PRIVATE
 	graph->priv = GET_PRIVATE(graph, UBER_TYPE_GRAPH, UberGraphPrivate);
 	priv = graph->priv;
 
 	g_static_rw_lock_init(&priv->rw_lock);
 	priv->tick_len = 10;
+	priv->scale = uber_scale_linear;
+	priv->buffer = uber_buffer_new();
 
 	/*
 	 * Start the render thread if needed.
