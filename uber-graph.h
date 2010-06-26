@@ -45,6 +45,7 @@ struct _UberRange
 {
 	gdouble begin;
 	gdouble end;
+	gdouble range;
 };
 
 struct _UberGraph
@@ -64,6 +65,8 @@ GType          uber_graph_get_type        (void) G_GNUC_CONST;
 GtkWidget*     uber_graph_new             (void);
 void           uber_graph_push            (UberGraph       *graph,
                                            gdouble          value);
+void           uber_graph_set_fps         (UberGraph       *graph,
+                                           gint             fps);
 void           uber_graph_set_yrange      (UberGraph       *graph,
                                            const UberRange *range);
 void           uber_graph_set_scale       (UberGraph       *graph,

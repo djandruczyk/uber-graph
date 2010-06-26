@@ -20,6 +20,7 @@
 #include "config.h"
 #endif
 
+#include <math.h>
 #include <string.h>
 
 #include "uber-buffer.h"
@@ -41,6 +42,20 @@ uber_buffer_dispose (UberBuffer *buffer) /* IN */
 	g_free(buffer->buffer);
 }
 
+static inline void
+uber_buffer_clear_range (UberBuffer *buffer, /* IN */
+                         gint        begin,  /* IN */
+                         gint        end)    /* IN */
+{
+	gint i;
+
+	g_return_if_fail(buffer != NULL);
+
+	for (i = begin; i < end; i++) {
+		buffer->buffer[i] = -INFINITY;
+	}
+}
+
 /**
  * uber_buffer_new:
  *
@@ -57,9 +72,10 @@ uber_buffer_new (void)
 
 	buffer = g_slice_new0(UberBuffer);
 	buffer->ref_count = 1;
-	buffer->buffer = g_new0(gdouble, DEFAULT_SIZE);
+	buffer->buffer = g_new(gdouble, DEFAULT_SIZE);
 	buffer->len = DEFAULT_SIZE;
 	buffer->pos = 0;
+	uber_buffer_clear_range(buffer, 0, DEFAULT_SIZE);
 	return buffer;
 }
 
@@ -86,15 +102,13 @@ uber_buffer_set_size (UberBuffer *buffer, /* IN */
 	}
 	if (size > buffer->len) {
 		buffer->buffer = g_realloc_n(buffer->buffer, size, sizeof(gdouble));
-		memset(&buffer->buffer[buffer->len], 0,
-		       (size - buffer->len) * sizeof(gdouble));
+		uber_buffer_clear_range(buffer, buffer->len, size);
 		if ((count = buffer->len - buffer->pos)) {
 			memmove(&buffer->buffer[size - count],
 			        &buffer->buffer[buffer->pos],
 			        count * sizeof(gdouble));
 			if (size - count > buffer->pos) {
-				memset(&buffer->buffer[buffer->pos], 0,
-				       (size - count - buffer->pos) * sizeof(gdouble));
+				uber_buffer_clear_range(buffer, 0, size - count - buffer->pos);
 			}
 		}
 		buffer->len = size;

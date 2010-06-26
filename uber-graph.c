@@ -20,6 +20,8 @@
 #include "config.h"
 #endif
 
+#include <math.h>
+
 #include "uber-graph.h"
 #include "uber-buffer.h"
 
@@ -58,9 +60,14 @@ struct _UberGraphPrivate
 	GraphInfo      info[2];  /* Two GraphInfo's for swapping. */
 	gboolean       flipped;  /* Which GraphInfo is active. */
 	gint           tick_len; /* Length of axis ticks in pixels. */
+	gint           fps;      /* Frames per second. */
+	gint           fps_off;  /* Offset in frame-slide */
+	gint           fps_to;   /* Frames per second timeout (in MS) */
+	guint          fps_handler; /* GSource identifier for invalidating rect. */
 	UberScale      scale;    /* Scaling of values to pixels. */
 	UberRange      yrange;
 	UberBuffer    *buffer;
+	gboolean       bg_dirty; /* Do we need to update the background. */
 
 	GdkGC         *bg_gc;    /* Drawing context for blitting background */
 	GdkGC         *fg_gc;    /* Drawing context for blitting foreground */
@@ -151,12 +158,15 @@ uber_graph_push (UberGraph *graph, /* IN */
                  gdouble    value) /* IN */
 {
 	UberGraphPrivate *priv;
+	GdkWindow *window;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
+	priv->fps_off = 0;
 	uber_buffer_append(priv->buffer, value);
-	gtk_widget_queue_draw(GTK_WIDGET(graph));
+	window = gtk_widget_get_window(GTK_WIDGET(graph));
+	gdk_window_invalidate_rect(window, &priv->content_rect, FALSE);
 }
 
 /**
@@ -207,8 +217,55 @@ uber_graph_set_yrange (UberGraph       *graph,  /* IN */
 	priv = graph->priv;
 	g_static_rw_lock_writer_lock(&priv->rw_lock);
 	priv->yrange = *yrange;
+	if (priv->yrange.range == 0.) {
+		priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+	}
 	g_static_rw_lock_writer_unlock(&priv->rw_lock);
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
+}
+
+static gboolean
+uber_graph_fps_timeout (gpointer data) /* IN */
+{
+	UberGraph *graph = data;
+	GdkWindow *window;
+
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
+
+	window = gtk_widget_get_window(GTK_WIDGET(graph));
+	gdk_window_invalidate_rect(window, &graph->priv->content_rect, FALSE);
+	return TRUE;
+}
+
+/**
+ * uber_graph_set_fps:
+ * @graph: A UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_fps (UberGraph *graph, /* IN */
+                    gint       fps)   /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(fps > 0 && fps <= 60);
+
+	priv = graph->priv;
+	g_static_rw_lock_writer_lock(&priv->rw_lock);
+	priv->fps = fps;
+	priv->fps_to = 1000 / fps;
+	if (priv->fps_handler) {
+		g_source_remove(priv->fps_handler);
+	}
+	priv->fps_handler = g_timeout_add(priv->fps_to,
+	                                  uber_graph_fps_timeout,
+	                                  graph);
+	g_static_rw_lock_writer_unlock(&priv->rw_lock);
 }
 
 /**
@@ -459,12 +516,16 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 typedef struct
 {
 	UberGraph *graph;
-	UberGraphPrivate *priv;
 	GraphInfo *info;
-	gdouble    each;
-	gdouble    x;
+	UberScale  scale;
 	UberRange  pixel_range;
-	UberRange *value_range;
+	UberRange  value_range;
+	gdouble    last_y;
+	gdouble    last_x;
+	gdouble    x_epoch;
+	gdouble    each;
+	gint       offset;
+	gboolean   first;
 } RenderClosure;
 
 static gboolean
@@ -474,23 +535,63 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 {
 	RenderClosure *closure = user_data;
 	gdouble y;
+	gdouble x;
 
-	g_assert(closure->priv);
-	g_assert(closure->priv->scale != NULL);
-	g_assert(closure->value_range);
+	g_assert(closure->graph->priv->scale != NULL);
+
+	x = closure->x_epoch - (closure->offset++ * closure->each);
+
+	if (value == -INFINITY) {
+		goto skip;
+	}
 
 	y = value;
-	if (!closure->priv->scale(closure->graph,
-	                          closure->value_range,
-	                          &closure->pixel_range,
-	                          &y)) {
-		return FALSE;
+
+	if (!closure->scale(closure->graph,
+	                    &closure->value_range,
+	                    &closure->pixel_range,
+	                    &y)) {
+		goto skip;
 	}
-	//g_debug("%f,%f (value=%f, each=%f)", closure->x, y, value, closure->each);
-	cairo_line_to(closure->info->fg_cairo, closure->x, y);
-	//cairo_curve_to(closure->info->fg_cairo,
-	closure->x -= closure->each;
+
+	y = closure->pixel_range.end - y;
+
+	if (closure->first) {
+		closure->first = FALSE;
+		cairo_move_to(closure->info->fg_cairo, x, y);
+		goto finish;
+	}
+
+	cairo_curve_to(closure->info->fg_cairo,
+	               closure->last_x - (closure->each / 2.),
+	               closure->last_y,
+	               closure->last_x - (closure->each / 2.),
+	               y,
+	               x, y);
+
+	goto finish;
+
+  skip:
+	cairo_move_to(closure->info->fg_cairo, x,
+	              closure->pixel_range.end);
+  finish:
+  	closure->last_x = x;
+  	closure->last_y = y;
 	return FALSE;
+}
+
+static inline gboolean
+gdk_color_parse_xor (GdkColor    *color, /* IN */
+                     const gchar *spec,  /* IN */
+                     gint         xor)   /* IN */
+{
+	gboolean ret;
+
+	ret = gdk_color_parse(spec, color);
+	color->red ^= xor;
+	color->green ^= xor;
+	color->blue ^= xor;
+	return ret;
 }
 
 static void
@@ -500,19 +601,28 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	UberGraphPrivate *priv;
 	GtkAllocation alloc;
 	RenderClosure closure = { 0 };
+	GdkColor fg_color;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(info != NULL);
 
 	priv = graph->priv;
+	/*
+	 * Prepare graph closure.
+	 */
 	closure.graph = graph;
-	closure.priv = priv;
 	closure.info = info;
-	closure.value_range = &priv->yrange;
-	closure.x = priv->content_rect.x + priv->content_rect.width;
+	closure.scale = priv->scale;
 	closure.pixel_range.begin = priv->content_rect.y;
 	closure.pixel_range.end = priv->content_rect.y + priv->content_rect.height;
-	closure.each = (gdouble)priv->content_rect.width / (gdouble)priv->buffer->len;
+	closure.pixel_range.range = priv->content_rect.height;
+	closure.value_range = priv->yrange;
+	closure.x_epoch = priv->content_rect.x + priv->content_rect.width;
+	closure.last_x = -INFINITY;
+	closure.last_y = -INFINITY;
+	closure.first = TRUE;
+	closure.each = ((gdouble)priv->content_rect.width - 2) / ((gdouble)priv->buffer->len - 1.);
+	closure.offset = 0;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	/*
 	 * Clear the background.
@@ -522,7 +632,9 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	cairo_rectangle(info->fg_cairo, 0, 0, alloc.width, alloc.height);
 	cairo_fill(info->fg_cairo);
 	cairo_restore(info->fg_cairo);
-
+	/*
+	 * Render data point contents.
+	 */
 	cairo_save(info->fg_cairo);
 	cairo_set_line_cap(info->fg_cairo, CAIRO_LINE_CAP_ROUND);
 	cairo_set_line_join(info->fg_cairo, CAIRO_LINE_JOIN_ROUND);
@@ -530,10 +642,66 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	              priv->content_rect.x + priv->content_rect.width,
 	              priv->content_rect.y + priv->content_rect.height);
 	uber_buffer_foreach(priv->buffer, uber_graph_render_fg_each, &closure);
-	cairo_set_source_rgb(info->fg_cairo, .3, .4, .5);
+	gdk_color_parse_xor(&fg_color, "#3465a4", 0xFFFF);
+	gdk_cairo_set_source_color(info->fg_cairo, &fg_color);
 	cairo_stroke(info->fg_cairo);
 	cairo_restore(info->fg_cairo);
+	priv->fps_off++;
 }
+
+#if 0
+static void
+uber_graph_render_fg_at_offset_task (UberGraph *graph,  /* IN */
+                                     GraphInfo *info)   /* IN */
+{
+	UberGraphPrivate *priv;
+	GtkAllocation alloc;
+	GdkWindow *window;
+	//cairo_t *cr;
+	gfloat each;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(info != NULL);
+
+	priv = graph->priv;
+	each = (gfloat)priv->content_rect.width / (gfloat)priv->buffer->len / (gfloat)priv->fps;
+	window = gtk_widget_get_window(GTK_WIDGET(graph));
+	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
+#if 0
+	cr = gdk_cairo_create(GDK_DRAWABLE(window));
+	gdk_cairo_set_source_pixmap(cr, info->fg_pixmap,
+	                priv->content_rect.x + (each * (gfloat)priv->fps_off),
+	                priv->content_rect.y);
+	//cairo_set_operator(cr, CAIRO_OPERATOR_XOR);
+#endif
+	g_debug("Render offset");
+	{
+		GdkColor black;
+		gdk_color_parse_xor(&black, "#000", 0xFFFF);
+		gdk_gc_set_foreground(priv->fg_gc, &black);
+	}
+	gdk_draw_line(GDK_DRAWABLE(window),
+	              priv->fg_gc,
+	              100, 20, 200, 40);
+#if 0
+	gdk_draw_drawable(GDK_DRAWABLE(window),
+	                  priv->fg_gc,
+	                  info->fg_pixmap,
+	                  0, 0, 0, 0,
+	                  alloc.width, alloc.height);
+#endif
+#if 0
+	cairo_rectangle(cr,
+	                priv->content_rect.x,
+	                priv->content_rect.y,
+	                priv->content_rect.width,
+	                priv->content_rect.height);
+	cairo_paint(cr);
+	cairo_destroy(cr);
+#endif
+	priv->fps_off++;
+}
+#endif
 
 /**
  * uber_graph_init_graph_info:
@@ -684,6 +852,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	 * Adjust the sizing of the blit pixmaps.
 	 */
 	g_static_rw_lock_writer_lock(&priv->rw_lock);
+	priv->bg_dirty = TRUE;
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[0]);
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
 	uber_graph_calculate_rects(UBER_GRAPH(widget));
@@ -739,12 +908,14 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 
 	priv = UBER_GRAPH(widget)->priv;
 	dst = GDK_DRAWABLE(gtk_widget_get_window(widget));
-	g_static_rw_lock_reader_lock(&priv->rw_lock);
 	info = &priv->info[priv->flipped];
-#if 1 /* Synchronous Drawing */
-	uber_graph_render_bg_task(UBER_GRAPH(widget), info);
-	uber_graph_render_fg_task(UBER_GRAPH(widget), info);
-#endif
+	/*
+	 * Render the background to the pixmap again if needed.
+	 */
+	if (priv->bg_dirty) {
+		uber_graph_render_bg_task(UBER_GRAPH(widget), info);
+		priv->bg_dirty = FALSE;
+	}
 	/*
 	 * Blit the background for the exposure area.
 	 */
@@ -755,15 +926,33 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		                  expose->area.width, expose->area.height);
 	}
 	/*
-	 * Blit the foreground for the exposure area.
+	 * Blit the foreground if needed.
 	 */
 	if (G_LIKELY(info->fg_pixmap)) {
-		gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
-		                  expose->area.x, expose->area.y,
-		                  expose->area.x, expose->area.y,
-		                  expose->area.width, expose->area.height);
+		if (!priv->fps_off) {
+			uber_graph_render_fg_task(UBER_GRAPH(widget), info);
+			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
+							  expose->area.x, expose->area.y,
+							  expose->area.x, expose->area.y,
+							  expose->area.width, expose->area.height);
+		} else {
+			gfloat each;
+			GtkAllocation alloc;
+
+			//uber_graph_render_fg_at_offset_task(UBER_GRAPH(widget), info);
+
+			g_debug("hi there");
+			gtk_widget_get_allocation(widget, &alloc);
+			each = (gfloat)priv->content_rect.width / (gfloat)priv->buffer->len / (gfloat)priv->fps;
+			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
+			                  priv->content_rect.x,
+			                  priv->content_rect.y,
+			                  priv->content_rect.x - (each * priv->fps_off),
+			                  priv->content_rect.y,
+			                  priv->content_rect.width,
+			                  priv->content_rect.height);
+		}
 	}
-	g_static_rw_lock_reader_unlock(&priv->rw_lock);
 
 	return FALSE;
 }
@@ -829,6 +1018,12 @@ uber_scale_linear (UberGraph       *graph,  /* IN */
                    const UberRange *pixels, /* IN */
                    gdouble         *value)  /* IN/OUT */
 {
+	#define A (values->range)
+	#define B (pixels->range)
+	#define C (*value)
+	if (*value != 0.) {
+		*value = C * B / A;
+	}
 	return TRUE;
 }
 
@@ -855,6 +1050,9 @@ uber_graph_finalize (GObject *object) /* IN */
 	}
 	if (priv->bg_gc) {
 		g_object_unref(priv->bg_gc);
+	}
+	if (priv->fps_handler) {
+		g_source_remove(priv->fps_handler);
 	}
 	G_OBJECT_CLASS(uber_graph_parent_class)->finalize(object);
 }
@@ -933,6 +1131,7 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->tick_len = 10;
 	priv->scale = uber_scale_linear;
 	priv->buffer = uber_buffer_new();
+	uber_graph_set_fps(graph, 10);
 
 	/*
 	 * Start the render thread if needed.

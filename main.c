@@ -28,6 +28,7 @@
 #define LOCALE_DIR "/usr/share/locale"
 #endif
 
+#include <math.h>
 #include <stdlib.h>
 #include <glib.h>
 #include <glib/gi18n.h>
@@ -100,7 +101,7 @@ static GtkWidget*
 create_main_window (void)
 {
 	GtkWidget *window;
-	UberRange range = { 0., 200. };
+	UberRange range = { 0., 250. };
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
@@ -160,9 +161,9 @@ test_2e_foreach (UberBuffer *buffer,
 	gint v = value;
 
 	if (count == 0 || count == 1) {
-		g_assert_cmpint(v, ==, 4 - count);
+		g_assert_cmpint(v, ==, 4. - count);
 	} else {
-		g_assert_cmpint(v, ==, 0);
+		g_assert(value == -INFINITY);
 	}
 	count++;
 	return FALSE;
@@ -226,7 +227,7 @@ main (gint   argc,
 	/* run the test gui */
 	window = create_main_window();
 	g_signal_connect(window, "delete-event", gtk_main_quit, NULL);
-	g_timeout_add(500, next_data, NULL);
+	g_timeout_add_seconds(1, next_data, NULL);
 	gtk_main();
 
 	return EXIT_SUCCESS;
