@@ -56,13 +56,13 @@ typedef struct
 
 struct _UberGraphPrivate
 {
-	GStaticRWLock  rw_lock;
 	GraphInfo      info[2];  /* Two GraphInfo's for swapping. */
 	gboolean       flipped;  /* Which GraphInfo is active. */
 	gint           tick_len; /* Length of axis ticks in pixels. */
 	gint           fps;      /* Frames per second. */
 	gint           fps_off;  /* Offset in frame-slide */
 	gint           fps_to;   /* Frames per second timeout (in MS) */
+	gfloat         fps_each; /* How much each frame skews. */
 	guint          fps_handler; /* GSource identifier for invalidating rect. */
 	UberScale      scale;    /* Scaling of values to pixels. */
 	UberRange      yrange;
@@ -135,12 +135,10 @@ uber_graph_set_scale (UberGraph *graph, /* IN */
 	g_return_if_fail(scale != NULL);
 
 	priv = graph->priv;
-	g_static_rw_lock_writer_lock(&priv->rw_lock);
 	priv->scale = scale;
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
-	g_static_rw_lock_writer_unlock(&priv->rw_lock);
 }
 
 /**
@@ -188,12 +186,10 @@ uber_graph_set_stride (UberGraph *graph, /* IN */
 	g_return_if_fail(stride > 0);
 
 	priv = graph->priv;
-	g_static_rw_lock_writer_lock(&priv->rw_lock);
 	uber_buffer_set_size(priv->buffer, stride);
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
-	g_static_rw_lock_writer_unlock(&priv->rw_lock);
 }
 
 /**
@@ -215,12 +211,10 @@ uber_graph_set_yrange (UberGraph       *graph,  /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
-	g_static_rw_lock_writer_lock(&priv->rw_lock);
 	priv->yrange = *yrange;
 	if (priv->yrange.range == 0.) {
 		priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 	}
-	g_static_rw_lock_writer_unlock(&priv->rw_lock);
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
 
@@ -256,36 +250,15 @@ uber_graph_set_fps (UberGraph *graph, /* IN */
 	g_return_if_fail(fps > 0 && fps <= 60);
 
 	priv = graph->priv;
-	g_static_rw_lock_writer_lock(&priv->rw_lock);
 	priv->fps = fps;
 	priv->fps_to = 1000 / fps;
+	priv->fps_each = (gfloat)priv->content_rect.width / (gfloat)priv->buffer->len / (gfloat)priv->fps;
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
 	}
 	priv->fps_handler = g_timeout_add(priv->fps_to,
 	                                  uber_graph_fps_timeout,
 	                                  graph);
-	g_static_rw_lock_writer_unlock(&priv->rw_lock);
-}
-
-/**
- * uber_graph_render_thread:
- * @graph: A #UberGraph.
- *
- * Render thread that updates portions of the various pixmaps as needed
- * so that they may be blitted to the screen in the main thread.
- *
- * Returns: None.
- * Side effects: Everything.
- */
-static gpointer
-uber_graph_render_thread (gpointer user_data) /* IN */
-{
-	g_message("ENTRY: %s():%d", G_STRFUNC, __LINE__);
-	g_usleep(G_USEC_PER_SEC * 1000);
-	g_message(" EXIT: %s():%d", G_STRFUNC, __LINE__);
-
-	return NULL;
 }
 
 /**
@@ -851,12 +824,11 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	/*
 	 * Adjust the sizing of the blit pixmaps.
 	 */
-	g_static_rw_lock_writer_lock(&priv->rw_lock);
 	priv->bg_dirty = TRUE;
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[0]);
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
 	uber_graph_calculate_rects(UBER_GRAPH(widget));
-	g_static_rw_lock_writer_unlock(&priv->rw_lock);
+	uber_graph_set_fps(UBER_GRAPH(widget), priv->fps); /* Re-calculate */
 }
 
 /**
@@ -907,12 +879,12 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	GraphInfo *info;
 
 	priv = UBER_GRAPH(widget)->priv;
-	dst = GDK_DRAWABLE(gtk_widget_get_window(widget));
+	dst = expose->window;
 	info = &priv->info[priv->flipped];
 	/*
 	 * Render the background to the pixmap again if needed.
 	 */
-	if (priv->bg_dirty) {
+	if (G_UNLIKELY(priv->bg_dirty)) {
 		uber_graph_render_bg_task(UBER_GRAPH(widget), info);
 		priv->bg_dirty = FALSE;
 	}
@@ -929,28 +901,24 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	 * Blit the foreground if needed.
 	 */
 	if (G_LIKELY(info->fg_pixmap)) {
-		if (!priv->fps_off) {
+		if (G_UNLIKELY(!priv->fps_off)) {
 			uber_graph_render_fg_task(UBER_GRAPH(widget), info);
 			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
 							  expose->area.x, expose->area.y,
 							  expose->area.x, expose->area.y,
 							  expose->area.width, expose->area.height);
 		} else {
-			gfloat each;
 			GtkAllocation alloc;
 
-			//uber_graph_render_fg_at_offset_task(UBER_GRAPH(widget), info);
-
-			g_debug("hi there");
 			gtk_widget_get_allocation(widget, &alloc);
-			each = (gfloat)priv->content_rect.width / (gfloat)priv->buffer->len / (gfloat)priv->fps;
 			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
 			                  priv->content_rect.x,
 			                  priv->content_rect.y,
-			                  priv->content_rect.x - (each * priv->fps_off),
+			                  priv->content_rect.x - (priv->fps_each * priv->fps_off),
 			                  priv->content_rect.y,
 			                  priv->content_rect.width,
 			                  priv->content_rect.height);
+			priv->fps_off++;
 		}
 	}
 
@@ -980,10 +948,8 @@ uber_graph_style_set (GtkWidget *widget,     /* IN */
 	if (!gtk_widget_get_window(widget)) {
 		return;
 	}
-	g_static_rw_lock_writer_lock(&priv->rw_lock);
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[0]);
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
-	g_static_rw_lock_writer_unlock(&priv->rw_lock);
 }
 
 /**
@@ -1121,23 +1087,13 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 static void
 uber_graph_init (UberGraph *graph) /* IN */
 {
-	static gsize initialized = FALSE;
 	UberGraphPrivate *priv;
 
 	graph->priv = GET_PRIVATE(graph, UBER_TYPE_GRAPH, UberGraphPrivate);
 	priv = graph->priv;
 
-	g_static_rw_lock_init(&priv->rw_lock);
 	priv->tick_len = 10;
 	priv->scale = uber_scale_linear;
 	priv->buffer = uber_buffer_new();
-	uber_graph_set_fps(graph, 10);
-
-	/*
-	 * Start the render thread if needed.
-	 */
-	if (g_once_init_enter(&initialized)) {
-		g_thread_create(uber_graph_render_thread, NULL, FALSE, NULL);
-		g_once_init_leave(&initialized, TRUE);
-	}
+	uber_graph_set_fps(graph, 20);
 }

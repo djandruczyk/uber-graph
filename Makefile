@@ -23,7 +23,12 @@ WARNINGS =								\
 
 #	-Wshadow
 
-INCLUDES = -DHAVE_CONFIG_H=0
+INCLUDES =								\
+	-DHAVE_CONFIG_H=0						\
+	-DG_DISABLE_ASSERT						\
+	-DG_DISABLE_CHECKS						\
+	-DG_DISABLE_CAST_CHECKS						\
+	$(NULL)
 
 uber-graph.o: uber-graph.c uber-graph.h
 	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-graph.c $(shell pkg-config --cflags gtk+-2.0)
