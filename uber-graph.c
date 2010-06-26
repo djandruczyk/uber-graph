@@ -428,6 +428,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	priv->content_rect.y = 0;
 	priv->content_rect.width = alloc.width - priv->content_rect.x;
 	priv->content_rect.height = priv->x_tick_rect.y - priv->content_rect.y;
+	gdk_gc_set_clip_rectangle(priv->fg_gc, &priv->content_rect);
 	/*
 	 * Cleanup after allocations.
 	 */
