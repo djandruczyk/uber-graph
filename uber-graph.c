@@ -66,7 +66,8 @@ struct _UberGraphPrivate
 	guint          fps_handler; /* GSource identifier for invalidating rect. */
 	UberScale      scale;    /* Scaling of values to pixels. */
 	UberRange      yrange;
-	UberBuffer    *buffer;
+	UberBuffer    *buffer;   /* Circular buffer of raw values. */
+	UberBuffer    *scaled;   /* Circular buffer of scaled values. */
 	gboolean       bg_dirty; /* Do we need to update the background. */
 
 	GdkGC         *bg_gc;    /* Drawing context for blitting background */
@@ -157,12 +158,24 @@ uber_graph_push (UberGraph *graph, /* IN */
 {
 	UberGraphPrivate *priv;
 	GdkWindow *window;
+	UberRange pixel_range;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
 	priv->fps_off = 0;
 	uber_buffer_append(priv->buffer, value);
+	/*
+	 * Scale value and cache.
+	 */
+	pixel_range.begin = priv->content_rect.y;
+	pixel_range.end = pixel_range.begin + priv->content_rect.height;
+	pixel_range.range = priv->content_rect.height;
+	priv->scale(graph, &priv->yrange, &pixel_range, &value);
+	uber_buffer_append(priv->scaled, value);
+	/*
+	 * Invalidate regions and render.
+	 */
 	window = gtk_widget_get_window(GTK_WIDGET(graph));
 	gdk_window_invalidate_rect(window, &priv->content_rect, FALSE);
 }
@@ -187,6 +200,7 @@ uber_graph_set_stride (UberGraph *graph, /* IN */
 
 	priv = graph->priv;
 	uber_buffer_set_size(priv->buffer, stride);
+	uber_buffer_set_size(priv->scaled, stride);
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
@@ -501,7 +515,7 @@ typedef struct
 	gboolean   first;
 } RenderClosure;
 
-static gboolean
+static inline gboolean
 uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
                            gdouble     value,     /* IN */
                            gpointer    user_data) /* IN */
@@ -513,37 +527,22 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 	g_assert(closure->graph->priv->scale != NULL);
 
 	x = closure->x_epoch - (closure->offset++ * closure->each);
-
 	if (value == -INFINITY) {
 		goto skip;
 	}
-
-	y = value;
-
-	if (!closure->scale(closure->graph,
-	                    &closure->value_range,
-	                    &closure->pixel_range,
-	                    &y)) {
-		goto skip;
-	}
-
-	y = closure->pixel_range.end - y;
-
-	if (closure->first) {
+	y = closure->pixel_range.end - value;
+	if (G_UNLIKELY(closure->first)) {
 		closure->first = FALSE;
 		cairo_move_to(closure->info->fg_cairo, x, y);
 		goto finish;
 	}
-
 	cairo_curve_to(closure->info->fg_cairo,
 	               closure->last_x - (closure->each / 2.),
 	               closure->last_y,
 	               closure->last_x - (closure->each / 2.),
 	               y,
 	               x, y);
-
 	goto finish;
-
   skip:
 	cairo_move_to(closure->info->fg_cairo, x,
 	              closure->pixel_range.end);
@@ -614,7 +613,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	cairo_move_to(info->fg_cairo,
 	              priv->content_rect.x + priv->content_rect.width,
 	              priv->content_rect.y + priv->content_rect.height);
-	uber_buffer_foreach(priv->buffer, uber_graph_render_fg_each, &closure);
+	uber_buffer_foreach(priv->scaled, uber_graph_render_fg_each, &closure);
 	gdk_color_parse_xor(&fg_color, "#3465a4", 0xFFFF);
 	gdk_cairo_set_source_color(info->fg_cairo, &fg_color);
 	cairo_stroke(info->fg_cairo);
@@ -816,6 +815,9 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
                           GtkAllocation *alloc)  /* IN */
 {
 	UberGraphPrivate *priv;
+	UberRange pixel_range;
+	gdouble value;
+	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
@@ -829,6 +831,22 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
 	uber_graph_calculate_rects(UBER_GRAPH(widget));
 	uber_graph_set_fps(UBER_GRAPH(widget), priv->fps); /* Re-calculate */
+	/*
+	 * Rescale values relative to new area.
+	 */
+	pixel_range.begin = priv->content_rect.y;
+	pixel_range.end = priv->content_rect.y + priv->content_rect.height;
+	pixel_range.range = priv->content_rect.height;
+	for (i = 0; i < priv->scaled->len; i++) {
+		if (priv->scaled->buffer[i] != -INFINITY) {
+			value = priv->buffer->buffer[i];
+			priv->scale(UBER_GRAPH(widget),
+			            &priv->yrange,
+			            &pixel_range,
+			            &value);
+			priv->scaled->buffer[i] = value;
+		}
+	}
 }
 
 /**
@@ -1095,5 +1113,6 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->tick_len = 10;
 	priv->scale = uber_scale_linear;
 	priv->buffer = uber_buffer_new();
+	priv->scaled = uber_buffer_new();
 	uber_graph_set_fps(graph, 20);
 }

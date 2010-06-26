@@ -47,11 +47,37 @@ UberBuffer* uber_buffer_ref      (UberBuffer        *buffer);
 void        uber_buffer_unref    (UberBuffer        *buffer);
 void        uber_buffer_set_size (UberBuffer        *buffer,
                                   gint               size);
-void        uber_buffer_foreach  (UberBuffer        *buffer,
-                                  UberBufferForeach  func,
-                                  gpointer           user_data);
 void        uber_buffer_append   (UberBuffer        *buffer,
                                   gdouble            value);
+
+/**
+ * uber_buffer_foreach:
+ * @buffer: A #UberBuffer.
+ *
+ * Iterates through each item in the circular buffer from the current
+ * position to the oldest value.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+#define uber_buffer_foreach(b, f, d)                                        \
+    G_STMT_START {                                                          \
+        gint _i;                                                            \
+        gboolean _done = FALSE;                                             \
+        for (_i = b->pos - 1; _i >= 0; _i--) {                              \
+            if (f(b, b->buffer[_i], d)) {                                   \
+                _done = TRUE;                                               \
+                break;                                                      \
+            }                                                               \
+        }                                                                   \
+        if (!_done) {                                                       \
+            for (_i = b->len - 1; _i >= b->pos; _i--) {                     \
+                if (f(b, b->buffer[_i], d)) {                               \
+                    break;                                                  \
+                }                                                           \
+            }                                                               \
+        }                                                                   \
+    } G_STMT_END
 
 G_END_DECLS
 

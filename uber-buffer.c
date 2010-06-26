@@ -130,47 +130,6 @@ uber_buffer_set_size (UberBuffer *buffer, /* IN */
 }
 
 /**
- * uber_buffer_foreach:
- * @buffer: A #UberBuffer.
- *
- * Iterates through each item in the circular buffer from the current
- * position to the oldest value.
- *
- * Returns: None.
- * Side effects: None.
- */
-void
-uber_buffer_foreach (UberBuffer        *buffer,    /* IN */
-                     UberBufferForeach  func,      /* IN */
-                     gpointer           user_data) /* IN */
-{
-	gint i;
-
-	g_return_if_fail(buffer != NULL);
-	g_return_if_fail(func != NULL);
-
-	/*
-	 * Iterate through data starting from current position working our
-	 * way towards the beginning of the buffer.
-	 */
-	for (i = buffer->pos - 1; i >= 0; i--) {
-		if (func(buffer, buffer->buffer[i], user_data)) {
-			return;
-		}
-	}
-
-	/*
-	 * Iterate from the end of the buffer working our way back towards the
-	 * beginning.
-	 */
-	for (i = buffer->len - 1; i >= buffer->pos; i--) {
-		if (func(buffer, buffer->buffer[i], user_data)) {
-			return;
-		}
-	}
-}
-
-/**
  * uber_buffer_append:
  * @buffer: A #UberBuffer.
  * @value: A #gdouble.
