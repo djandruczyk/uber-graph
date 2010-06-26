@@ -27,6 +27,10 @@
 
 #define DEFAULT_SIZE (64)
 
+#ifndef g_realloc_n
+#define g_realloc_n(a,b,c) g_realloc(a, b * c)
+#endif
+
 /**
  * uber_buffer_dispose:
  * @buffer: A #UberBuffer.

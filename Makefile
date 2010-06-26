@@ -40,7 +40,7 @@ main.o: main.c
 	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) main.c $(shell pkg-config --cflags gtk+-2.0)
 
 uber-graph: uber-graph.o main.o uber-buffer.o
-	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0) uber-graph.o main.o uber-buffer.o
+	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0 gthread-2.0) uber-graph.o main.o uber-buffer.o
 
 clean:
 	rm -f uber-graph *.o
