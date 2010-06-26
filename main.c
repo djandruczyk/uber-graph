@@ -30,9 +30,12 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
 #include <glib.h>
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
+#include <unistd.h>
 
 #include "uber-graph.h"
 #include "uber-buffer.h"
@@ -41,67 +44,13 @@ static GOptionEntry options[] = {
 	{ NULL }
 };
 
-static const gdouble data_set[][2] = {
-	{ 1277362703, 161 },
-	{ 1277362704, 89 },
-	{ 1277362705, 68 },
-	{ 1277362706, 161 },
-	{ 1277362707, 48 },
-	{ 1277362708, 176 },
-	{ 1277362709, 142 },
-	{ 1277362710, 129 },
-	{ 1277362711, 163 },
-	{ 1277362712, 87 },
-	{ 1277362713, 188 },
-	{ 1277362714, 194 },
-	{ 1277362715, 125 },
-	{ 1277362716, 187 },
-	{ 1277362717, 68 },
-	{ 1277362718, 103 },
-	{ 1277362719, 18 },
-	{ 1277362720, 163 },
-	{ 1277362721, 189 },
-	{ 1277362722, 113 },
-	{ 1277362723, 56 },
-	{ 1277362724, 165 },
-	{ 1277362725, 154 },
-	{ 1277362726, 78 },
-	{ 1277362727, 83 },
-	{ 1277362728, 71 },
-	{ 1277362729, 195 },
-	{ 1277362730, 118 },
-	{ 1277362731, 154 },
-	{ 1277362732, 101 },
-	{ 1277362733, 187 },
-	{ 1277362734, 170 },
-	{ 1277362735, 85 },
-	{ 1277362736, 122 },
-	{ 1277362737, 20 },
-	{ 1277362738, 61 },
-	{ 1277362739, 144 },
-	{ 1277362740, 51 },
-	{ 1277362741, 22 },
-	{ 1277362742, 109 },
-	{ 1277362743, 139 },
-	{ 1277362744, 77 },
-	{ 1277362745, 182 },
-	{ 1277362746, 105 },
-	{ 1277362747, 88 },
-	{ 1277362748, 191 },
-	{ 1277362749, 73 },
-	{ 1277362750, 5 },
-	{ 1277362751, 122 },
-	{ 1277362752, 94 },
-	{ 1277362753, 166 },
-};
-
 static GtkWidget *graph = NULL;
 
 static GtkWidget*
 create_main_window (void)
 {
 	GtkWidget *window;
-	UberRange range = { 0., 250. };
+	UberRange range = { 0., 4. };
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
@@ -118,11 +67,15 @@ create_main_window (void)
 static gboolean
 next_data (gpointer data)
 {
-	static gint offset = 0;
+	char buf[1024];
+	int fd = open("/proc/loadavg", O_RDONLY);
+	float f1, f2, f3;
 
-	//g_debug("Pushing %f onto the graph", data_set[offset][1]);
-	uber_graph_push(UBER_GRAPH(graph), data_set[offset][1]);
-	offset = (offset + 1) % G_N_ELEMENTS(data_set);
+	read(fd, buf, sizeof(buf));
+	sscanf(buf, "%f %f %f", &f1, &f2, &f3);
+	g_debug("Pushing %f", f1);
+	uber_graph_push(UBER_GRAPH(graph), f1);
+	close(fd);
 	return TRUE;
 }
 
