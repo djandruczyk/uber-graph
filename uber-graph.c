@@ -428,7 +428,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	priv->content_rect.y = 0;
 	priv->content_rect.width = alloc.width - priv->content_rect.x;
 	priv->content_rect.height = priv->x_tick_rect.y - priv->content_rect.y;
-	gdk_gc_set_clip_rectangle(priv->fg_gc, &priv->content_rect);
+	//gdk_gc_set_clip_rectangle(priv->fg_gc, &priv->content_rect);
 	/*
 	 * Cleanup after allocations.
 	 */
@@ -590,11 +590,11 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	closure.pixel_range.end = priv->content_rect.y + priv->content_rect.height;
 	closure.pixel_range.range = priv->content_rect.height;
 	closure.value_range = priv->yrange;
-	closure.x_epoch = priv->content_rect.x + priv->content_rect.width;
 	closure.last_x = -INFINITY;
 	closure.last_y = -INFINITY;
 	closure.first = TRUE;
-	closure.each = ((gdouble)priv->content_rect.width - 2) / ((gdouble)priv->buffer->len - 1.);
+	closure.each = ((gdouble)priv->content_rect.width - 2) / ((gdouble)priv->buffer->len - 2.);
+	closure.x_epoch = priv->content_rect.x + priv->content_rect.width + closure.each;
 	closure.offset = 0;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	/*
@@ -602,7 +602,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	 */
 	cairo_save(info->fg_cairo);
 	cairo_set_operator(info->fg_cairo, CAIRO_OPERATOR_CLEAR);
-	cairo_rectangle(info->fg_cairo, 0, 0, alloc.width, alloc.height);
+	cairo_rectangle(info->fg_cairo, 0, 0, alloc.width + 20, alloc.height);
 	cairo_fill(info->fg_cairo);
 	cairo_restore(info->fg_cairo);
 	/*
@@ -612,7 +612,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	cairo_set_line_cap(info->fg_cairo, CAIRO_LINE_CAP_ROUND);
 	cairo_set_line_join(info->fg_cairo, CAIRO_LINE_JOIN_ROUND);
 	cairo_move_to(info->fg_cairo,
-	              priv->content_rect.x + priv->content_rect.width,
+	              closure.x_epoch,
 	              priv->content_rect.y + priv->content_rect.height);
 	uber_buffer_foreach(priv->scaled, uber_graph_render_fg_each, &closure);
 	gdk_color_parse_xor(&fg_color, "#3465a4", 0xFFFF);
@@ -709,7 +709,7 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	drawable = GDK_DRAWABLE(gtk_widget_get_window(GTK_WIDGET(graph)));
 	bg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
-	fg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
+	fg_pixmap = gdk_pixmap_new(drawable, alloc.width + 20, alloc.height, -1);
 	/*
 	 * Set background to default widget background.
 	 */
@@ -935,7 +935,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 			                  priv->content_rect.y,
 			                  priv->content_rect.x - (priv->fps_each * priv->fps_off),
 			                  priv->content_rect.y,
-			                  priv->content_rect.width,
+			                  priv->content_rect.width + 20,
 			                  priv->content_rect.height);
 			priv->fps_off++;
 		}
