@@ -170,19 +170,20 @@ uber_graph_push (UberGraph *graph, /* IN */
 	priv = graph->priv;
 	priv->fps_off = 0;
 	/*
+	 * Push raw data value to buffer.
+	 */
+	uber_buffer_append(priv->buffer, value);
+	/*
 	 * Scale value and push value to scaled cache.
 	 */
 	pixel_range.begin = priv->content_rect.y;
 	pixel_range.end = pixel_range.begin + priv->content_rect.height;
 	pixel_range.range = priv->content_rect.height;
 	if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
-		return;
+		uber_buffer_append(priv->scaled, -INFINITY);
+	} else {
+		uber_buffer_append(priv->scaled, value);
 	}
-	uber_buffer_append(priv->scaled, value);
-	/*
-	 * Push raw data value to buffer.
-	 */
-	uber_buffer_append(priv->buffer, value);
 	/*
 	 * Invalidate regions and render.
 	 */
@@ -792,6 +793,7 @@ static void
 uber_graph_size_allocate (GtkWidget     *widget, /* IN */
                           GtkAllocation *alloc)  /* IN */
 {
+	UberGraph *graph;
 	UberGraphPrivate *priv;
 	UberRange pixel_range;
 	gdouble value;
@@ -800,7 +802,8 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
 	BASE_CLASS->size_allocate(widget, alloc);
-	priv = UBER_GRAPH(widget)->priv;
+	graph = UBER_GRAPH(widget);
+	priv = graph->priv;
 	/*
 	 * Adjust the sizing of the blit pixmaps.
 	 */
@@ -808,21 +811,21 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[0]);
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
 	uber_graph_calculate_rects(UBER_GRAPH(widget));
-	uber_graph_set_fps(UBER_GRAPH(widget), priv->fps); /* Re-calculate */
-	priv->x_each = ((gdouble)priv->content_rect.width - 2) / ((gdouble)priv->buffer->len - 2.);
+	uber_graph_set_fps(graph, priv->fps); /* Re-calculate */
+	priv->x_each = ((gdouble)priv->content_rect.width - 2)
+	             / ((gdouble)priv->buffer->len - 2.);
 	/*
 	 * Rescale values relative to new content area.
 	 */
 	pixel_range.begin = priv->content_rect.y;
 	pixel_range.end = priv->content_rect.y + priv->content_rect.height;
 	pixel_range.range = priv->content_rect.height;
-	for (i = 0; i < priv->scaled->len; i++) {
-		if (priv->scaled->buffer[i] != -INFINITY) {
+	for (i = 0; i < priv->buffer->len; i++) {
+		if (priv->buffer->buffer[i] != -INFINITY) {
 			value = priv->buffer->buffer[i];
-			priv->scale(UBER_GRAPH(widget),
-			            &priv->yrange,
-			            &pixel_range,
-			            &value);
+			if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
+				value = -INFINITY;
+			}
 			priv->scaled->buffer[i] = value;
 		}
 	}
