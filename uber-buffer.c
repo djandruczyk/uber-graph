@@ -26,7 +26,6 @@
 #include "uber-buffer.h"
 
 #define DEFAULT_SIZE (64)
-
 #ifndef g_realloc_n
 #define g_realloc_n(a,b,c) g_realloc(a, b * c)
 #endif
@@ -46,6 +45,18 @@ uber_buffer_dispose (UberBuffer *buffer) /* IN */
 	g_free(buffer->buffer);
 }
 
+/**
+ * uber_buffer_clear_range:
+ * @buffer: A #UberBuffer.
+ * @begin: The beginning index.
+ * @end: The ending index.
+ *
+ * Clears a continguous range of values from the buffer by setting them to the
+ * default value (-INFINITY).
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
 static inline void
 uber_buffer_clear_range (UberBuffer *buffer, /* IN */
                          gint        begin,  /* IN */
@@ -86,6 +97,7 @@ uber_buffer_new (void)
 /**
  * uber_buffer_set_size:
  * @buffer: A #UberBuffer.
+ * @size: The number of elements that @buffer should contain.
  *
  * Resizes the circular buffer.
  *

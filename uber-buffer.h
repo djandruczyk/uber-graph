@@ -23,10 +23,19 @@
 
 G_BEGIN_DECLS
 
-#define UBER_TYPE_BUFFER (uber_buffer_get_type())
-
 typedef struct _UberBuffer UberBuffer;
 
+/**
+ * UberBufferForeach:
+ * @buffer: An #UberBuffer.
+ * @value: A specific value from the buffer.
+ * @user_data: User provided data.
+ *
+ * A function to be called from uber_buffer_foreach() which a specific
+ * data point from the buffer.
+ *
+ * Returns: %TRUE if iteration should stop; otherwise %FALSE.
+ */
 typedef gboolean (*UberBufferForeach) (UberBuffer *buffer,
                                        gdouble     value,
                                        gpointer    user_data);
@@ -41,7 +50,6 @@ struct _UberBuffer
 	volatile gint ref_count;
 };
 
-GType       uber_buffer_get_type (void) G_GNUC_CONST;
 UberBuffer* uber_buffer_new      (void);
 UberBuffer* uber_buffer_ref      (UberBuffer        *buffer);
 void        uber_buffer_unref    (UberBuffer        *buffer);
@@ -82,4 +90,3 @@ void        uber_buffer_append   (UberBuffer        *buffer,
 G_END_DECLS
 
 #endif /* __UBER_BUFFER_H__ */
-
