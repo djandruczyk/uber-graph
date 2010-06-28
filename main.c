@@ -50,7 +50,7 @@ static GtkWidget*
 create_main_window (void)
 {
 	GtkWidget *window;
-	UberRange range = { 0., 4. };
+	//UberRange range = { 0., 4. };
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
@@ -58,7 +58,8 @@ create_main_window (void)
 	gtk_window_set_default_size(GTK_WINDOW(window), 640, 200);
 	gtk_widget_show(window);
 	graph = uber_graph_new();
-	uber_graph_set_yrange(UBER_GRAPH(graph), &range);
+	//uber_graph_set_yrange(UBER_GRAPH(graph), &range);
+	uber_graph_set_yautoscale(UBER_GRAPH(graph), TRUE);
 	gtk_container_add(GTK_CONTAINER(window), graph);
 	gtk_widget_show(graph);
 	return window;

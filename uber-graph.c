@@ -67,6 +67,9 @@ struct _UberGraphPrivate
 	UberBuffer    *buffer;       /* Circular buffer of raw values. */
 	UberBuffer    *scaled;       /* Circular buffer of scaled values. */
 	gboolean       bg_dirty;     /* Do we need to update the background. */
+	gboolean       yautoscale;   /* Should the graph autoscale to handle values
+	                              * outside the current range.
+	                              */
 	GdkGC         *bg_gc;        /* Drawing context for blitting background */
 	GdkGC         *fg_gc;        /* Drawing context for blitting foreground */
 	GdkRectangle   x_tick_rect;  /* Pre-calculated X tick area. */
@@ -170,6 +173,20 @@ uber_graph_push (UberGraph *graph, /* IN */
 	priv = graph->priv;
 	priv->fps_off = 0;
 	/*
+	 * Check if value is outside the current range.
+	 */
+	if (priv->yautoscale) {
+		if (value > priv->yrange.end) {
+			priv->yrange.end = value;
+			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+			priv->bg_dirty = TRUE;
+		} else if (value < priv->yrange.begin) {
+			priv->yrange.begin = value;
+			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+			priv->bg_dirty = TRUE;
+		}
+	}
+	/*
 	 * Push raw data value to buffer.
 	 */
 	uber_buffer_append(priv->buffer, value);
@@ -241,6 +258,50 @@ uber_graph_set_yrange (UberGraph       *graph,  /* IN */
 		priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 	}
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
+}
+
+/**
+ * uber_graph_set_yautoscale:
+ * @graph: A UberGraph.
+ * @yautoscale: If y-axis should autoscale to handle values outside of
+ *    its current range.
+ *
+ * Sets the graph to autoscale to handle the current range.  If @yautoscale
+ * is %TRUE, new values outside the current y range will cause the range to
+ * grow and the graph redrawn to match the new scale.
+ *
+ * In the future, the graph may compact the scale when the larger values
+ * have moved off the graph.  However, this has not yet been implemented.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_yautoscale (UberGraph *graph,      /* IN */
+                           gboolean   yautoscale) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->yautoscale = TRUE;
+}
+
+/**
+ * uber_graph_get_yautoscale:
+ * @graph: A UberGraph.
+ *
+ * Retrieves if the graph is set to autoscale the y-axis.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+gboolean
+uber_graph_get_yautoscale (UberGraph *graph) /* IN */
+{
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	return graph->priv->yautoscale;
 }
 
 /**
@@ -1078,5 +1139,8 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->scale = uber_scale_linear;
 	priv->buffer = uber_buffer_new();
 	priv->scaled = uber_buffer_new();
+	priv->yrange.begin = 0.;
+	priv->yrange.end = 1.;
+	priv->yrange.range = 1.;
 	uber_graph_set_fps(graph, 20);
 }
