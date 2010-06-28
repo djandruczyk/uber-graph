@@ -63,6 +63,7 @@ struct _UberGraphPrivate
 	gint           fps_off;  /* Offset in frame-slide */
 	gint           fps_to;   /* Frames per second timeout (in MS) */
 	gfloat         fps_each; /* How much each frame skews. */
+	gfloat         x_each;   /* Precalculated space between points.  */
 	guint          fps_handler; /* GSource identifier for invalidating rect. */
 	UberScale      scale;    /* Scaling of values to pixels. */
 	UberRange      yrange;
@@ -511,7 +512,6 @@ typedef struct
 	gdouble    last_y;
 	gdouble    last_x;
 	gdouble    x_epoch;
-	gdouble    each;
 	gint       offset;
 	gboolean   first;
 } RenderClosure;
@@ -521,13 +521,15 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
                            gdouble     value,     /* IN */
                            gpointer    user_data) /* IN */
 {
+	UberGraphPrivate *priv;
 	RenderClosure *closure = user_data;
 	gdouble y;
 	gdouble x;
 
 	g_assert(closure->graph->priv->scale != NULL);
 
-	x = closure->x_epoch - (closure->offset++ * closure->each);
+	priv = closure->graph->priv;
+	x = closure->x_epoch - (closure->offset++ * closure->graph->priv->x_each);
 	if (value == -INFINITY) {
 		goto skip;
 	}
@@ -538,9 +540,9 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 		goto finish;
 	}
 	cairo_curve_to(closure->info->fg_cairo,
-	               closure->last_x - (closure->each / 2.),
+	               closure->last_x - (priv->x_each / 2.),
 	               closure->last_y,
-	               closure->last_x - (closure->each / 2.),
+	               closure->last_x - (priv->x_each / 2.),
 	               y,
 	               x, y);
 	goto finish;
@@ -593,8 +595,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	closure.last_x = -INFINITY;
 	closure.last_y = -INFINITY;
 	closure.first = TRUE;
-	closure.each = ((gdouble)priv->content_rect.width - 2) / ((gdouble)priv->buffer->len - 2.);
-	closure.x_epoch = priv->content_rect.x + priv->content_rect.width + closure.each;
+	closure.x_epoch = priv->content_rect.x + priv->content_rect.width + priv->x_each;
 	closure.offset = 0;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	/*
@@ -602,7 +603,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	 */
 	cairo_save(info->fg_cairo);
 	cairo_set_operator(info->fg_cairo, CAIRO_OPERATOR_CLEAR);
-	cairo_rectangle(info->fg_cairo, 0, 0, alloc.width + 20, alloc.height);
+	cairo_rectangle(info->fg_cairo, 0, 0, alloc.width + priv->x_each, alloc.height);
 	cairo_fill(info->fg_cairo);
 	cairo_restore(info->fg_cairo);
 	/*
@@ -832,6 +833,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
 	uber_graph_calculate_rects(UBER_GRAPH(widget));
 	uber_graph_set_fps(UBER_GRAPH(widget), priv->fps); /* Re-calculate */
+	priv->x_each = ((gdouble)priv->content_rect.width - 2) / ((gdouble)priv->buffer->len - 2.);
 	/*
 	 * Rescale values relative to new area.
 	 */
