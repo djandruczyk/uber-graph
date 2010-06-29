@@ -98,8 +98,6 @@ enum
 
 static void gdk_cairo_rectangle_clean        (cairo_t      *cr,
                                               GdkRectangle *rect);
-static void gdk_pixmap_scale_simple          (GdkPixmap    *src,
-                                              GdkPixmap    *dst);
 static void pango_layout_get_pixel_rectangle (PangoLayout  *layout,
                                               GdkRectangle *rect);
 static void uber_graph_calculate_rects       (UberGraph    *graph);
@@ -358,43 +356,6 @@ uber_graph_set_fps (UberGraph *graph, /* IN */
 	priv->fps_handler = g_timeout_add(priv->fps_to,
 	                                  uber_graph_fps_timeout,
 	                                  graph);
-}
-
-/**
- * gdk_pixmap_scale_simple:
- * @src: A #GdkPixmap.
- * @dst: A #GdkPixmap.
- *
- * Scales the contents of @src into @dst.  This is done by retrieving the
- * server-side pixmap, converting it to a pixbuf, and then pushing the scaled
- * image back to the server.
- *
- * If you find a faster way to do this, implement it!
- *
- * Returns: None.
- * Side effects: None.
- */
-static void
-gdk_pixmap_scale_simple (GdkPixmap *src, /* IN */
-                         GdkPixmap *dst) /* IN */
-{
-	GdkPixbuf *pixbuf;
-	gint src_h;
-	gint src_w;
-	gint dst_h;
-	gint dst_w;
-
-	g_return_if_fail(src != NULL);
-	g_return_if_fail(dst != NULL);
-
-	gdk_drawable_get_size(GDK_DRAWABLE(src), &src_w, &src_h);
-	gdk_drawable_get_size(GDK_DRAWABLE(src), &dst_w, &dst_h);
-	pixbuf = gdk_pixbuf_get_from_drawable(NULL, GDK_DRAWABLE(src),
-	                                      NULL, 0, 0, 0, 0, src_w, src_h);
-	gdk_pixbuf_scale_simple(pixbuf, dst_w, dst_h, GDK_INTERP_BILINEAR);
-	gdk_draw_pixbuf(GDK_DRAWABLE(dst), NULL, pixbuf, 0, 0, 0, 0, dst_w, dst_h,
-	                GDK_RGB_DITHER_NORMAL, 0, 0);
-	g_object_unref(pixbuf);
 }
 
 /**
@@ -785,11 +746,9 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	 * a chance to pass over and re-render the updated content.
 	 */
 	if (info->bg_pixmap) {
-		gdk_pixmap_scale_simple(info->bg_pixmap, bg_pixmap);
 		g_object_unref(info->bg_pixmap);
 	}
 	if (info->fg_pixmap) {
-		gdk_pixmap_scale_simple(info->fg_pixmap, fg_pixmap);
 		g_object_unref(info->fg_pixmap);
 	}
 	info->bg_pixmap = bg_pixmap;
