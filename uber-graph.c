@@ -175,11 +175,11 @@ uber_graph_push (UberGraph *graph, /* IN */
 	 */
 	if (priv->yautoscale) {
 		if (value > priv->yrange.end) {
-			priv->yrange.end = value;
+			priv->yrange.end = value + ((value - priv->yrange.begin) / 4.);
 			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 			priv->bg_dirty = TRUE;
 		} else if (value < priv->yrange.begin) {
-			priv->yrange.begin = value;
+			priv->yrange.begin = value - ((priv->yrange.end - value) / 4.);
 			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 			priv->bg_dirty = TRUE;
 		}
