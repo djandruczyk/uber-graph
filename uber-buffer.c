@@ -167,6 +167,20 @@ uber_buffer_append (UberBuffer *buffer, /* IN */
 	}
 }
 
+gdouble
+uber_buffer_get_index (UberBuffer *buffer, /* IN */
+                       gint        idx)    /* IN */
+{
+	g_return_if_fail(buffer != NULL);
+	g_return_if_fail(idx < buffer->len);
+
+	if (buffer->pos > idx) {
+		return buffer->buffer[buffer->pos - idx - 1];
+	}
+	idx -= buffer->pos;
+	return buffer->buffer[buffer->len - idx - 1];
+}
+
 /**
  * UberBuffer_ref:
  * @buffer: A #UberBuffer.

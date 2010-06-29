@@ -50,13 +50,15 @@ struct _UberBuffer
 	volatile gint ref_count;
 };
 
-UberBuffer* uber_buffer_new      (void);
-UberBuffer* uber_buffer_ref      (UberBuffer        *buffer);
-void        uber_buffer_unref    (UberBuffer        *buffer);
-void        uber_buffer_set_size (UberBuffer        *buffer,
-                                  gint               size);
-void        uber_buffer_append   (UberBuffer        *buffer,
-                                  gdouble            value);
+UberBuffer* uber_buffer_new       (void);
+UberBuffer* uber_buffer_ref       (UberBuffer  *buffer);
+void        uber_buffer_unref     (UberBuffer  *buffer);
+void        uber_buffer_set_size  (UberBuffer  *buffer,
+                                   gint         size);
+void        uber_buffer_append    (UberBuffer  *buffer,
+                                   gdouble      value);
+gdouble     uber_buffer_get_index (UberBuffer  *buffer,
+                                   gint         idx);
 
 /**
  * uber_buffer_foreach:

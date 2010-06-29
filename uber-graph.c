@@ -67,6 +67,7 @@ struct _UberGraphPrivate
 	UberBuffer    *buffer;       /* Circular buffer of raw values. */
 	UberBuffer    *scaled;       /* Circular buffer of scaled values. */
 	gboolean       bg_dirty;     /* Do we need to update the background. */
+	gboolean       fg_dirty;     /* Do we need to update the foreground. */
 	gboolean       yautoscale;   /* Should the graph autoscale to handle values
 	                              * outside the current range.
 	                              */
@@ -103,6 +104,10 @@ static void pango_layout_get_pixel_rectangle (PangoLayout  *layout,
 static void uber_graph_calculate_rects       (UberGraph    *graph);
 static void uber_graph_init_graph_info       (UberGraph    *graph,
                                               GraphInfo    *info);
+static void uber_graph_render_fg_shifted_task(UberGraph    *graph,
+                                              GraphInfo    *src,
+                                              GraphInfo    *dst,
+                                              gdouble       value);
 
 /**
  * uber_graph_new:
@@ -165,11 +170,13 @@ uber_graph_push (UberGraph *graph, /* IN */
 	UberGraphPrivate *priv;
 	GdkWindow *window;
 	UberRange pixel_range;
+	gboolean scale_changed = FALSE;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
 	priv->fps_off = 0;
+	priv->fg_dirty = TRUE;
 	/*
 	 * Check if value is outside the current range.
 	 */
@@ -178,10 +185,12 @@ uber_graph_push (UberGraph *graph, /* IN */
 			priv->yrange.end = value + ((value - priv->yrange.begin) / 4.);
 			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 			priv->bg_dirty = TRUE;
+			scale_changed = TRUE;
 		} else if (value < priv->yrange.begin) {
 			priv->yrange.begin = value - ((priv->yrange.end - value) / 4.);
 			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 			priv->bg_dirty = TRUE;
+			scale_changed = TRUE;
 		}
 	}
 	/*
@@ -198,6 +207,24 @@ uber_graph_push (UberGraph *graph, /* IN */
 		uber_buffer_append(priv->scaled, -INFINITY);
 	} else {
 		uber_buffer_append(priv->scaled, value);
+	}
+	/*
+	 * Shift the contents of the previous pixmap to its new offset
+	 * on the flipped pixmap.  Then draw the new value at the end
+	 * of the pixmap and flip said pixmaps.
+	 */
+	if (G_LIKELY(!scale_changed)) {
+		/*
+		 * Attempt to render and send as little data as possible to
+		 * the X-server since we do not need to render the entire
+		 * drawing again.
+		 */
+		uber_graph_render_fg_shifted_task(graph,
+		                                  &priv->info[priv->flipped],
+		                                  &priv->info[!priv->flipped],
+		                                  value); /* Scaled */
+		priv->flipped = !priv->flipped;
+		priv->fg_dirty = FALSE;
 	}
 	/*
 	 * Invalidate regions and render.
@@ -349,7 +376,7 @@ uber_graph_set_fps (UberGraph *graph, /* IN */
 	priv->fps_to = 1000. / fps;
 	priv->fps_each = (gfloat)priv->content_rect.width /
 	                 (gfloat)priv->buffer->len /
-	                 (gfloat)priv->fps;
+	                 ((gfloat)priv->fps + 1);
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
 	}
@@ -678,6 +705,110 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 }
 
 /**
+ * uber_graph_render_fg_shifted_task:
+ * @graph: A #UberGraph.
+ *
+ * Renders a portion of @src pixmap to @dst pixmap at the shifting
+ * rate.  The new value is then rendered onto the new graph and clipped
+ * to the proper area.  This prevents the need to send all of the graph
+ * contents to the X-server on redraws.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_render_fg_shifted_task (UberGraph    *graph, /* IN */
+                                   GraphInfo    *src,   /* IN */
+                                   GraphInfo    *dst,   /* IN */
+                                   gdouble       value) /* IN */
+{
+	UberGraphPrivate *priv;
+	GtkAllocation alloc;
+	GdkColor fg_color;
+	gdouble last_y;
+	gdouble x_epoch;
+	gdouble y_end;
+	gdouble y;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(src != NULL);
+	g_return_if_fail(dst != NULL);
+
+	priv = graph->priv;
+	y_end = priv->content_rect.y + priv->content_rect.height;
+	if (-INFINITY == (last_y = uber_buffer_get_index(priv->scaled, 1))) {
+		/*
+		 * Not in our fast path, defer to default rendering path.
+		 */
+		uber_graph_render_fg_task(graph, dst);
+		return;
+	}
+	/*
+	 * Convert relative position to fixed from bottom pixel.
+	 */
+	y = y_end - value;
+	last_y = y_end - last_y;
+	/*
+	 * Clear the old pixmap contents.
+	 */
+	cairo_save(dst->fg_cairo);
+	cairo_set_operator(dst->fg_cairo, CAIRO_OPERATOR_CLEAR);
+	cairo_set_source_rgb(dst->fg_cairo, 1, 1, 1);
+	cairo_rectangle(dst->fg_cairo, 0, 0, alloc.width, alloc.height);
+	cairo_paint(dst->fg_cairo);
+	cairo_restore(dst->fg_cairo);
+	/*
+	 * Shift contents of source onto destination pixmap.  The unused
+	 * data point is lost and contents shifted over.
+	 */
+	gdk_gc_set_function(priv->fg_gc, GDK_COPY);
+	gdk_draw_drawable(dst->fg_pixmap, priv->fg_gc, src->fg_pixmap,
+	                  priv->content_rect.x + priv->x_each,
+	                  priv->content_rect.y,
+	                  priv->content_rect.x,
+	                  priv->content_rect.y,
+	                  priv->content_rect.width,
+	                  priv->content_rect.height);
+	gdk_gc_set_function(priv->fg_gc, GDK_XOR);
+	/*
+	 * Draw the new data-point, making sure to clip the rendering
+	 * region.
+	 */
+	x_epoch = priv->content_rect.x + priv->content_rect.width + priv->x_each;
+	/*
+	 * Draw the new region.
+	 */
+	cairo_save(dst->fg_cairo);
+	cairo_rectangle(dst->fg_cairo,
+	                priv->content_rect.x + priv->content_rect.width,
+	                priv->content_rect.y,
+	                priv->x_each,
+	                priv->content_rect.height);
+	cairo_clip(dst->fg_cairo);
+#if 0
+	if (priv->flipped)
+		gdk_color_parse_xor(&fg_color, "#73d216", 0xFFFF);
+	else
+		gdk_color_parse_xor(&fg_color, "#3465a4", 0xFFFF);
+#else
+	gdk_color_parse_xor(&fg_color, "#3465a4", 0xFFFF);
+#endif
+	gdk_cairo_set_source_color(dst->fg_cairo, &fg_color);
+	cairo_set_line_cap(dst->fg_cairo, CAIRO_LINE_CAP_ROUND);
+	cairo_set_line_join(dst->fg_cairo, CAIRO_LINE_JOIN_ROUND);
+	cairo_move_to(dst->fg_cairo, x_epoch, y);
+	cairo_curve_to(dst->fg_cairo,
+	               x_epoch - (priv->x_each / 2.),
+	               y,
+	               x_epoch - (priv->x_each / 2.),
+	               last_y,
+	               priv->content_rect.x + priv->content_rect.width,
+	               last_y);
+	cairo_stroke(dst->fg_cairo);
+	cairo_restore(dst->fg_cairo);
+}
+
+/**
  * uber_graph_init_graph_info:
  * @graph: A #UberGraph.
  * @info: A GraphInfo.
@@ -827,6 +958,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	/*
 	 * Adjust the sizing of the blit pixmaps.
 	 */
+	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[0]);
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
@@ -908,6 +1040,11 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	if (G_UNLIKELY(priv->bg_dirty)) {
 		uber_graph_render_bg_task(UBER_GRAPH(widget), info);
 		priv->bg_dirty = FALSE;
+		/*
+		 * FIXME: Use a single background or copy pixmap.
+		 */
+		uber_graph_render_bg_task(UBER_GRAPH(widget),
+		                          &priv->info[!priv->flipped]);
 	}
 	/*
 	 * Blit the background for the exposure area.
@@ -923,9 +1060,10 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	 */
 	if (G_LIKELY(info->fg_pixmap)) {
 		/*
-		 * Render the foreground if its dirty.
+		 * If the foreground is dirty, we need to re-render its entire
+		 * contents.
 		 */
-		if (G_UNLIKELY(!priv->fps_off)) {
+		if (G_UNLIKELY(priv->fg_dirty)) {
 			uber_graph_render_fg_task(UBER_GRAPH(widget), info);
 			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
 							  expose->area.x, expose->area.y,
