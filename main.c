@@ -44,39 +44,79 @@ static GOptionEntry options[] = {
 	{ NULL }
 };
 
-static GtkWidget *graph     = NULL;
-static gdouble    values[3] = { 0 };
+static GtkWidget *load_graph = NULL;
+static GtkWidget *cpu_graph  = NULL;
+static GtkWidget *net_graph  = NULL;
 
 static GtkWidget*
 create_main_window (void)
 {
 	GtkWidget *window;
+	GtkWidget *vbox;
+	GtkWidget *load_label;
+	GtkWidget *cpu_label;
+	GtkWidget *net_label;
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
 	gtk_window_set_title(GTK_WINDOW(window), _("UberGraph"));
 	gtk_window_set_default_size(GTK_WINDOW(window), 640, 200);
 	gtk_widget_show(window);
-	graph = uber_graph_new();
-	uber_graph_set_yautoscale(UBER_GRAPH(graph), TRUE);
-	uber_graph_add_line(UBER_GRAPH(graph));
-	uber_graph_add_line(UBER_GRAPH(graph));
-	uber_graph_add_line(UBER_GRAPH(graph));
-	gtk_container_add(GTK_CONTAINER(window), graph);
-	gtk_widget_show(graph);
+
+	vbox = gtk_vbox_new(FALSE, 6);
+	gtk_container_add(GTK_CONTAINER(window), vbox);
+	gtk_widget_show(vbox);
+
+	cpu_label = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(cpu_label), "<b>CPU History</b>");
+	gtk_box_pack_start(GTK_BOX(vbox), cpu_label, FALSE, TRUE, 0);
+	gtk_misc_set_alignment(GTK_MISC(cpu_label), .0, .5);
+	gtk_widget_show(cpu_label);
+
+	cpu_graph = uber_graph_new();
+	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), TRUE);
+	gtk_box_pack_start(GTK_BOX(vbox), cpu_graph, TRUE, TRUE, 0);
+	gtk_widget_show(cpu_graph);
+
+	load_label = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(load_label), "<b>Load History</b>");
+	gtk_box_pack_start(GTK_BOX(vbox), load_label, FALSE, TRUE, 0);
+	gtk_misc_set_alignment(GTK_MISC(load_label), .0, .5);
+	gtk_widget_show(load_label);
+
+	load_graph = uber_graph_new();
+	uber_graph_set_yautoscale(UBER_GRAPH(load_graph), TRUE);
+	uber_graph_add_line(UBER_GRAPH(load_graph));
+	uber_graph_add_line(UBER_GRAPH(load_graph));
+	uber_graph_add_line(UBER_GRAPH(load_graph));
+	gtk_box_pack_start(GTK_BOX(vbox), load_graph, TRUE, TRUE, 0);
+	gtk_widget_show(load_graph);
+
+	net_label = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(net_label), "<b>Network History</b>");
+	gtk_box_pack_start(GTK_BOX(vbox), net_label, FALSE, TRUE, 0);
+	gtk_misc_set_alignment(GTK_MISC(net_label), .0, .5);
+	gtk_widget_show(net_label);
+
+	net_graph = uber_graph_new();
+	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
+	gtk_box_pack_start(GTK_BOX(vbox), net_graph, TRUE, TRUE, 0);
+	gtk_widget_show(net_graph);
+
 	return window;
 }
 
 static gboolean
 next_data (gpointer data)
 {
+	static gdouble values[3] = { 0. };
 	char buf[1024];
 	int fd = open("/proc/loadavg", O_RDONLY);
 
 	read(fd, buf, sizeof(buf));
 	sscanf(buf, "%lf %lf %lf", &values[0], &values[1], &values[2]);
 	g_debug("Pushing %f %f %f", values[0], values[1], values[2]);
-	uber_graph_pushv(UBER_GRAPH(graph), values);
+	uber_graph_pushv(UBER_GRAPH(load_graph), values);
 	close(fd);
 	return TRUE;
 }
@@ -161,7 +201,7 @@ main (gint   argc,
 	textdomain(GETTEXT_PACKAGE);
 	bindtextdomain(GETTEXT_PACKAGE, LOCALE_DIR);
 	bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
-	g_set_application_name(_("uber-graph"));
+	g_set_application_name(_("uber-load_graph"));
 
 	/* initialize threading early */
 	g_thread_init(NULL);
