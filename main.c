@@ -107,7 +107,7 @@ create_main_window (void)
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
 	gtk_window_set_title(GTK_WINDOW(window), _("UberGraph"));
-	gtk_window_set_default_size(GTK_WINDOW(window), 640, 200);
+	gtk_window_set_default_size(GTK_WINDOW(window), 640, 480);
 	gtk_widget_show(window);
 
 	vbox = gtk_vbox_new(FALSE, 6);
