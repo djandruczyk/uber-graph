@@ -61,6 +61,7 @@ next_cpu (gpointer data)
 
 	fd = open("/proc/stat", O_RDONLY);
 	if (fd < 0) {
+		g_warning("Failed to open /proc/stat");
 		return TRUE;
 	}
 
@@ -92,6 +93,61 @@ next_cpu (gpointer data)
 	i1 = i2;
 	s1 = s2;
 	n1 = n2;
+	return TRUE;
+}
+
+static gboolean
+next_net (gpointer data)
+{
+	static gboolean initialized = FALSE;
+	static gdouble last_total = 0;
+	char buf[4096];
+	char iface[32];
+	char *line;
+	int fd;
+	int i;
+	int l = 0;
+	gulong bytes = 0;
+	gdouble total = 0;
+	gdouble diff;
+
+	if ((fd = open("/proc/net/dev", O_RDONLY)) < 0) {
+		g_warning("Failed to open /proc/net/dev");
+		return TRUE;
+	}
+
+	read(fd, buf, sizeof(buf));
+	buf[sizeof(buf)] = '\0';
+	line = buf;
+	for (i = 0; buf[i]; i++) {
+		if (buf[i] == ':') {
+			buf[i] = ' ';
+		} else if (buf[i] == '\n') {
+			buf[i] = '\0';
+			if (++l > 2) { // ignore first two lines
+				if (sscanf(line, "%s %lu", iface, &bytes) != 2) {
+					g_warning("Skipping invalid line: %s", line);
+				} else {
+					total += bytes;
+				}
+				line = NULL;
+			}
+			line = &buf[i+1];
+		}
+	}
+
+	if (!initialized) {
+		initialized = TRUE;
+		goto finish;
+	}
+
+	diff = (total - last_total);
+	g_debug("Pushing net receive=%f", diff);
+	uber_graph_pushv(UBER_GRAPH(net_graph), &diff);
+
+  finish:
+	close(fd);
+	last_total = total;
 	return TRUE;
 }
 
@@ -150,10 +206,12 @@ create_main_window (void)
 
 	net_graph = uber_graph_new();
 	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
+	uber_graph_add_line(UBER_GRAPH(net_graph));
 	gtk_box_pack_start(GTK_BOX(vbox), net_graph, TRUE, TRUE, 0);
 	gtk_widget_show(net_graph);
 
 	next_cpu(NULL);
+	next_net(NULL);
 
 	return window;
 }
@@ -276,6 +334,7 @@ main (gint   argc,
 	g_signal_connect(window, "delete-event", gtk_main_quit, NULL);
 	g_timeout_add_seconds(1, next_data, NULL);
 	g_timeout_add_seconds(1, next_cpu, NULL);
+	g_timeout_add_seconds(1, next_net, NULL);
 	gtk_main();
 
 	return EXIT_SUCCESS;
