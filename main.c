@@ -48,6 +48,52 @@ static GtkWidget *load_graph = NULL;
 static GtkWidget *cpu_graph  = NULL;
 static GtkWidget *net_graph  = NULL;
 
+static gboolean
+next_cpu (gpointer data)
+{
+	static gboolean initialized = FALSE;
+	static gfloat u1, n1, s1, i1;
+	gfloat u2, n2, s2, i2;
+	gfloat u3, n3, s3, i3;
+	gdouble total, percent;
+	int fd;
+	char buf[1024];
+
+	fd = open("/proc/stat", O_RDONLY);
+	if (fd < 0) {
+		return TRUE;
+	}
+
+	read(fd, buf, sizeof(buf));
+	buf[sizeof(buf) - 1] = '\0';
+	if (sscanf(buf, "cpu %f %f %f %f", &u2, &n2, &s2, &i2) != 4) {
+		g_warning("Failed to read cpu line.");
+	}
+
+	if (!initialized) {
+		initialized = TRUE;
+		goto finish;
+	}
+
+	u3 = (u2 - u1);
+	n3 = (n2 - n1);
+	s3 = (s2 - s1);
+	i3 = (i2 - i1);
+
+	total = (u3 + n3 + s3 + i3);
+	percent = (100 * (u3 + n3 + s3)) / total;
+
+	g_debug("Pushing cpu percent=%f", percent);
+	uber_graph_pushv(UBER_GRAPH(cpu_graph), &percent);
+
+  finish:
+	u1 = u2;
+	i1 = i2;
+	s1 = s2;
+	n1 = n2;
+	return TRUE;
+}
+
 static GtkWidget*
 create_main_window (void)
 {
@@ -56,6 +102,7 @@ create_main_window (void)
 	GtkWidget *load_label;
 	GtkWidget *cpu_label;
 	GtkWidget *net_label;
+	UberRange cpu_range = { 0., 100., 100. };
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
@@ -74,7 +121,9 @@ create_main_window (void)
 	gtk_widget_show(cpu_label);
 
 	cpu_graph = uber_graph_new();
-	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), TRUE);
+	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), FALSE);
+	uber_graph_set_yrange(UBER_GRAPH(cpu_graph), &cpu_range);
+	uber_graph_add_line(UBER_GRAPH(cpu_graph));
 	gtk_box_pack_start(GTK_BOX(vbox), cpu_graph, TRUE, TRUE, 0);
 	gtk_widget_show(cpu_graph);
 
@@ -102,6 +151,8 @@ create_main_window (void)
 	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
 	gtk_box_pack_start(GTK_BOX(vbox), net_graph, TRUE, TRUE, 0);
 	gtk_widget_show(net_graph);
+
+	next_cpu(NULL);
 
 	return window;
 }
@@ -223,6 +274,7 @@ main (gint   argc,
 	window = create_main_window();
 	g_signal_connect(window, "delete-event", gtk_main_quit, NULL);
 	g_timeout_add_seconds(1, next_data, NULL);
+	g_timeout_add_seconds(1, next_cpu, NULL);
 	gtk_main();
 
 	return EXIT_SUCCESS;
