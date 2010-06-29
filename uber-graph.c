@@ -1027,7 +1027,6 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
                          GdkEventExpose *expose) /* IN */
 {
 	UberGraphPrivate *priv;
-	GtkAllocation alloc;
 	GdkDrawable *dst;
 	GraphInfo *info;
 
@@ -1071,7 +1070,6 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 							  expose->area.width, expose->area.height);
 			priv->fps_off++;
 		} else {
-			gtk_widget_get_allocation(widget, &alloc);
 			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
 			                  priv->content_rect.x,
 			                  priv->content_rect.y,
