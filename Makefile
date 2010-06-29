@@ -25,6 +25,9 @@ WARNINGS =								\
 
 INCLUDES =								\
 	-DHAVE_CONFIG_H=0						\
+	$(NULL)
+
+OTHER_INCLUDES =							\
 	-DG_DISABLE_ASSERT						\
 	-DG_DISABLE_CHECKS						\
 	-DG_DISABLE_CAST_CHECKS						\

@@ -51,6 +51,13 @@ typedef struct
 	PangoLayout *tick_layout; /* TODO */
 } GraphInfo;
 
+typedef struct
+{
+	UberBuffer *buffer;
+	UberBuffer *scaled;
+	GdkColor    color;
+} LineInfo;
+
 struct _UberGraphPrivate
 {
 	GraphInfo      info[2];      /* Two GraphInfo's for swapping. */
@@ -59,13 +66,13 @@ struct _UberGraphPrivate
 	gint           fps;          /* Frames per second. */
 	gint           fps_off;      /* Offset in frame-slide */
 	gint           fps_to;       /* Frames per second timeout (in MS) */
+	gint           stride;       /* Number of data points to store. */
 	gfloat         fps_each;     /* How much each frame skews. */
 	gfloat         x_each;       /* Precalculated space between points.  */
 	guint          fps_handler;  /* GSource identifier for invalidating rect. */
 	UberScale      scale;        /* Scaling of values to pixels. */
 	UberRange      yrange;       /* Y-Axis range in for raw values. */
-	UberBuffer    *buffer;       /* Circular buffer of raw values. */
-	UberBuffer    *scaled;       /* Circular buffer of scaled values. */
+	GArray        *lines;        /* Lines to draw. */
 	gboolean       bg_dirty;     /* Do we need to update the background. */
 	gboolean       fg_dirty;     /* Do we need to update the foreground. */
 	gboolean       yautoscale;   /* Should the graph autoscale to handle values
@@ -76,6 +83,9 @@ struct _UberGraphPrivate
 	GdkRectangle   x_tick_rect;  /* Pre-calculated X tick area. */
 	GdkRectangle   y_tick_rect;  /* Pre-calculated Y tick area. */
 	GdkRectangle   content_rect; /* Main content area. */
+	gchar        **colors;       /* Array of colors to assign. */
+	gint           colors_len;   /* Length of colors array. */
+	gint           color;        /* Next color to hand out. */
 };
 
 typedef struct
@@ -97,6 +107,12 @@ enum
 	LAYOUT_TICK,
 };
 
+static const gchar *default_colors[] = {
+	"#3465a4",
+	"#73d216",
+	"#75507b",
+};
+
 static void gdk_cairo_rectangle_clean        (cairo_t      *cr,
                                               GdkRectangle *rect);
 static void pango_layout_get_pixel_rectangle (PangoLayout  *layout,
@@ -107,7 +123,7 @@ static void uber_graph_init_graph_info       (UberGraph    *graph,
 static void uber_graph_render_fg_shifted_task(UberGraph    *graph,
                                               GraphInfo    *src,
                                               GraphInfo    *dst,
-                                              gdouble       value);
+                                              gdouble      *values);
 
 /**
  * uber_graph_new:
@@ -155,58 +171,113 @@ uber_graph_set_scale (UberGraph *graph, /* IN */
 
 /**
  * uber_graph_push:
- * @graph: A #UberGraph.
+ * @graph: A UberGraph.
+ * @first_id: 
+ * @...: 
  *
- * Pushes a new value onto the graph. The value is translated by the scale
- * before being rendered.
+ * XXX
  *
  * Returns: None.
  * Side effects: None.
  */
 void
-uber_graph_push (UberGraph *graph, /* IN */
-                 gdouble    value) /* IN */
+uber_graph_push (UberGraph *graph,    /* IN */
+                 gint       first_id, /* IN */
+                 ...)                 /* IN */
+{
+	UberGraphPrivate *priv;
+	va_list args;
+	gdouble value;
+	gdouble *values;
+	gint id;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	values = g_malloc0_n(priv->stride, sizeof(gdouble));
+	va_start(args, first_id);
+	id = first_id;
+	while (id != -1) {
+		if (id < 0 || id >= priv->stride) {
+			g_critical("%s(): %d not a valid line id.", G_STRFUNC, id);
+			va_end(args);
+			return;
+		}
+		value = va_arg(args, gdouble);
+		values[id] = value;
+		id = va_arg(args, gint);
+	}
+	va_end(args);
+	uber_graph_pushv(graph, values);
+	g_free(values);
+}
+
+/**
+ * uber_graph_pushv:
+ * @graph: A #UberGraph.
+ * @values: An ordered list of line values.
+ *
+ * Pushes the new values for all of the lines onto the graph.  @values must
+ * be an array containing a value for all lines.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_pushv (UberGraph *graph,  /* IN */
+                  gdouble   *values) /* IN */
 {
 	UberGraphPrivate *priv;
 	GdkWindow *window;
 	UberRange pixel_range;
 	gboolean scale_changed = FALSE;
+	LineInfo *line;
+	gdouble value;
+	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(values != NULL);
 
 	priv = graph->priv;
 	priv->fps_off = 0;
 	priv->fg_dirty = TRUE;
+	pixel_range.begin = priv->content_rect.y;
+	pixel_range.end = pixel_range.begin + priv->content_rect.height;
+	pixel_range.range = priv->content_rect.height;
 	/*
 	 * Check if value is outside the current range.
 	 */
 	if (priv->yautoscale) {
-		if (value > priv->yrange.end) {
-			priv->yrange.end = value + ((value - priv->yrange.begin) / 4.);
-			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
-			priv->bg_dirty = TRUE;
-			scale_changed = TRUE;
-		} else if (value < priv->yrange.begin) {
-			priv->yrange.begin = value - ((priv->yrange.end - value) / 4.);
-			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
-			priv->bg_dirty = TRUE;
-			scale_changed = TRUE;
+		for (i = 0; i < priv->lines->len; i++) {
+			value = values[i];
+			if (value > priv->yrange.end) {
+				priv->yrange.end = value + ((value - priv->yrange.begin) / 4.);
+				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+				priv->bg_dirty = TRUE;
+				scale_changed = TRUE;
+			} else if (value < priv->yrange.begin) {
+				priv->yrange.begin = value - ((priv->yrange.end - value) / 4.);
+				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+				priv->bg_dirty = TRUE;
+				scale_changed = TRUE;
+			}
 		}
 	}
-	/*
-	 * Push raw data value to buffer.
-	 */
-	uber_buffer_append(priv->buffer, value);
-	/*
-	 * Scale value and push value to scaled cache.
-	 */
-	pixel_range.begin = priv->content_rect.y;
-	pixel_range.end = pixel_range.begin + priv->content_rect.height;
-	pixel_range.range = priv->content_rect.height;
-	if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
-		uber_buffer_append(priv->scaled, -INFINITY);
-	} else {
-		uber_buffer_append(priv->scaled, value);
+	for (i = 0; i < priv->lines->len; i++) {
+		/*
+		 * Push raw data value to buffer.
+		 */
+		value = values[i];
+		line = &g_array_index(priv->lines, LineInfo, i);
+		uber_buffer_append(line->buffer, value);
+		/*
+		 * Scale value and push value to scaled cache.
+		 */
+		if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
+			value = -INFINITY;
+		}
+		uber_buffer_append(line->scaled, value);
+		values[i] = value; /* FIXME: Dont overwrite their memory. */
 	}
 	/*
 	 * Shift the contents of the previous pixmap to its new offset
@@ -222,7 +293,7 @@ uber_graph_push (UberGraph *graph, /* IN */
 		uber_graph_render_fg_shifted_task(graph,
 		                                  &priv->info[priv->flipped],
 		                                  &priv->info[!priv->flipped],
-		                                  value); /* Scaled */
+		                                  values); /* Scaled */
 		priv->flipped = !priv->flipped;
 		priv->fg_dirty = FALSE;
 	}
@@ -247,13 +318,19 @@ uber_graph_set_stride (UberGraph *graph, /* IN */
                        gint       stride) /* IN */
 {
 	UberGraphPrivate *priv;
+	LineInfo *line;
+	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(stride > 0);
 
 	priv = graph->priv;
-	uber_buffer_set_size(priv->buffer, stride);
-	uber_buffer_set_size(priv->scaled, stride);
+	priv->stride = stride;
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		uber_buffer_set_size(line->buffer, stride);
+		uber_buffer_set_size(line->scaled, stride);
+	}
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
@@ -325,7 +402,7 @@ uber_graph_set_yautoscale (UberGraph *graph,      /* IN */
 gboolean
 uber_graph_get_yautoscale (UberGraph *graph) /* IN */
 {
-	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
 	return graph->priv->yautoscale;
 }
 
@@ -375,7 +452,7 @@ uber_graph_set_fps (UberGraph *graph, /* IN */
 	priv->fps = fps;
 	priv->fps_to = 1000. / fps;
 	priv->fps_each = (gfloat)priv->content_rect.width /
-	                 (gfloat)priv->buffer->len /
+	                 (gfloat)priv->stride /
 	                 ((gfloat)priv->fps + 1);
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
@@ -595,8 +672,8 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 	gdouble y;
 	gdouble x;
 
-	g_return_if_fail(closure->graph != NULL);
-	g_return_if_fail(closure->graph->priv->scale != NULL);
+	g_return_val_if_fail(closure->graph != NULL, FALSE);
+	g_return_val_if_fail(closure->graph->priv->scale != NULL, FALSE);
 
 	priv = closure->graph->priv;
 	x = closure->x_epoch - (closure->offset++ * priv->x_each);
@@ -643,13 +720,46 @@ gdk_color_parse_xor (GdkColor    *color, /* IN */
 {
 	gboolean ret;
 
-	ret = gdk_color_parse(spec, color);
-	color->red ^= xor;
-	color->green ^= xor;
-	color->blue ^= xor;
+	if ((ret = gdk_color_parse(spec, color))) {
+		color->red ^= xor;
+		color->green ^= xor;
+		color->blue ^= xor;
+	}
 	return ret;
 }
 
+/**
+ * uber_graph_stylize_line:
+ * @graph: A #UberGraph.
+ * @line: A LineInfo.
+ * @cr: A cairo context.
+ *
+ * Stylizes the cairo context according to the lines settings.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static inline void
+uber_graph_stylize_line (UberGraph *graph, /* IN */
+                         LineInfo  *line,  /* IN */
+                         cairo_t   *cr)    /* IN */
+{
+	cairo_set_line_width(cr, 2.0);
+	gdk_cairo_set_source_color(cr, &line->color);
+	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+	cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+}
+
+/**
+ * uber_graph_render_fg_task:
+ * @graph: A #UberGraph.
+ * @info: A GraphInfo.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
 static void
 uber_graph_render_fg_task (UberGraph *graph, /* IN */
                            GraphInfo *info)  /* IN */
@@ -657,7 +767,8 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	UberGraphPrivate *priv;
 	GtkAllocation alloc;
 	RenderClosure closure = { 0 };
-	GdkColor fg_color;
+	LineInfo *line;
+	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(info != NULL);
@@ -674,11 +785,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	closure.pixel_range.end = priv->content_rect.y + priv->content_rect.height;
 	closure.pixel_range.range = priv->content_rect.height;
 	closure.value_range = priv->yrange;
-	closure.last_x = -INFINITY;
-	closure.last_y = -INFINITY;
-	closure.first = TRUE;
 	closure.x_epoch = priv->content_rect.x + priv->content_rect.width + priv->x_each;
-	closure.offset = 0;
 	/*
 	 * Clear the background.
 	 */
@@ -691,15 +798,19 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	 * Render data point contents.
 	 */
 	cairo_save(info->fg_cairo);
-	cairo_set_line_cap(info->fg_cairo, CAIRO_LINE_CAP_ROUND);
-	cairo_set_line_join(info->fg_cairo, CAIRO_LINE_JOIN_ROUND);
-	cairo_move_to(info->fg_cairo,
-	              closure.x_epoch,
-	              priv->content_rect.y + priv->content_rect.height);
-	uber_buffer_foreach(priv->scaled, uber_graph_render_fg_each, &closure);
-	gdk_color_parse_xor(&fg_color, "#3465a4", 0xFFFF);
-	gdk_cairo_set_source_color(info->fg_cairo, &fg_color);
-	cairo_stroke(info->fg_cairo);
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		closure.last_x = -INFINITY;
+		closure.last_y = -INFINITY;
+		closure.first = TRUE;
+		closure.offset = 0;
+		cairo_move_to(info->fg_cairo,
+		              closure.x_epoch,
+		              priv->content_rect.y + priv->content_rect.height);
+		uber_graph_stylize_line(graph, line, info->fg_cairo);
+		uber_buffer_foreach(line->scaled, uber_graph_render_fg_each, &closure);
+		cairo_stroke(info->fg_cairo);
+	}
 	cairo_restore(info->fg_cairo);
 	priv->fps_off++;
 }
@@ -717,37 +828,26 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
  * Side effects: None.
  */
 static void
-uber_graph_render_fg_shifted_task (UberGraph    *graph, /* IN */
-                                   GraphInfo    *src,   /* IN */
-                                   GraphInfo    *dst,   /* IN */
-                                   gdouble       value) /* IN */
+uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
+                                   GraphInfo    *src,    /* IN */
+                                   GraphInfo    *dst,    /* IN */
+                                   gdouble      *values) /* IN */
 {
 	UberGraphPrivate *priv;
+	LineInfo *line;
 	GtkAllocation alloc;
-	GdkColor fg_color;
 	gdouble last_y;
 	gdouble x_epoch;
 	gdouble y_end;
 	gdouble y;
+	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(src != NULL);
 	g_return_if_fail(dst != NULL);
+	g_return_if_fail(values != NULL);
 
 	priv = graph->priv;
-	y_end = priv->content_rect.y + priv->content_rect.height;
-	if (-INFINITY == (last_y = uber_buffer_get_index(priv->scaled, 1))) {
-		/*
-		 * Not in our fast path, defer to default rendering path.
-		 */
-		uber_graph_render_fg_task(graph, dst);
-		return;
-	}
-	/*
-	 * Convert relative position to fixed from bottom pixel.
-	 */
-	y = y_end - value;
-	last_y = y_end - last_y;
 	/*
 	 * Clear the old pixmap contents.
 	 */
@@ -771,13 +871,10 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph, /* IN */
 	                  priv->content_rect.height);
 	gdk_gc_set_function(priv->fg_gc, GDK_XOR);
 	/*
-	 * Draw the new data-point, making sure to clip the rendering
-	 * region.
+	 * Render the lines of data.  Clip the region to the new area only.
 	 */
+	y_end = priv->content_rect.y + priv->content_rect.height;
 	x_epoch = priv->content_rect.x + priv->content_rect.width + priv->x_each;
-	/*
-	 * Draw the new region.
-	 */
 	cairo_save(dst->fg_cairo);
 	cairo_rectangle(dst->fg_cairo,
 	                priv->content_rect.x + priv->content_rect.width,
@@ -785,26 +882,27 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph, /* IN */
 	                priv->x_each,
 	                priv->content_rect.height);
 	cairo_clip(dst->fg_cairo);
-#if 0
-	if (priv->flipped)
-		gdk_color_parse_xor(&fg_color, "#73d216", 0xFFFF);
-	else
-		gdk_color_parse_xor(&fg_color, "#3465a4", 0xFFFF);
-#else
-	gdk_color_parse_xor(&fg_color, "#3465a4", 0xFFFF);
-#endif
-	gdk_cairo_set_source_color(dst->fg_cairo, &fg_color);
 	cairo_set_line_cap(dst->fg_cairo, CAIRO_LINE_CAP_ROUND);
 	cairo_set_line_join(dst->fg_cairo, CAIRO_LINE_JOIN_ROUND);
-	cairo_move_to(dst->fg_cairo, x_epoch, y);
-	cairo_curve_to(dst->fg_cairo,
-	               x_epoch - (priv->x_each / 2.),
-	               y,
-	               x_epoch - (priv->x_each / 2.),
-	               last_y,
-	               priv->content_rect.x + priv->content_rect.width,
-	               last_y);
-	cairo_stroke(dst->fg_cairo);
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		last_y = uber_buffer_get_index(line->scaled, 1);
+		/*
+		 * Convert relative position to fixed from bottom pixel.
+		 */
+		y = y_end - values[i];
+		last_y = y_end - last_y;
+		uber_graph_stylize_line(graph, line, dst->fg_cairo);
+		cairo_move_to(dst->fg_cairo, x_epoch, y);
+		cairo_curve_to(dst->fg_cairo,
+		               x_epoch - (priv->x_each / 2.),
+		               y,
+		               x_epoch - (priv->x_each / 2.),
+		               last_y,
+		               priv->content_rect.x + priv->content_rect.width,
+		               last_y);
+		cairo_stroke(dst->fg_cairo);
+	}
 	cairo_restore(dst->fg_cairo);
 }
 
@@ -828,6 +926,7 @@ static void
 uber_graph_init_graph_info (UberGraph *graph, /* IN */
                             GraphInfo *info)  /* IN/OUT */
 {
+	UberGraphPrivate *priv;
 	GtkAllocation alloc;
 	GdkDrawable *drawable;
 	GdkPixmap *bg_pixmap;
@@ -838,10 +937,11 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(info != NULL);
 
+	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	drawable = GDK_DRAWABLE(gtk_widget_get_window(GTK_WIDGET(graph)));
 	bg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
-	fg_pixmap = gdk_pixmap_new(drawable, alloc.width + 20, alloc.height, -1);
+	fg_pixmap = gdk_pixmap_new(drawable, alloc.width + 30, alloc.height, -1);
 	/*
 	 * Set background to default widget background.
 	 */
@@ -947,8 +1047,10 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	UberGraph *graph;
 	UberGraphPrivate *priv;
 	UberRange pixel_range;
+	LineInfo *line;
 	gdouble value;
 	gint i;
+	gint j;
 
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
@@ -965,20 +1067,23 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	uber_graph_calculate_rects(UBER_GRAPH(widget));
 	uber_graph_set_fps(graph, priv->fps); /* Re-calculate */
 	priv->x_each = ((gdouble)priv->content_rect.width - 2)
-	             / ((gdouble)priv->buffer->len - 2.);
+	             / ((gdouble)priv->stride - 2.);
 	/*
 	 * Rescale values relative to new content area.
 	 */
 	pixel_range.begin = priv->content_rect.y;
 	pixel_range.end = priv->content_rect.y + priv->content_rect.height;
 	pixel_range.range = priv->content_rect.height;
-	for (i = 0; i < priv->buffer->len; i++) {
-		if (priv->buffer->buffer[i] != -INFINITY) {
-			value = priv->buffer->buffer[i];
-			if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
-				value = -INFINITY;
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		for (j = 0; j < line->buffer->len; j++) {
+			if (line->buffer->buffer[j] != -INFINITY) {
+				value = line->buffer->buffer[j];
+				if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
+					value = -INFINITY;
+				}
+				line->scaled->buffer[j] = value;
 			}
-			priv->scaled->buffer[i] = value;
 		}
 	}
 }
@@ -1112,6 +1217,35 @@ uber_graph_style_set (GtkWidget *widget,     /* IN */
 }
 
 /**
+ * uber_graph_add_line:
+ * @graph: A UberGraph.
+ *
+ * Adds a new line to the graph.  Values should be added to the graph
+ * using uber_graph_push() with the returned line id.
+ *
+ * Returns: the line-id to use with uber_graph_push().
+ * Side effects: None.
+ */
+guint
+uber_graph_add_line (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+	LineInfo line = { 0 };
+
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), -1);
+
+	priv = graph->priv;
+	line.buffer = uber_buffer_new();
+	line.scaled = uber_buffer_new();
+	uber_buffer_set_size(line.buffer, priv->stride);
+	uber_buffer_set_size(line.scaled, priv->stride);
+	gdk_color_parse_xor(&line.color, priv->colors[priv->color], 0xFFFF);
+	priv->color = (priv->color + 1) % priv->colors_len;
+	g_array_append_val(priv->lines, line);
+	return priv->lines->len;
+}
+
+/**
  * uber_graph_realize:
  * @widget: A #UberGraph.
  *
@@ -1169,12 +1303,12 @@ static void
 uber_graph_finalize (GObject *object) /* IN */
 {
 	UberGraphPrivate *priv;
+	LineInfo *line;
+	gint i;
 
 	priv = UBER_GRAPH(object)->priv;
 	uber_graph_destroy_graph_info(UBER_GRAPH(object), &priv->info[0]);
 	uber_graph_destroy_graph_info(UBER_GRAPH(object), &priv->info[1]);
-	uber_buffer_unref(priv->buffer);
-	uber_buffer_unref(priv->scaled);
 	if (priv->fg_gc) {
 		g_object_unref(priv->fg_gc);
 	}
@@ -1184,6 +1318,12 @@ uber_graph_finalize (GObject *object) /* IN */
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
 	}
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		uber_buffer_unref(line->buffer);
+		uber_buffer_unref(line->scaled);
+	}
+	g_array_unref(priv->lines);
 	G_OBJECT_CLASS(uber_graph_parent_class)->finalize(object);
 }
 
@@ -1229,13 +1369,14 @@ uber_graph_init (UberGraph *graph) /* IN */
 
 	graph->priv = GET_PRIVATE(graph, UBER_TYPE_GRAPH, UberGraphPrivate);
 	priv = graph->priv;
-
+	priv->stride = 60;
 	priv->tick_len = 10;
 	priv->scale = uber_scale_linear;
-	priv->buffer = uber_buffer_new();
-	priv->scaled = uber_buffer_new();
 	priv->yrange.begin = 0.;
 	priv->yrange.end = 1.;
 	priv->yrange.range = 1.;
+	priv->lines = g_array_sized_new(FALSE, TRUE, sizeof(LineInfo), 2);
+	priv->colors = g_strdupv((gchar **)default_colors);
+	priv->colors_len = G_N_ELEMENTS(default_colors);
 	uber_graph_set_fps(graph, 20);
 }

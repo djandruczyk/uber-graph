@@ -171,8 +171,8 @@ gdouble
 uber_buffer_get_index (UberBuffer *buffer, /* IN */
                        gint        idx)    /* IN */
 {
-	g_return_if_fail(buffer != NULL);
-	g_return_if_fail(idx < buffer->len);
+	g_return_val_if_fail(buffer != NULL, -INFINITY);
+	g_return_val_if_fail(idx < buffer->len, -INFINITY);
 
 	if (buffer->pos > idx) {
 		return buffer->buffer[buffer->pos - idx - 1];

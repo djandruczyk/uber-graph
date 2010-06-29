@@ -61,10 +61,15 @@ struct _UberGraphClass
 	GtkDrawingAreaClass parent_class;
 };
 
+guint          uber_graph_add_line        (UberGraph       *graph);
 GType          uber_graph_get_type        (void) G_GNUC_CONST;
+gboolean       uber_graph_get_yautoscale  (UberGraph       *graph);
 GtkWidget*     uber_graph_new             (void);
 void           uber_graph_push            (UberGraph       *graph,
-                                           gdouble          value);
+                                           gint             first_id,
+                                           ...);
+void           uber_graph_pushv           (UberGraph       *graph,
+                                           gdouble         *values);
 void           uber_graph_set_fps         (UberGraph       *graph,
                                            gint             fps);
 void           uber_graph_set_yrange      (UberGraph       *graph,
@@ -73,7 +78,6 @@ void           uber_graph_set_scale       (UberGraph       *graph,
                                            UberScale        scale);
 void           uber_graph_set_yautoscale  (UberGraph       *graph,
                                            gboolean         yautoscale);
-gboolean       uber_graph_get_yautoscale  (UberGraph       *graph);
 void           uber_graph_set_stride      (UberGraph       *graph,
                                            gint             stride);
 gboolean       uber_scale_linear          (UberGraph       *graph,

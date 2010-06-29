@@ -44,13 +44,13 @@ static GOptionEntry options[] = {
 	{ NULL }
 };
 
-static GtkWidget *graph = NULL;
+static GtkWidget *graph     = NULL;
+static gdouble    values[3] = { 0 };
 
 static GtkWidget*
 create_main_window (void)
 {
 	GtkWidget *window;
-	//UberRange range = { 0., 4. };
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
@@ -58,8 +58,10 @@ create_main_window (void)
 	gtk_window_set_default_size(GTK_WINDOW(window), 640, 200);
 	gtk_widget_show(window);
 	graph = uber_graph_new();
-	//uber_graph_set_yrange(UBER_GRAPH(graph), &range);
 	uber_graph_set_yautoscale(UBER_GRAPH(graph), TRUE);
+	uber_graph_add_line(UBER_GRAPH(graph));
+	uber_graph_add_line(UBER_GRAPH(graph));
+	uber_graph_add_line(UBER_GRAPH(graph));
 	gtk_container_add(GTK_CONTAINER(window), graph);
 	gtk_widget_show(graph);
 	return window;
@@ -70,12 +72,11 @@ next_data (gpointer data)
 {
 	char buf[1024];
 	int fd = open("/proc/loadavg", O_RDONLY);
-	float f1, f2, f3;
 
 	read(fd, buf, sizeof(buf));
-	sscanf(buf, "%f %f %f", &f1, &f2, &f3);
-	g_debug("Pushing %f", f1);
-	uber_graph_push(UBER_GRAPH(graph), f1);
+	sscanf(buf, "%lf %lf %lf", &values[0], &values[1], &values[2]);
+	g_debug("Pushing %f %f %f", values[0], values[1], values[2]);
+	uber_graph_pushv(UBER_GRAPH(graph), values);
 	close(fd);
 	return TRUE;
 }
