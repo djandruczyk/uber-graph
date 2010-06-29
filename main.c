@@ -87,6 +87,7 @@ next_cpu (gpointer data)
 	uber_graph_pushv(UBER_GRAPH(cpu_graph), &percent);
 
   finish:
+  	close(fd);
 	u1 = u2;
 	i1 = i2;
 	s1 = s2;
