@@ -1075,7 +1075,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 			                  priv->content_rect.y,
 			                  priv->content_rect.x - (priv->fps_each * priv->fps_off),
 			                  priv->content_rect.y,
-			                  priv->content_rect.width + 20,
+			                  priv->content_rect.width + priv->x_each,
 			                  priv->content_rect.height);
 			priv->fps_off++;
 		}
