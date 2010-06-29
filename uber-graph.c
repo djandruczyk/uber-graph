@@ -29,6 +29,10 @@
 #define DEFAULT_SIZE (64)
 #define GET_PRIVATE  G_TYPE_INSTANCE_GET_PRIVATE
 
+#ifndef g_malloc0_n
+#define g_malloc0_n(a,b) g_malloc0(a * b)
+#endif
+
 /**
  * SECTION:uber-graph
  * @title: UberGraph
