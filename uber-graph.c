@@ -1065,9 +1065,9 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		if (G_UNLIKELY(priv->fg_dirty)) {
 			uber_graph_render_fg_task(UBER_GRAPH(widget), info);
 			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
-							  expose->area.x, expose->area.y,
-							  expose->area.x, expose->area.y,
-							  expose->area.width, expose->area.height);
+							  expose->area.x + 2, expose->area.y,
+							  expose->area.x + 2, expose->area.y,
+							  expose->area.width - 4, expose->area.height);
 			priv->fps_off++;
 		} else {
 			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
