@@ -100,16 +100,20 @@ static gboolean
 next_net (gpointer data)
 {
 	static gboolean initialized = FALSE;
-	static gdouble last_total = 0;
+	static gdouble lastTotalIn = 0;
+	static gdouble lastTotalOut = 0;
 	char buf[4096];
 	char iface[32];
 	char *line;
 	int fd;
 	int i;
 	int l = 0;
-	gulong bytes = 0;
-	gdouble total = 0;
-	gdouble diff;
+	gulong dummy1, dummy2, dummy3, dummy4, dummy5, dummy6, dummy7;
+	gulong bytesIn = 0;
+	gulong bytesOut = 0;
+	gdouble totalIn = 0;
+	gdouble totalOut = 0;
+	gdouble diff[2] = { 0 };
 
 	if ((fd = open("/proc/net/dev", O_RDONLY)) < 0) {
 		g_warning("Failed to open /proc/net/dev");
@@ -125,10 +129,11 @@ next_net (gpointer data)
 		} else if (buf[i] == '\n') {
 			buf[i] = '\0';
 			if (++l > 2) { // ignore first two lines
-				if (sscanf(line, "%s %lu", iface, &bytes) != 2) {
+				if (sscanf(line, "%s %lu %lu %lu %lu %lu %lu %lu %lu %lu", iface, &bytesIn, &dummy1, &dummy2, &dummy3, &dummy4, &dummy5, &dummy6, &dummy7, &bytesOut) != 10) {
 					g_warning("Skipping invalid line: %s", line);
 				} else {
-					total += bytes;
+					totalIn += bytesIn;
+					totalOut += bytesOut;
 				}
 				line = NULL;
 			}
@@ -141,13 +146,15 @@ next_net (gpointer data)
 		goto finish;
 	}
 
-	diff = (total - last_total);
-	g_debug("Pushing net receive=%f", diff);
-	uber_graph_pushv(UBER_GRAPH(net_graph), &diff);
+	diff[0] = (totalIn - lastTotalIn);
+	diff[1] = (totalOut - lastTotalOut);
+	g_debug("Pushing net receive=%f transmit=%f", diff[0], diff[1]);
+	uber_graph_pushv(UBER_GRAPH(net_graph), diff);
 
   finish:
 	close(fd);
-	last_total = total;
+	lastTotalOut = totalOut;
+	lastTotalIn = totalIn;
 	return TRUE;
 }
 
@@ -206,6 +213,7 @@ create_main_window (void)
 
 	net_graph = uber_graph_new();
 	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
+	uber_graph_add_line(UBER_GRAPH(net_graph));
 	uber_graph_add_line(UBER_GRAPH(net_graph));
 	gtk_box_pack_start(GTK_BOX(vbox), net_graph, TRUE, TRUE, 0);
 	gtk_widget_show(net_graph);
