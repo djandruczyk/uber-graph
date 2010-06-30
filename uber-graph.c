@@ -646,6 +646,9 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	/*
 	 * Render the Y-Axis ticks.
 	 */
+	cairo_move_to(info->bg_cairo, priv->content_rect.x - priv->tick_len, priv->y_tick_rect.y + (priv->y_tick_rect.height / 2) + .5);
+	cairo_line_to(info->bg_cairo, priv->content_rect.x + priv->content_rect.width, priv->y_tick_rect.y + (priv->y_tick_rect.height / 2) + .5);
+	cairo_stroke(info->bg_cairo);
 	//gdk_cairo_rectangle_clean(info->bg_cairo, &priv->y_tick_rect);
 	//cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
 	//cairo_fill(info->bg_cairo);
@@ -678,7 +681,6 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 	gdouble x;
 
 	g_return_val_if_fail(closure->graph != NULL, FALSE);
-	g_return_val_if_fail(closure->graph->priv->scale != NULL, FALSE);
 
 	priv = closure->graph->priv;
 	x = closure->x_epoch - (closure->offset++ * priv->x_each);
@@ -1375,7 +1377,7 @@ uber_graph_init (UberGraph *graph) /* IN */
 	graph->priv = GET_PRIVATE(graph, UBER_TYPE_GRAPH, UberGraphPrivate);
 	priv = graph->priv;
 	priv->stride = 60;
-	priv->tick_len = 10;
+	priv->tick_len = 5;
 	priv->scale = uber_scale_linear;
 	priv->yrange.begin = 0.;
 	priv->yrange.end = 1.;
