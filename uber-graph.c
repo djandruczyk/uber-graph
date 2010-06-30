@@ -645,6 +645,9 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	/*
 	 * Render the X-Axis ticks.
 	 */
+	cairo_move_to(info->bg_cairo, priv->content_rect.x + (priv->content_rect.width / 2) + .5, priv->content_rect.y);
+	cairo_line_to(info->bg_cairo, priv->content_rect.x + (priv->content_rect.width / 2) + .5, priv->content_rect.y + priv->content_rect.height + priv->tick_len);
+	cairo_stroke(info->bg_cairo);
 	//gdk_cairo_rectangle_clean(info->bg_cairo, &priv->x_tick_rect);
 	//cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
 	//cairo_fill(info->bg_cairo);
