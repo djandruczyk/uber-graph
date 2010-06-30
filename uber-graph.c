@@ -565,12 +565,12 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 * Determine largest size of tick labels.
 	 */
 	uber_graph_prepare_layout(graph, pl, LAYOUT_TICK);
-	pango_layout_set_text(pl, "XXXX", -1);
+	pango_layout_set_text(pl, "XXXXX", -1);
 	pango_layout_get_pixel_size(pl, &tick_w, &tick_h);
 	/*
 	 * Calculate the X-Axis tick area.
 	 */
-	priv->x_tick_rect.height = priv->tick_len + tick_w;
+	priv->x_tick_rect.height = priv->tick_len + tick_h;
 	priv->x_tick_rect.x = priv->tick_len + tick_w;
 	priv->x_tick_rect.width = alloc.width - priv->x_tick_rect.x;
 	priv->x_tick_rect.y = alloc.height - priv->x_tick_rect.height;
@@ -578,14 +578,14 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 * Calculate the Y-Axis tick area.
 	 */
 	priv->y_tick_rect.x = 0;
-	priv->y_tick_rect.y = 0;
+	priv->y_tick_rect.y = tick_h / 2;
 	priv->y_tick_rect.width = tick_w + priv->tick_len;
-	priv->y_tick_rect.height = priv->x_tick_rect.y;
+	priv->y_tick_rect.height = priv->x_tick_rect.y - priv->y_tick_rect.y;
 	/*
 	 * Calculate the content region.
 	 */
 	priv->content_rect.x = priv->y_tick_rect.x + priv->y_tick_rect.width + 1;
-	priv->content_rect.y = 1;
+	priv->content_rect.y = tick_h / 2 + 1;
 	priv->content_rect.width = alloc.width - priv->content_rect.x - 2;
 	priv->content_rect.height = priv->x_tick_rect.y - priv->content_rect.y - 2;
 	/*
@@ -593,6 +593,70 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 */
 	g_object_unref(pl);
 	cairo_destroy(cr);
+}
+
+/**
+ * uber_graph_render_bg_y_ticks:
+ * @graph: A #UberGraph.
+ * @info: A GraphInfo.
+ *
+ * Draws the ticks and labels for the Y-Axis grid lines of the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static inline void
+uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
+                              GraphInfo *info)  /* IN */
+{
+	UberGraphPrivate *priv;
+	gfloat fraction;
+	gint n_lines;
+	gint i;
+	gint w;
+	gint h;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+
+	#define DRAW_TICK_LABEL(f, v, o)                                         \
+	    G_STMT_START {                                                       \
+	        gint _v = (v);                                                   \
+	        gchar *_v_str;                                                   \
+	        _v_str = g_markup_printf_escaped(                                \
+	            "<span size='smaller'>%d %% </span>",                        \
+	            _v);                                                         \
+	        pango_layout_set_markup(info->tick_layout, _v_str, -1);          \
+	        pango_layout_get_pixel_size(info->tick_layout, &w, &h);          \
+	        cairo_move_to(info->bg_cairo,                                    \
+	                      priv->content_rect.x - priv->tick_len - w,         \
+	                      priv->y_tick_rect.y + priv->y_tick_rect.height     \
+	                      - ((priv->y_tick_rect.height / n_lines) * o)       \
+	                      - (h / 2) + .5);                                   \
+	        pango_cairo_show_layout(info->bg_cairo, info->tick_layout);      \
+	        g_free(_v_str);                                                  \
+		} G_STMT_END
+
+	n_lines = MIN(priv->content_rect.height / 20, 5);
+	DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 100, n_lines);
+	for (i = 1; i < n_lines; i++) {
+		/*
+		 * Draw the tick line.
+		 */
+		cairo_move_to(info->bg_cairo,
+		              priv->content_rect.x - priv->tick_len,
+		              priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i) + .5);
+		cairo_line_to(info->bg_cairo,
+		              priv->content_rect.x + priv->content_rect.width,
+		              priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i) + .5);
+		cairo_stroke(info->bg_cairo);
+		fraction = 1. / (gfloat)n_lines;
+		DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>",
+		                fraction * i * 100.,
+		                i);
+	}
+	DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 0, 0);
 }
 
 /**
@@ -645,8 +709,12 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	/*
 	 * Render the X-Axis ticks.
 	 */
-	cairo_move_to(info->bg_cairo, priv->content_rect.x + (priv->content_rect.width / 2) + .5, priv->content_rect.y);
-	cairo_line_to(info->bg_cairo, priv->content_rect.x + (priv->content_rect.width / 2) + .5, priv->content_rect.y + priv->content_rect.height + priv->tick_len);
+	cairo_move_to(info->bg_cairo,
+	              priv->content_rect.x + (priv->content_rect.width / 2) + .5,
+	              priv->content_rect.y);
+	cairo_line_to(info->bg_cairo,
+	              priv->content_rect.x + (priv->content_rect.width / 2) + .5,
+	              priv->content_rect.y + priv->content_rect.height + priv->tick_len);
 	cairo_stroke(info->bg_cairo);
 	//gdk_cairo_rectangle_clean(info->bg_cairo, &priv->x_tick_rect);
 	//cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
@@ -654,9 +722,7 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	/*
 	 * Render the Y-Axis ticks.
 	 */
-	cairo_move_to(info->bg_cairo, priv->content_rect.x - priv->tick_len, priv->y_tick_rect.y + (priv->y_tick_rect.height / 2) + .5);
-	cairo_line_to(info->bg_cairo, priv->content_rect.x + priv->content_rect.width, priv->y_tick_rect.y + (priv->y_tick_rect.height / 2) + .5);
-	cairo_stroke(info->bg_cairo);
+	uber_graph_render_bg_y_ticks(graph, info);
 	//gdk_cairo_rectangle_clean(info->bg_cairo, &priv->y_tick_rect);
 	//cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
 	//cairo_fill(info->bg_cairo);
