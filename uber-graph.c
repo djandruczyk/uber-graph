@@ -33,6 +33,13 @@
 #define g_malloc0_n(a,b) g_malloc0(a * b)
 #endif
 
+#define GET_PIXEL_RANGE(pr, rect)                \
+    G_STMT_START {                               \
+        (pr).begin = (rect).y + 1;               \
+        (pr).end = (rect).y + (rect).height - 1; \
+        (pr).range = (rect).height - 2;          \
+    } G_STMT_END
+
 /**
  * SECTION:uber-graph
  * @title: UberGraph
@@ -246,9 +253,7 @@ uber_graph_pushv (UberGraph *graph,  /* IN */
 	priv = graph->priv;
 	priv->fps_off = 0;
 	priv->fg_dirty = TRUE;
-	pixel_range.begin = priv->content_rect.y;
-	pixel_range.end = pixel_range.begin + priv->content_rect.height;
-	pixel_range.range = priv->content_rect.height;
+	GET_PIXEL_RANGE(pixel_range, priv->content_rect);
 	/*
 	 * Check if value is outside the current range.
 	 */
@@ -458,7 +463,7 @@ uber_graph_set_fps (UberGraph *graph, /* IN */
 	priv->fps_to = 1000. / fps;
 	priv->fps_each = (gfloat)priv->content_rect.width /
 	                 (gfloat)priv->stride /
-	                 ((gfloat)priv->fps + 1);
+	                 (gfloat)priv->fps;
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
 	}
@@ -788,9 +793,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	closure.graph = graph;
 	closure.info = info;
 	closure.scale = priv->scale;
-	closure.pixel_range.begin = priv->content_rect.y;
-	closure.pixel_range.end = priv->content_rect.y + priv->content_rect.height;
-	closure.pixel_range.range = priv->content_rect.height;
+	GET_PIXEL_RANGE(closure.pixel_range, priv->content_rect);
 	closure.value_range = priv->yrange;
 	closure.x_epoch = priv->content_rect.x + priv->content_rect.width + priv->x_each;
 	/*
@@ -813,7 +816,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 		closure.offset = 0;
 		cairo_move_to(info->fg_cairo,
 		              closure.x_epoch,
-		              priv->content_rect.y + priv->content_rect.height);
+		              priv->content_rect.y + priv->content_rect.height - 1);
 		uber_graph_stylize_line(graph, line, info->fg_cairo);
 		uber_buffer_foreach(line->scaled, uber_graph_render_fg_each, &closure);
 		cairo_stroke(info->fg_cairo);
@@ -880,7 +883,7 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 	/*
 	 * Render the lines of data.  Clip the region to the new area only.
 	 */
-	y_end = priv->content_rect.y + priv->content_rect.height;
+	y_end = priv->content_rect.y + priv->content_rect.height - 1;
 	x_epoch = priv->content_rect.x + priv->content_rect.width + priv->x_each;
 	cairo_save(dst->fg_cairo);
 	cairo_rectangle(dst->fg_cairo,
@@ -1078,9 +1081,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	/*
 	 * Rescale values relative to new content area.
 	 */
-	pixel_range.begin = priv->content_rect.y;
-	pixel_range.end = priv->content_rect.y + priv->content_rect.height;
-	pixel_range.range = priv->content_rect.height;
+	GET_PIXEL_RANGE(pixel_range, priv->content_rect);
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
 		for (j = 0; j < line->buffer->len; j++) {
