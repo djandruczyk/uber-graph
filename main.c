@@ -53,6 +53,7 @@ static GOptionEntry options[] = {
 static GtkWidget *load_graph = NULL;
 static GtkWidget *cpu_graph  = NULL;
 static GtkWidget *net_graph  = NULL;
+static GtkWidget *mem_graph  = NULL;
 
 static gboolean
 next_cpu (gpointer data)
@@ -127,7 +128,7 @@ next_net (gpointer data)
 	}
 
 	read(fd, buf, sizeof(buf));
-	buf[sizeof(buf)] = '\0';
+	buf[sizeof(buf) - 1] = '\0';
 	line = buf;
 	for (i = 0; buf[i]; i++) {
 		if (buf[i] == ':') {
@@ -164,6 +165,83 @@ next_net (gpointer data)
 	return TRUE;
 }
 
+static gboolean
+next_mem (gpointer data)
+{
+	static gboolean initialized = FALSE;
+
+	gdouble memTotal = 0;
+	gdouble memFree = 0;
+	gdouble swapTotal = 0;
+	gdouble swapFree = 0;
+	gdouble cached = 0;
+
+	gdouble values[2] = { 0 };
+
+	int fd;
+	char buf[4096];
+	char *line;
+	int i;
+
+
+	if ((fd = open("/proc/meminfo", O_RDONLY)) < 0) {
+		g_warning("Failed to open /proc/meminfo");
+		return TRUE;
+	}
+
+	read(fd, buf, sizeof(buf));
+	buf[sizeof(buf) - 1] = '\0';
+	line = buf;
+
+	for (i = 0; buf[i]; i++) {
+		if (buf[i] == '\n') {
+			buf[i] = '\0';
+			if (g_str_has_prefix(line, "MemTotal:")) {
+				if (sscanf(line, "MemTotal: %lf", &memTotal) != 1) {
+					g_warning("Failed to read MemTotal");
+					goto error;
+				}
+			} else if (g_str_has_prefix(line, "MemFree:")) {
+				if (sscanf(line, "MemFree: %lf", &memFree) != 1) {
+					g_warning("Failed to read MemFree");
+					goto error;
+				}
+			} else if (g_str_has_prefix(line, "SwapTotal:")) {
+				if (sscanf(line, "SwapTotal: %lf", &swapTotal) != 1) {
+					g_warning("Failed to read SwapTotal");
+					goto error;
+				}
+			} else if (g_str_has_prefix(line, "SwapFree:")) {
+				if (sscanf(line, "SwapFree: %lf", &swapFree) != 1) {
+					g_warning("Failed to read SwapFree");
+					goto error;
+				}
+			} else if (g_str_has_prefix(line, "Cached:")) {
+				if (sscanf(line, "Cached: %lf", &cached) != 1) {
+					g_warning("Failed to read Cached");
+					goto error;
+				}
+			}
+			line = &buf[i + 1];
+		}
+	}
+
+	if (!initialized) {
+		initialized = TRUE;
+		goto finish;
+	}
+
+	values[0] = (memTotal - cached - memFree) / memTotal;
+	values[1] = (swapTotal - swapFree) / swapTotal;
+	DEBUG("Pushing memUsage=%f swapUsage=%f", values[0], values[1]);
+	uber_graph_pushv(UBER_GRAPH(mem_graph), values);
+
+  finish:
+  error:
+  	close(fd);
+	return TRUE;
+}
+
 static GtkWidget*
 create_main_window (void)
 {
@@ -172,6 +250,7 @@ create_main_window (void)
 	GtkWidget *load_label;
 	GtkWidget *cpu_label;
 	GtkWidget *net_label;
+	GtkWidget *mem_label;
 	UberRange cpu_range = { 0., 100., 100. };
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -224,8 +303,22 @@ create_main_window (void)
 	gtk_box_pack_start(GTK_BOX(vbox), net_graph, TRUE, TRUE, 0);
 	gtk_widget_show(net_graph);
 
+	mem_label = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(mem_label), "<b>Memory History</b>");
+	gtk_box_pack_start(GTK_BOX(vbox), mem_label, FALSE, TRUE, 0);
+	gtk_misc_set_alignment(GTK_MISC(mem_label), .0, .5);
+	gtk_widget_show(mem_label);
+
+	mem_graph = uber_graph_new();
+	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), TRUE);
+	uber_graph_add_line(UBER_GRAPH(mem_graph));
+	uber_graph_add_line(UBER_GRAPH(mem_graph));
+	gtk_box_pack_start(GTK_BOX(vbox), mem_graph, TRUE, TRUE, 0);
+	gtk_widget_show(mem_graph);
+
 	next_cpu(NULL);
 	next_net(NULL);
+	next_mem(NULL);
 
 	return window;
 }
@@ -349,6 +442,7 @@ main (gint   argc,
 	g_timeout_add_seconds(1, next_data, NULL);
 	g_timeout_add_seconds(1, next_cpu, NULL);
 	g_timeout_add_seconds(1, next_net, NULL);
+	g_timeout_add_seconds(1, next_mem, NULL);
 	gtk_main();
 
 	return EXIT_SUCCESS;
