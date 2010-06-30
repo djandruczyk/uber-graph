@@ -40,6 +40,12 @@
 #include "uber-graph.h"
 #include "uber-buffer.h"
 
+#ifdef DISABLE_DEBUG
+#define DEBUG(f,...)
+#else
+#define DEBUG(f,...) g_debug(f, ## __VA_ARGS__)
+#endif
+
 static GOptionEntry options[] = {
 	{ NULL }
 };
@@ -84,7 +90,7 @@ next_cpu (gpointer data)
 	total = (u3 + n3 + s3 + i3);
 	percent = (100 * (u3 + n3 + s3)) / total;
 
-	g_debug("Pushing cpu percent=%f", percent);
+	DEBUG("Pushing cpu percent=%f", percent);
 	uber_graph_pushv(UBER_GRAPH(cpu_graph), &percent);
 
   finish:
@@ -148,7 +154,7 @@ next_net (gpointer data)
 
 	diff[0] = (totalIn - lastTotalIn);
 	diff[1] = (totalOut - lastTotalOut);
-	g_debug("Pushing net receive=%f transmit=%f", diff[0], diff[1]);
+	DEBUG("Pushing net receive=%f transmit=%f", diff[0], diff[1]);
 	uber_graph_pushv(UBER_GRAPH(net_graph), diff);
 
   finish:
@@ -233,7 +239,7 @@ next_data (gpointer data)
 
 	read(fd, buf, sizeof(buf));
 	sscanf(buf, "%lf %lf %lf", &values[0], &values[1], &values[2]);
-	g_debug("Pushing %f %f %f", values[0], values[1], values[2]);
+	DEBUG("Pushing %f %f %f", values[0], values[1], values[2]);
 	uber_graph_pushv(UBER_GRAPH(load_graph), values);
 	close(fd);
 	return TRUE;
