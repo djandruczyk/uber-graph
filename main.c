@@ -242,6 +242,22 @@ next_mem (gpointer data)
 	return TRUE;
 }
 
+static inline GtkWidget*
+create_graph (GtkWidget *vbox)
+{
+	GtkWidget *graph;
+	GtkWidget *align;
+
+	graph = uber_graph_new();
+	align = gtk_alignment_new(.5, .5, 1., 1.);
+	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 12, 0);
+	gtk_container_add(GTK_CONTAINER(align), graph);
+	gtk_box_pack_start(GTK_BOX(vbox), align, TRUE, TRUE, 0);
+	gtk_widget_show(align);
+	gtk_widget_show(graph);
+	return graph;
+}
+
 static GtkWidget*
 create_main_window (void)
 {
@@ -269,12 +285,10 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(cpu_label), .0, .5);
 	gtk_widget_show(cpu_label);
 
-	cpu_graph = uber_graph_new();
+	cpu_graph = create_graph(vbox);
 	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), FALSE);
 	uber_graph_set_yrange(UBER_GRAPH(cpu_graph), &cpu_range);
 	uber_graph_add_line(UBER_GRAPH(cpu_graph));
-	gtk_box_pack_start(GTK_BOX(vbox), cpu_graph, TRUE, TRUE, 0);
-	gtk_widget_show(cpu_graph);
 
 	load_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(load_label), "<b>Load History</b>");
@@ -282,13 +296,11 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(load_label), .0, .5);
 	gtk_widget_show(load_label);
 
-	load_graph = uber_graph_new();
+	load_graph = create_graph(vbox);
 	uber_graph_set_yautoscale(UBER_GRAPH(load_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(load_graph));
 	uber_graph_add_line(UBER_GRAPH(load_graph));
 	uber_graph_add_line(UBER_GRAPH(load_graph));
-	gtk_box_pack_start(GTK_BOX(vbox), load_graph, TRUE, TRUE, 0);
-	gtk_widget_show(load_graph);
 
 	net_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(net_label), "<b>Network History</b>");
@@ -296,12 +308,10 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(net_label), .0, .5);
 	gtk_widget_show(net_label);
 
-	net_graph = uber_graph_new();
+	net_graph = create_graph(vbox);
 	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(net_graph));
 	uber_graph_add_line(UBER_GRAPH(net_graph));
-	gtk_box_pack_start(GTK_BOX(vbox), net_graph, TRUE, TRUE, 0);
-	gtk_widget_show(net_graph);
 
 	mem_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(mem_label), "<b>Memory History</b>");
@@ -309,12 +319,10 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(mem_label), .0, .5);
 	gtk_widget_show(mem_label);
 
-	mem_graph = uber_graph_new();
+	mem_graph = create_graph(vbox);
 	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
-	gtk_box_pack_start(GTK_BOX(vbox), mem_graph, TRUE, TRUE, 0);
-	gtk_widget_show(mem_graph);
 
 	next_cpu(NULL);
 	next_net(NULL);
