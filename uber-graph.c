@@ -71,32 +71,32 @@ typedef struct
 
 struct _UberGraphPrivate
 {
-	GraphInfo      info[2];      /* Two GraphInfo's for swapping. */
-	gboolean       flipped;      /* Which GraphInfo is active. */
-	gint           tick_len;     /* Length of axis ticks in pixels. */
-	gint           fps;          /* Frames per second. */
-	gint           fps_off;      /* Offset in frame-slide */
-	gint           fps_to;       /* Frames per second timeout (in MS) */
-	gint           stride;       /* Number of data points to store. */
-	gfloat         fps_each;     /* How much each frame skews. */
-	gfloat         x_each;       /* Precalculated space between points.  */
-	guint          fps_handler;  /* GSource identifier for invalidating rect. */
-	UberScale      scale;        /* Scaling of values to pixels. */
-	UberRange      yrange;       /* Y-Axis range in for raw values. */
-	GArray        *lines;        /* Lines to draw. */
-	gboolean       bg_dirty;     /* Do we need to update the background. */
-	gboolean       fg_dirty;     /* Do we need to update the foreground. */
-	gboolean       yautoscale;   /* Should the graph autoscale to handle values
-	                              * outside the current range.
-	                              */
-	GdkGC         *bg_gc;        /* Drawing context for blitting background */
-	GdkGC         *fg_gc;        /* Drawing context for blitting foreground */
-	GdkRectangle   x_tick_rect;  /* Pre-calculated X tick area. */
-	GdkRectangle   y_tick_rect;  /* Pre-calculated Y tick area. */
-	GdkRectangle   content_rect; /* Main content area. */
-	gchar        **colors;       /* Array of colors to assign. */
-	gint           colors_len;   /* Length of colors array. */
-	gint           color;        /* Next color to hand out. */
+	GraphInfo         info[2];      /* Two GraphInfo's for swapping. */
+	gboolean          flipped;      /* Which GraphInfo is active. */
+	gint              tick_len;     /* Length of axis ticks in pixels. */
+	gint              fps;          /* Frames per second. */
+	gint              fps_off;      /* Offset in frame-slide */
+	gint              fps_to;       /* Frames per second timeout (in MS) */
+	gint              stride;       /* Number of data points to store. */
+	gfloat            fps_each;     /* How much each frame skews. */
+	gfloat            x_each;       /* Precalculated space between points.  */
+	UberGraphFormat   format;       /* The graph format. */
+	guint             fps_handler;  /* GSource identifier for invalidating rect. */
+	UberScale         scale;        /* Scaling of values to pixels. */
+	UberRange         yrange;       /* Y-Axis range in for raw values. */
+	GArray           *lines;        /* Lines to draw. */
+	gboolean          bg_dirty;     /* Do we need to update the background. */
+	gboolean          fg_dirty;     /* Do we need to update the foreground. */
+	gboolean          yautoscale;   /* Should the graph autoscale to handle values
+	                                 * outside the current range. */
+	GdkGC            *bg_gc;        /* Drawing context for blitting background */
+	GdkGC            *fg_gc;        /* Drawing context for blitting foreground */
+	GdkRectangle      x_tick_rect;  /* Pre-calculated X tick area. */
+	GdkRectangle      y_tick_rect;  /* Pre-calculated Y tick area. */
+	GdkRectangle      content_rect; /* Main content area. */
+	gchar           **colors;       /* Array of colors to assign. */
+	gint              colors_len;   /* Length of colors array. */
+	gint              color;        /* Next color to hand out. */
 };
 
 typedef struct
@@ -726,6 +726,22 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
 	#undef DRAW_TICK_LABEL
 }
 
+static inline void
+uber_graph_copy_background (UberGraph *graph, /* IN */
+                            GraphInfo *src,   /* IN */
+                            GraphInfo *dst)   /* IN */
+{
+	UberGraphPrivate *priv;
+	GtkAllocation alloc;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
+	gdk_draw_drawable(dst->bg_pixmap, priv->bg_gc, src->bg_pixmap,
+	                  0, 0, 0, 0, alloc.width, alloc.height);
+}
+
 /**
  * uber_graph_render_bg_task:
  * @graph: A #UberGraph.
@@ -1275,12 +1291,9 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	 */
 	if (G_UNLIKELY(priv->bg_dirty)) {
 		uber_graph_render_bg_task(UBER_GRAPH(widget), info);
+		uber_graph_copy_background(UBER_GRAPH(widget), info,
+		                           &priv->info[!priv->flipped]);
 		priv->bg_dirty = FALSE;
-		/*
-		 * FIXME: Use a single background or copy pixmap.
-		 */
-		uber_graph_render_bg_task(UBER_GRAPH(widget),
-		                          &priv->info[!priv->flipped]);
 	}
 	/*
 	 * Blit the background for the exposure area.
@@ -1375,6 +1388,35 @@ uber_graph_add_line (UberGraph *graph) /* IN */
 	priv->color = (priv->color + 1) % priv->colors_len;
 	g_array_append_val(priv->lines, line);
 	return priv->lines->len;
+}
+
+/**
+ * uber_graph_set_format:
+ * @graph: A UberGraph.
+ * @format: The label format.
+ *
+ * Sets the format for how labels should be drawn.  If @format is
+ * %UBER_GRAPH_PERCENT, then the labels will be drawn using a percent
+ * from 0 to 100.  If @format is %UBER_GRAPH_DIRECT, then the value
+ * will be composed from its offset in the yrange.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_format (UberGraph       *graph, /* IN */
+                       UberGraphFormat  format) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(format >= UBER_GRAPH_DIRECT);
+	g_return_if_fail(format <= UBER_GRAPH_PERCENT);
+
+	priv = graph->priv;
+	priv->format = format;
+	priv->bg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
 
 /**

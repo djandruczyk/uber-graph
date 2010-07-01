@@ -48,6 +48,12 @@ struct _UberRange
 	gdouble range;
 };
 
+typedef enum
+{
+	UBER_GRAPH_DIRECT,
+	UBER_GRAPH_PERCENT,
+} UberGraphFormat;
+
 struct _UberGraph
 {
 	GtkDrawingArea parent;
@@ -70,6 +76,8 @@ void           uber_graph_push            (UberGraph       *graph,
                                            ...);
 void           uber_graph_pushv           (UberGraph       *graph,
                                            gdouble         *values);
+void           uber_graph_set_format      (UberGraph       *graph,
+                                           UberGraphFormat  format);
 void           uber_graph_set_fps         (UberGraph       *graph,
                                            gint             fps);
 void           uber_graph_set_yrange      (UberGraph       *graph,
