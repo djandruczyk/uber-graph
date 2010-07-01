@@ -1549,6 +1549,7 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->yrange.begin = 0.;
 	priv->yrange.end = 1.;
 	priv->yrange.range = 1.;
+	priv->format = UBER_GRAPH_DIRECT;
 	priv->lines = g_array_sized_new(FALSE, TRUE, sizeof(LineInfo), 2);
 	priv->colors = g_strdupv((gchar **)default_colors);
 	priv->colors_len = G_N_ELEMENTS(default_colors);

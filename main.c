@@ -286,6 +286,7 @@ create_main_window (void)
 	gtk_widget_show(cpu_label);
 
 	cpu_graph = create_graph(vbox);
+	uber_graph_set_format(UBER_GRAPH(cpu_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), FALSE);
 	uber_graph_set_yrange(UBER_GRAPH(cpu_graph), &cpu_range);
 	uber_graph_add_line(UBER_GRAPH(cpu_graph));
@@ -320,6 +321,7 @@ create_main_window (void)
 	gtk_widget_show(mem_label);
 
 	mem_graph = create_graph(vbox);
+	uber_graph_set_format(UBER_GRAPH(mem_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
