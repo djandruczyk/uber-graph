@@ -596,6 +596,71 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 }
 
 /**
+ * uber_graph_render_bg_x_ticks:
+ * @graph: A #UberGraph.
+ * @info: A GraphInfo.
+ *
+ * Draws the ticks and labels for the Y-Axis grid lines of the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static inline void
+uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
+                              GraphInfo *info)  /* IN */
+{
+	UberGraphPrivate *priv;
+	//gfloat fraction;
+	gint n_lines;
+	gint i;
+	//gint w;
+	//gint h;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+
+	#define DRAW_TICK_LABEL(f, v, o)                                         \
+	    G_STMT_START {                                                       \
+	        gint _v = (v);                                                   \
+	        gchar *_v_str;                                                   \
+	        _v_str = g_markup_printf_escaped(                                \
+	            "<span size='smaller'>%d %% </span>",                        \
+	            _v);                                                         \
+	        pango_layout_set_markup(info->tick_layout, _v_str, -1);          \
+	        pango_layout_get_pixel_size(info->tick_layout, &w, &h);          \
+	        cairo_move_to(info->bg_cairo,                                    \
+	                      priv->content_rect.x - priv->tick_len - w,         \
+	                      priv->x_tick_rect.y + priv->x_tick_rect.height     \
+	                      - ((priv->x_tick_rect.height / n_lines) * o)       \
+	                      - (h / 2) + .5);                                   \
+	        pango_cairo_show_layout(info->bg_cairo, info->tick_layout);      \
+	        g_free(_v_str);                                                  \
+		} G_STMT_END
+
+	n_lines = MIN(priv->content_rect.width / 85, 10);
+	//DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 100, n_lines);
+	for (i = 1; i < n_lines; i++) {
+		/*
+		 * Draw the tick line.
+		 */
+		cairo_move_to(info->bg_cairo,
+		              priv->content_rect.x + (int)(i * (priv->x_tick_rect.width / (gfloat)n_lines)) + .5,
+		              priv->content_rect.y);
+		cairo_line_to(info->bg_cairo,
+		              priv->content_rect.x + (int)(i * (priv->x_tick_rect.width / (gfloat)n_lines)) + .5,
+		              priv->x_tick_rect.y + priv->tick_len);
+		cairo_stroke(info->bg_cairo);
+		//fraction = 1. / (gfloat)n_lines;
+		//DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>",
+		                //fraction * i * 100.,
+		                //i);
+	}
+	//DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 0, 0);
+	#undef DRAW_TICK_LABEL
+}
+
+/**
  * uber_graph_render_bg_y_ticks:
  * @graph: A #UberGraph.
  * @info: A GraphInfo.
@@ -657,6 +722,7 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
 		                i);
 	}
 	DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 0, 0);
+	#undef DRAW_TICK_LABEL
 }
 
 /**
@@ -709,16 +775,7 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	/*
 	 * Render the X-Axis ticks.
 	 */
-	cairo_move_to(info->bg_cairo,
-	              priv->content_rect.x + (priv->content_rect.width / 2) + .5,
-	              priv->content_rect.y);
-	cairo_line_to(info->bg_cairo,
-	              priv->content_rect.x + (priv->content_rect.width / 2) + .5,
-	              priv->content_rect.y + priv->content_rect.height + priv->tick_len);
-	cairo_stroke(info->bg_cairo);
-	//gdk_cairo_rectangle_clean(info->bg_cairo, &priv->x_tick_rect);
-	//cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
-	//cairo_fill(info->bg_cairo);
+	uber_graph_render_bg_x_ticks(graph, info);
 	/*
 	 * Render the Y-Axis ticks.
 	 */
