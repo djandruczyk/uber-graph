@@ -610,11 +610,11 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
                               GraphInfo *info)  /* IN */
 {
 	UberGraphPrivate *priv;
-	//gfloat fraction;
+	gfloat fraction;
 	gint n_lines;
 	gint i;
-	//gint w;
-	//gint h;
+	gint w;
+	gint h;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
@@ -625,20 +625,18 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 	        gint _v = (v);                                                   \
 	        gchar *_v_str;                                                   \
 	        _v_str = g_markup_printf_escaped(                                \
-	            "<span size='smaller'>%d %% </span>",                        \
+	            "<span size='smaller'>%d</span>",                        \
 	            _v);                                                         \
 	        pango_layout_set_markup(info->tick_layout, _v_str, -1);          \
 	        pango_layout_get_pixel_size(info->tick_layout, &w, &h);          \
 	        cairo_move_to(info->bg_cairo,                                    \
-	                      priv->content_rect.x - priv->tick_len - w,         \
-	                      priv->x_tick_rect.y + priv->x_tick_rect.height     \
-	                      - ((priv->x_tick_rect.height / n_lines) * o)       \
-	                      - (h / 2) + .5);                                   \
+		                  priv->content_rect.x + priv->content_rect.width - (int)(i * (priv->x_tick_rect.width / (gfloat)n_lines)) + .5 - (w / 2), \
+	                      priv->content_rect.y + priv->content_rect.height + priv->tick_len + 5); \
 	        pango_cairo_show_layout(info->bg_cairo, info->tick_layout);      \
 	        g_free(_v_str);                                                  \
 		} G_STMT_END
 
-	n_lines = MIN(priv->content_rect.width / 85, 10);
+	n_lines = priv->stride / 10;
 	//DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 100, n_lines);
 	for (i = 1; i < n_lines; i++) {
 		/*
@@ -651,10 +649,10 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 		              priv->content_rect.x + (int)(i * (priv->x_tick_rect.width / (gfloat)n_lines)) + .5,
 		              priv->x_tick_rect.y + priv->tick_len);
 		cairo_stroke(info->bg_cairo);
-		//fraction = 1. / (gfloat)n_lines;
-		//DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>",
-		                //fraction * i * 100.,
-		                //i);
+		fraction = (1. / (gfloat)n_lines) * priv->stride;
+		DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>",
+		                fraction * i,
+		                i);
 	}
 	//DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 0, 0);
 	#undef DRAW_TICK_LABEL
