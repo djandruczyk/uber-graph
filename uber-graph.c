@@ -723,9 +723,6 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	 * Render the Y-Axis ticks.
 	 */
 	uber_graph_render_bg_y_ticks(graph, info);
-	//gdk_cairo_rectangle_clean(info->bg_cairo, &priv->y_tick_rect);
-	//cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
-	//cairo_fill(info->bg_cairo);
 	/*
 	 * Cleanup.
 	 */
