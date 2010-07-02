@@ -250,7 +250,7 @@ create_graph (GtkWidget *vbox)
 
 	graph = uber_graph_new();
 	align = gtk_alignment_new(.5, .5, 1., 1.);
-	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 12, 0);
+	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 6, 0);
 	gtk_container_add(GTK_CONTAINER(align), graph);
 	gtk_box_pack_start(GTK_BOX(vbox), align, TRUE, TRUE, 0);
 	gtk_widget_show(align);
@@ -310,6 +310,7 @@ create_main_window (void)
 	gtk_widget_show(net_label);
 
 	net_graph = create_graph(vbox);
+	uber_graph_set_format(UBER_GRAPH(net_graph), UBER_GRAPH_DIRECT1024);
 	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(net_graph));
 	uber_graph_add_line(UBER_GRAPH(net_graph));

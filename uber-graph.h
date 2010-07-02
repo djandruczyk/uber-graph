@@ -51,6 +51,7 @@ struct _UberRange
 typedef enum
 {
 	UBER_GRAPH_DIRECT,
+	UBER_GRAPH_DIRECT1024,
 	UBER_GRAPH_PERCENT,
 } UberGraphFormat;
 

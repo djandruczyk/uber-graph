@@ -33,6 +33,13 @@
 #define g_malloc0_n(a,b) g_malloc0(a * b)
 #endif
 
+#define KIBIBYTE     (1024)
+#define KIBIBYTE_STR ("Ki")
+#define MEBIBYTE     (1048576)
+#define MEBIBYTE_STR ("Mi")
+#define GIBIBYTE     (1073741824)
+#define GIBIBYTE_STR ("Gi")
+
 #define GET_PIXEL_RANGE(pr, rect)                \
     G_STMT_START {                               \
         (pr).begin = (rect).y + 1;               \
@@ -136,6 +143,8 @@ static void uber_graph_render_fg_shifted_task(UberGraph    *graph,
                                               GraphInfo    *src,
                                               GraphInfo    *dst,
                                               gdouble      *values);
+static void uber_graph_render_fg_task        (UberGraph    *graph,
+                                              GraphInfo    *info);
 
 /**
  * uber_graph_new:
@@ -152,6 +161,21 @@ uber_graph_new (void)
 
 	graph = g_object_new(UBER_TYPE_GRAPH, NULL);
 	return GTK_WIDGET(graph);
+}
+
+static void
+uber_graph_scale_changed (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->bg_dirty = TRUE;
+	uber_graph_init_graph_info(graph, &priv->info[0]);
+	uber_graph_init_graph_info(graph, &priv->info[1]);
+	uber_graph_calculate_rects(graph);
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
 
 /**
@@ -175,10 +199,7 @@ uber_graph_set_scale (UberGraph *graph, /* IN */
 
 	priv = graph->priv;
 	priv->scale = scale;
-	uber_graph_init_graph_info(graph, &priv->info[0]);
-	uber_graph_init_graph_info(graph, &priv->info[1]);
-	uber_graph_calculate_rects(graph);
-	gtk_widget_queue_draw(GTK_WIDGET(graph));
+	uber_graph_scale_changed(graph);
 }
 
 /**
@@ -272,6 +293,9 @@ uber_graph_pushv (UberGraph *graph,  /* IN */
 				scale_changed = TRUE;
 			}
 		}
+		if (scale_changed) {
+			uber_graph_scale_changed(graph);
+		}
 	}
 	for (i = 0; i < priv->lines->len; i++) {
 		/*
@@ -306,6 +330,8 @@ uber_graph_pushv (UberGraph *graph,  /* IN */
 		                                  values); /* Scaled */
 		priv->flipped = !priv->flipped;
 		priv->fg_dirty = FALSE;
+	} else {
+		uber_graph_render_fg_task(graph, &priv->info[priv->flipped]);
 	}
 	/*
 	 * Invalidate regions and render.
@@ -704,6 +730,20 @@ uber_graph_get_ylabel_at_pos (UberGraph *graph,  /* IN */
 		}
 		return g_markup_printf_escaped("<span size='smaller'>%.1f %s</span>", f, a);
 	}
+	case UBER_GRAPH_DIRECT1024: {
+		f = (gfloat)(range.end - y) / (gfloat)range.range * (gfloat)priv->yrange.range;
+		if (f >= GIBIBYTE || f <= -GIBIBYTE) {
+			f /= GIBIBYTE;
+			a = GIBIBYTE_STR;
+		} else if (f >= MEBIBYTE || f <= -MEBIBYTE) {
+			f /= MEBIBYTE;
+			a = MEBIBYTE_STR;
+		} else if (f >= KIBIBYTE || f <= -KIBIBYTE) {
+			f /= KIBIBYTE;
+			a = KIBIBYTE_STR;
+		}
+		return g_markup_printf_escaped("<span size='smaller'>%.1f %s</span>", f, a);
+	}
 	case UBER_GRAPH_PERCENT: {
 		f = (gfloat)(lines - lineno) / (gfloat)lines * 100.;
 		return g_markup_printf_escaped("<span size='smaller'>%d %% </span>", (gint)f);
@@ -730,6 +770,7 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
 {
 	UberGraphPrivate *priv;
 	UberRange range;
+	gfloat y;
 	gint n_lines;
 	gint i;
 
@@ -754,14 +795,7 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
 	n_lines = MIN(priv->content_rect.height / 20, 5);
 	DRAW_Y_LABEL(range.begin, 0, n_lines);
 	for (i = 1; i < n_lines; i++) {
-		gfloat y;
-		//gfloat fraction;
-
 		y = priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i);
-
-		/*
-		 * Draw the tick line.
-		 */
 		cairo_move_to(info->bg_cairo,
 		              priv->content_rect.x - priv->tick_len,
 		              y + .5);
@@ -769,7 +803,6 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
 		              priv->content_rect.x + priv->content_rect.width,
 		              y + .5);
 		cairo_stroke(info->bg_cairo);
-
 		DRAW_Y_LABEL(y, i, n_lines);
 	}
 	DRAW_Y_LABEL(range.end, n_lines, n_lines);
