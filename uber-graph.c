@@ -1480,7 +1480,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	                  expose->area.x, expose->area.y,
 	                  expose->area.width, expose->area.height);
 	/*
-	 * Create the foreground clip area.
+	 * Set the foreground clip area.
 	 */
 	gdk_rectangle_intersect(&priv->content_rect, &expose->area, &clip);
 	gdk_gc_set_clip_rectangle(priv->fg_gc, &clip);

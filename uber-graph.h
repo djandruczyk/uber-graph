@@ -34,12 +34,49 @@ G_BEGIN_DECLS
 typedef struct _UberGraph        UberGraph;
 typedef struct _UberGraphClass   UberGraphClass;
 typedef struct _UberGraphPrivate UberGraphPrivate;
-typedef struct _UberRange        UberRange;
 
+/**
+ * UberRange:
+ *
+ * #UberRange is a structure that encapsulates the range of a particular
+ * scale.  It contains the beginning value, ending value, and a pre-calculated
+ * range between the values.
+ */
+typedef struct _UberRange UberRange;
+
+/**
+ * UberScale:
+ * @graph: An #UberGraph.
+ * @values: The range of raw values in the graph.
+ * @pixels: The range of pixel values in the graph.
+ * @value: The value to scale.
+ *
+ * #UberScale is a transformation function that transforms a value from the
+ * raw scale into a value within the pixel scale.
+ *
+ * Returns: %TRUE if successful; otherwise %FALSE.
+ */
 typedef gboolean (*UberScale) (UberGraph       *graph,
                                const UberRange *values,
                                const UberRange *pixels,
                                gdouble         *value);
+
+/**
+ * UberGraphFormat:
+ * @UBER_GRAPH_DIRECT: The raw values should be used.
+ * @UBER_GRAPH_DIRECT1024: The raw values should be used, using the
+ *   kibibyte scale.
+ * @UBER_GRAPH_PERCENT: The labels are from 0 to 100 percent.
+ *
+ * #UberGraphFormat describes how the label values should be determined
+ * for the graph.
+ */
+typedef enum
+{
+	UBER_GRAPH_DIRECT,
+	UBER_GRAPH_DIRECT1024,
+	UBER_GRAPH_PERCENT,
+} UberGraphFormat;
 
 struct _UberRange
 {
@@ -47,13 +84,6 @@ struct _UberRange
 	gdouble end;
 	gdouble range;
 };
-
-typedef enum
-{
-	UBER_GRAPH_DIRECT,
-	UBER_GRAPH_DIRECT1024,
-	UBER_GRAPH_PERCENT,
-} UberGraphFormat;
 
 struct _UberGraph
 {
