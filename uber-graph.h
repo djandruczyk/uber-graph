@@ -111,14 +111,14 @@ void           uber_graph_set_format      (UberGraph       *graph,
                                            UberGraphFormat  format);
 void           uber_graph_set_fps         (UberGraph       *graph,
                                            gint             fps);
-void           uber_graph_set_yrange      (UberGraph       *graph,
-                                           const UberRange *range);
 void           uber_graph_set_scale       (UberGraph       *graph,
                                            UberScale        scale);
-void           uber_graph_set_yautoscale  (UberGraph       *graph,
-                                           gboolean         yautoscale);
 void           uber_graph_set_stride      (UberGraph       *graph,
                                            gint             stride);
+void           uber_graph_set_yautoscale  (UberGraph       *graph,
+                                           gboolean         yautoscale);
+void           uber_graph_set_yrange      (UberGraph       *graph,
+                                           const UberRange *range);
 gboolean       uber_scale_linear          (UberGraph       *graph,
                                            const UberRange *values,
                                            const UberRange *pixels,
