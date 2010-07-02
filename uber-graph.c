@@ -565,7 +565,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 * Determine largest size of tick labels.
 	 */
 	uber_graph_prepare_layout(graph, pl, LAYOUT_TICK);
-	pango_layout_set_text(pl, "XXXXX", -1);
+	pango_layout_set_text(pl, "XXXXXXX", -1);
 	pango_layout_get_pixel_size(pl, &tick_w, &tick_h);
 	/*
 	 * Calculate the X-Axis tick area.
@@ -662,6 +662,59 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 }
 
 /**
+ * uber_graph_get_ylabel_at_pos:
+ * @graph: A #UberGraph.
+ * @y: the pixel where the line will be placed.
+ * @lineno: This is line X of @lines.
+ * @lines: total number of lines to be drawn.
+ *
+ * Formats the value at pixel offset @y based on the current format operation.
+ *
+ * Returns: A string containing the label.  This value should be freed with
+ *   g_free().
+ * Side effects: None.
+ */
+static gchar*
+uber_graph_get_ylabel_at_pos (UberGraph *graph,  /* IN */
+                              gdouble    y,      /* IN */
+                              gint       lineno, /* IN */
+                              gint       lines)  /* IN */
+{
+	UberGraphPrivate *priv;
+	UberRange range;
+	const gchar *a = "";
+	gfloat f;
+
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), NULL);
+
+	priv = graph->priv;
+	GET_PIXEL_RANGE(range, priv->content_rect);
+	switch (priv->format) {
+	case UBER_GRAPH_DIRECT: {
+		f = (gfloat)(range.end - y) / (gfloat)range.range * (gfloat)priv->yrange.range;
+		if ( f >= 1000000000 || f <= -1000000000) {
+			f /= 1000000000;
+			a = "g ";
+		} else if (f >= 1000000 || f <= -1000000) {
+			f /= 1000000;
+			a = "m ";
+		} else if (f >= 1000 || f <= -1000) {
+			f /= 1000;
+			a = "k ";
+		}
+		return g_markup_printf_escaped("<span size='smaller'>%.1f %s</span>", f, a);
+	}
+	case UBER_GRAPH_PERCENT: {
+		f = (gfloat)(lines - lineno) / (gfloat)lines * 100.;
+		return g_markup_printf_escaped("<span size='smaller'>%d %% </span>", (gint)f);
+	}
+	default:
+		g_assert_not_reached();
+	}
+	return NULL;
+}
+
+/**
  * uber_graph_render_bg_y_ticks:
  * @graph: A #UberGraph.
  * @info: A GraphInfo.
@@ -676,54 +729,51 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
                               GraphInfo *info)  /* IN */
 {
 	UberGraphPrivate *priv;
-	gfloat fraction;
+	UberRange range;
 	gint n_lines;
 	gint i;
-	gint w;
-	gint h;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
+	GET_PIXEL_RANGE(range, priv->content_rect);
 
-	#define DRAW_TICK_LABEL(f, v, o)                                         \
-	    G_STMT_START {                                                       \
-	        gint _v = (v);                                                   \
-	        gchar *_v_str;                                                   \
-	        _v_str = g_markup_printf_escaped(                                \
-	            "<span size='smaller'>%d %% </span>",                        \
-	            _v);                                                         \
-	        pango_layout_set_markup(info->tick_layout, _v_str, -1);          \
-	        pango_layout_get_pixel_size(info->tick_layout, &w, &h);          \
-	        cairo_move_to(info->bg_cairo,                                    \
-	                      priv->content_rect.x - priv->tick_len - w,         \
-	                      priv->y_tick_rect.y + priv->y_tick_rect.height     \
-	                      - ((priv->y_tick_rect.height / n_lines) * o)       \
-	                      - (h / 2) + .5);                                   \
-	        pango_cairo_show_layout(info->bg_cairo, info->tick_layout);      \
-	        g_free(_v_str);                                                  \
-		} G_STMT_END
+	#define DRAW_Y_LABEL(y, i, n)                                        \
+	    G_STMT_START {                                                   \
+	        gchar *v = uber_graph_get_ylabel_at_pos(graph, y, i, n);     \
+	        gint h, w;                                                   \
+	        pango_layout_set_markup(info->tick_layout, v, -1);           \
+	        pango_layout_get_pixel_size(info->tick_layout, &w, &h);      \
+	        cairo_move_to(info->bg_cairo,                                \
+	                      priv->content_rect.x - priv->tick_len - w,     \
+			              ((gint)y) - (h / 2) + .5);                     \
+			pango_cairo_show_layout(info->bg_cairo, info->tick_layout);  \
+			g_free(v);                                                   \
+	    } G_STMT_END
 
 	n_lines = MIN(priv->content_rect.height / 20, 5);
-	DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 100, n_lines);
+	DRAW_Y_LABEL(range.begin, 0, n_lines);
 	for (i = 1; i < n_lines; i++) {
+		gfloat y;
+		//gfloat fraction;
+
+		y = priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i);
+
 		/*
 		 * Draw the tick line.
 		 */
 		cairo_move_to(info->bg_cairo,
 		              priv->content_rect.x - priv->tick_len,
-		              priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i) + .5);
+		              y + .5);
 		cairo_line_to(info->bg_cairo,
 		              priv->content_rect.x + priv->content_rect.width,
-		              priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i) + .5);
+		              y + .5);
 		cairo_stroke(info->bg_cairo);
-		fraction = 1. / (gfloat)n_lines;
-		DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>",
-		                fraction * i * 100.,
-		                i);
+
+		DRAW_Y_LABEL(y, i, n_lines);
 	}
-	DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 0, 0);
-	#undef DRAW_TICK_LABEL
+	DRAW_Y_LABEL(range.end, n_lines, n_lines);
+	#undef DRAW_Y_LABEL
 }
 
 static inline void
