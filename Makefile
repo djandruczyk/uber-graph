@@ -1,6 +1,7 @@
 all: uber-graph
 
 DISABLE_DEBUG := 1
+DISABLE_TRACE := 1
 
 WARNINGS =								\
 	-Wall								\
@@ -32,12 +33,20 @@ DEBUG_INCLUDES =							\
 	-DDISABLE_DEBUG							\
 	$(NULL)
 
+TRACE_INCLUDES =							\
+	-DUBER_TRACE							\
+	$(NULL)
+
 INCLUDES =								\
 	-DHAVE_CONFIG_H=0						\
 	$(NULL)
 
 ifeq ($(DISABLE_DEBUG),1)
 	INCLUDES += $(DEBUG_INCLUDES)
+endif
+
+ifeq ($(DISABLE_TRACE),0)
+	INCLUDES += $(TRACE_INCLUDES)
 endif
 
 uber-graph.o: uber-graph.c uber-graph.h Makefile

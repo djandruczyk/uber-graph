@@ -47,6 +47,38 @@
         (pr).range = (rect).height - 2;          \
     } G_STMT_END
 
+#ifdef UBER_TRACE
+#define TRACE(_f,...) \
+    G_STMT_START { \
+        g_log(G_LOG_DOMAIN, 1 << G_LOG_LEVEL_USER_SHIFT, _f, ## __VA_ARGS__); \
+    } G_STMT_END
+#define ENTRY TRACE("ENTRY: %s():%d", G_STRFUNC, __LINE__)
+#define EXIT \
+    G_STMT_START { \
+        TRACE(" EXIT: %s():%d", G_STRFUNC, __LINE__); \
+        return; \
+    } G_STMT_END
+#define RETURN(_r) \
+    G_STMT_START { \
+        TRACE(" EXIT: %s():%d", G_STRFUNC, __LINE__); \
+        return (_r); \
+	} G_STMT_END
+#define GOTO(_l) \
+    G_STMT_START { \
+        TRACE(" GOTO: %s():%d %s", G_STRFUNC, __LINE__, #_l); \
+        goto _l; \
+	} G_STMT_END
+#define CASE(_l) \
+    case _l: \
+        TRACE(" CASE: %s():%d %s", G_STRFUNC, __LINE__, #_l)
+#else
+#define ENTRY
+#define EXIT       return
+#define RETURN(_r) return (_r)
+#define GOTO(_l)   goto _l
+#define CASE(_l)   case _l:
+#endif
+
 /**
  * SECTION:uber-graph
  * @title: UberGraph
@@ -159,8 +191,9 @@ uber_graph_new (void)
 {
 	UberGraph *graph;
 
+	ENTRY;
 	graph = g_object_new(UBER_TYPE_GRAPH, NULL);
-	return GTK_WIDGET(graph);
+	RETURN(GTK_WIDGET(graph));
 }
 
 static void
@@ -170,12 +203,14 @@ uber_graph_scale_changed (UberGraph *graph) /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+	ENTRY;
 	priv = graph->priv;
 	priv->bg_dirty = TRUE;
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
+	EXIT;
 }
 
 /**
@@ -197,9 +232,11 @@ uber_graph_set_scale (UberGraph *graph, /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(scale != NULL);
 
+	ENTRY;
 	priv = graph->priv;
 	priv->scale = scale;
 	uber_graph_scale_changed(graph);
+	EXIT;
 }
 
 /**
@@ -226,6 +263,7 @@ uber_graph_push (UberGraph *graph,    /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+	ENTRY;
 	priv = graph->priv;
 	values = g_malloc0_n(priv->stride, sizeof(gdouble));
 	va_start(args, first_id);
@@ -243,6 +281,7 @@ uber_graph_push (UberGraph *graph,    /* IN */
 	va_end(args);
 	uber_graph_pushv(graph, values);
 	g_free(values);
+	EXIT;
 }
 
 /**
@@ -271,6 +310,7 @@ uber_graph_pushv (UberGraph *graph,  /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(values != NULL);
 
+	ENTRY;
 	priv = graph->priv;
 	priv->fps_off = 0;
 	priv->fg_dirty = TRUE;
@@ -338,6 +378,7 @@ uber_graph_pushv (UberGraph *graph,  /* IN */
 	 */
 	window = gtk_widget_get_window(GTK_WIDGET(graph));
 	gdk_window_invalidate_rect(window, &priv->content_rect, FALSE);
+	EXIT;
 }
 
 /**
@@ -360,6 +401,7 @@ uber_graph_set_stride (UberGraph *graph, /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(stride > 0);
 
+	ENTRY;
 	priv = graph->priv;
 	priv->stride = stride;
 	for (i = 0; i < priv->lines->len; i++) {
@@ -370,6 +412,7 @@ uber_graph_set_stride (UberGraph *graph, /* IN */
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
+	EXIT;
 }
 
 /**
@@ -390,12 +433,14 @@ uber_graph_set_yrange (UberGraph       *graph,  /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+	ENTRY;
 	priv = graph->priv;
 	priv->yrange = *yrange;
 	if (priv->yrange.range == 0.) {
 		priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 	}
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
+	EXIT;
 }
 
 /**
@@ -422,8 +467,10 @@ uber_graph_set_yautoscale (UberGraph *graph,      /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+	ENTRY;
 	priv = graph->priv;
 	priv->yautoscale = TRUE;
+	EXIT;
 }
 
 /**
@@ -439,7 +486,9 @@ gboolean
 uber_graph_get_yautoscale (UberGraph *graph) /* IN */
 {
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
-	return graph->priv->yautoscale;
+
+	ENTRY;
+	RETURN(graph->priv->yautoscale);
 }
 
 /**
@@ -484,6 +533,7 @@ uber_graph_set_fps (UberGraph *graph, /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(fps > 0 && fps <= 60);
 
+	ENTRY;
 	priv = graph->priv;
 	priv->fps = fps;
 	priv->fps_to = 1000. / fps;
@@ -496,6 +546,7 @@ uber_graph_set_fps (UberGraph *graph, /* IN */
 	priv->fps_handler = g_timeout_add(priv->fps_to,
 	                                  uber_graph_fps_timeout,
 	                                  graph);
+	EXIT;
 }
 
 /**
@@ -518,6 +569,7 @@ uber_graph_prepare_layout (UberGraph   *graph,  /* IN */
 	UberGraphPrivate *priv;
 	PangoFontDescription *desc;
 
+	ENTRY;
 	priv = graph->priv;
 	desc = pango_font_description_new();
 	switch (mode) {
@@ -530,6 +582,7 @@ uber_graph_prepare_layout (UberGraph   *graph,  /* IN */
 	}
 	pango_layout_set_font_description(layout, desc);
 	pango_font_description_free(desc);
+	EXIT;
 }
 
 /**
@@ -546,9 +599,14 @@ static inline void
 pango_layout_get_pixel_rectangle (PangoLayout  *layout, /* IN */
                                   GdkRectangle *rect)   /* IN */
 {
+	g_return_if_fail(PANGO_IS_LAYOUT(layout));
+	g_return_if_fail(rect != NULL);
+
+	ENTRY;
 	rect->x = 0;
 	rect->y = 0;
 	pango_layout_get_pixel_size(layout, &rect->width, &rect->height);
+	EXIT;
 }
 
 /**
@@ -576,6 +634,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+	ENTRY;
 	priv = graph->priv;
 	if (!(window = gtk_widget_get_window(GTK_WIDGET(graph)))) {
 		return;
@@ -619,6 +678,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 */
 	g_object_unref(pl);
 	cairo_destroy(cr);
+	EXIT;
 }
 
 /**
@@ -644,6 +704,7 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+	ENTRY;
 	priv = graph->priv;
 
 	#define DRAW_TICK_LABEL(f, v, o)                                         \
@@ -684,6 +745,7 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 		                i);
 	}
 	DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", priv->stride, n_lines);
+	EXIT;
 	#undef DRAW_TICK_LABEL
 }
 
@@ -709,14 +771,16 @@ uber_graph_get_ylabel_at_pos (UberGraph *graph,  /* IN */
 	UberGraphPrivate *priv;
 	UberRange range;
 	const gchar *a = "";
+	gchar *ret = NULL;
 	gfloat f;
 
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), NULL);
 
+	ENTRY;
 	priv = graph->priv;
 	GET_PIXEL_RANGE(range, priv->content_rect);
 	switch (priv->format) {
-	case UBER_GRAPH_DIRECT: {
+	CASE(UBER_GRAPH_DIRECT); {
 		f = (gfloat)(range.end - y) / (gfloat)range.range * (gfloat)priv->yrange.range;
 		if ( f >= 1000000000 || f <= -1000000000) {
 			f /= 1000000000;
@@ -728,9 +792,10 @@ uber_graph_get_ylabel_at_pos (UberGraph *graph,  /* IN */
 			f /= 1000;
 			a = "k ";
 		}
-		return g_markup_printf_escaped("<span size='smaller'>%.1f %s</span>", f, a);
+		ret = g_markup_printf_escaped("<span size='smaller'>%.1f %s</span>", f, a);
+		break;
 	}
-	case UBER_GRAPH_DIRECT1024: {
+	CASE(UBER_GRAPH_DIRECT1024); {
 		f = (gfloat)(range.end - y) / (gfloat)range.range * (gfloat)priv->yrange.range;
 		if (f >= GIBIBYTE || f <= -GIBIBYTE) {
 			f /= GIBIBYTE;
@@ -742,16 +807,18 @@ uber_graph_get_ylabel_at_pos (UberGraph *graph,  /* IN */
 			f /= KIBIBYTE;
 			a = KIBIBYTE_STR;
 		}
-		return g_markup_printf_escaped("<span size='smaller'>%.1f %s</span>", f, a);
+		ret = g_markup_printf_escaped("<span size='smaller'>%.1f %s</span>", f, a);
+		break;
 	}
-	case UBER_GRAPH_PERCENT: {
+	CASE(UBER_GRAPH_PERCENT); {
 		f = (gfloat)(lines - lineno) / (gfloat)lines * 100.;
-		return g_markup_printf_escaped("<span size='smaller'>%d %% </span>", (gint)f);
+		ret = g_markup_printf_escaped("<span size='smaller'>%d %% </span>", (gint)f);
+		break;
 	}
 	default:
 		g_assert_not_reached();
 	}
-	return NULL;
+	RETURN(ret);
 }
 
 /**
@@ -776,6 +843,7 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+	ENTRY;
 	priv = graph->priv;
 	GET_PIXEL_RANGE(range, priv->content_rect);
 
@@ -806,6 +874,7 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
 		DRAW_Y_LABEL(y, i, n_lines);
 	}
 	DRAW_Y_LABEL(range.end, n_lines, n_lines);
+	EXIT;
 	#undef DRAW_Y_LABEL
 }
 
@@ -819,10 +888,12 @@ uber_graph_copy_background (UberGraph *graph, /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+	ENTRY;
 	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	gdk_draw_drawable(dst->bg_pixmap, priv->bg_gc, src->bg_pixmap,
 	                  0, 0, 0, 0, alloc.width, alloc.height);
+	EXIT;
 }
 
 /**
@@ -848,6 +919,7 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(info != NULL);
 
+	ENTRY;
 	priv = graph->priv;
 	cairo_save(info->bg_cairo);
 	/*
@@ -884,6 +956,7 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	 * Cleanup.
 	 */
 	cairo_restore(info->bg_cairo);
+	EXIT;
 }
 
 /**
@@ -928,8 +1001,7 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 	               y, x, y);
 	goto finish;
   skip:
-	cairo_move_to(closure->info->fg_cairo, x,
-	              closure->pixel_range.end);
+	cairo_move_to(closure->info->fg_cairo, x, closure->pixel_range.end);
   finish:
   	closure->last_x = x;
   	closure->last_y = y;
@@ -956,9 +1028,9 @@ gdk_color_parse_xor (GdkColor    *color, /* IN */
 	gboolean ret;
 
 	if ((ret = gdk_color_parse(spec, color))) {
-		color->red ^= xor;
+		color->red   ^= xor;
 		color->green ^= xor;
-		color->blue ^= xor;
+		color->blue  ^= xor;
 	}
 	return ret;
 }
@@ -979,6 +1051,10 @@ uber_graph_stylize_line (UberGraph *graph, /* IN */
                          LineInfo  *line,  /* IN */
                          cairo_t   *cr)    /* IN */
 {
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(line != NULL);
+	g_return_if_fail(cr != NULL);
+
 	cairo_set_line_width(cr, 2.0);
 	gdk_cairo_set_source_color(cr, &line->color);
 	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
@@ -1008,6 +1084,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(info != NULL);
 
+	ENTRY;
 	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	/*
@@ -1046,6 +1123,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	}
 	cairo_restore(info->fg_cairo);
 	priv->fps_off++;
+	EXIT;
 }
 
 /**
@@ -1080,6 +1158,7 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 	g_return_if_fail(dst != NULL);
 	g_return_if_fail(values != NULL);
 
+	ENTRY;
 	priv = graph->priv;
 	/*
 	 * Clear the old pixmap contents.
@@ -1137,6 +1216,7 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 		cairo_stroke(dst->fg_cairo);
 	}
 	cairo_restore(dst->fg_cairo);
+	EXIT;
 }
 
 /**
@@ -1170,6 +1250,7 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(info != NULL);
 
+	ENTRY;
 	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	drawable = GDK_DRAWABLE(gtk_widget_get_window(GTK_WIDGET(graph)));
@@ -1230,6 +1311,7 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	 * Update the layouts to reflect proper styling.
 	 */
 	uber_graph_prepare_layout(graph, info->tick_layout, LAYOUT_TICK);
+	EXIT;
 }
 
 /**
@@ -1246,6 +1328,7 @@ static void
 uber_graph_destroy_graph_info (UberGraph *graph, /* IN */
                                GraphInfo *info)  /* IN */
 {
+	ENTRY;
 	if (info->tick_layout) {
 		g_object_unref(info->tick_layout);
 	}
@@ -1261,6 +1344,7 @@ uber_graph_destroy_graph_info (UberGraph *graph, /* IN */
 	if (info->fg_pixmap) {
 		g_object_unref(info->fg_pixmap);
 	}
+	EXIT;
 }
 
 /**
@@ -1287,6 +1371,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
+	ENTRY;
 	BASE_CLASS->size_allocate(widget, alloc);
 	graph = UBER_GRAPH(widget);
 	priv = graph->priv;
@@ -1317,6 +1402,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 			}
 		}
 	}
+	EXIT;
 }
 
 /**
@@ -1339,6 +1425,9 @@ gdk_cairo_rectangle_clean (cairo_t      *cr,   /* IN */
 	gdouble y;
 	gdouble w;
 	gdouble h;
+
+	g_return_if_fail(cr != NULL);
+	g_return_if_fail(rect != NULL);
 
 	x = rect->x + .5;
 	y = rect->y + .5;
@@ -1365,6 +1454,9 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	UberGraphPrivate *priv;
 	GdkDrawable *dst;
 	GraphInfo *info;
+
+	g_return_if_fail(UBER_IS_GRAPH(widget));
+	g_return_if_fail(expose != NULL);
 
 	priv = UBER_GRAPH(widget)->priv;
 	dst = expose->window;
@@ -1435,6 +1527,7 @@ uber_graph_style_set (GtkWidget *widget,     /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
+	ENTRY;
 	priv = UBER_GRAPH(widget)->priv;
 	BASE_CLASS->style_set(widget, old_style);
 	if (!gtk_widget_get_window(widget)) {
@@ -1442,6 +1535,7 @@ uber_graph_style_set (GtkWidget *widget,     /* IN */
 	}
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[0]);
 	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
+	EXIT;
 }
 
 /**
@@ -1462,6 +1556,7 @@ uber_graph_add_line (UberGraph *graph) /* IN */
 
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), -1);
 
+	ENTRY;
 	priv = graph->priv;
 	line.buffer = uber_buffer_new();
 	line.scaled = uber_buffer_new();
@@ -1470,7 +1565,7 @@ uber_graph_add_line (UberGraph *graph) /* IN */
 	gdk_color_parse_xor(&line.color, priv->colors[priv->color], 0xFFFF);
 	priv->color = (priv->color + 1) % priv->colors_len;
 	g_array_append_val(priv->lines, line);
-	return priv->lines->len;
+	RETURN(priv->lines->len);
 }
 
 /**
@@ -1496,10 +1591,12 @@ uber_graph_set_format (UberGraph       *graph, /* IN */
 	g_return_if_fail(format >= UBER_GRAPH_DIRECT);
 	g_return_if_fail(format <= UBER_GRAPH_PERCENT);
 
+	ENTRY;
 	priv = graph->priv;
 	priv->format = format;
 	priv->bg_dirty = TRUE;
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
+	EXIT;
 }
 
 /**
@@ -1520,12 +1617,14 @@ uber_graph_realize (GtkWidget *widget) /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
+	ENTRY;
 	BASE_CLASS->realize(widget);
 	priv = UBER_GRAPH(widget)->priv;
 	dst = GDK_DRAWABLE(gtk_widget_get_window(widget));
 	priv->bg_gc = gdk_gc_new(dst);
 	priv->fg_gc = gdk_gc_new(dst);
 	gdk_gc_set_function(priv->fg_gc, GDK_XOR);
+	EXIT;
 }
 
 gboolean
@@ -1563,6 +1662,7 @@ uber_graph_finalize (GObject *object) /* IN */
 	LineInfo *line;
 	gint i;
 
+	ENTRY;
 	priv = UBER_GRAPH(object)->priv;
 	uber_graph_destroy_graph_info(UBER_GRAPH(object), &priv->info[0]);
 	uber_graph_destroy_graph_info(UBER_GRAPH(object), &priv->info[1]);
@@ -1582,6 +1682,7 @@ uber_graph_finalize (GObject *object) /* IN */
 	}
 	g_array_unref(priv->lines);
 	G_OBJECT_CLASS(uber_graph_parent_class)->finalize(object);
+	EXIT;
 }
 
 /**
@@ -1599,15 +1700,22 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 	GObjectClass *object_class;
 	GtkWidgetClass *widget_class;
 
+	ENTRY;
+	/*
+	 * Prepare GObjectClass.
+	 */
 	object_class = G_OBJECT_CLASS(klass);
 	object_class->finalize = uber_graph_finalize;
 	g_type_class_add_private(object_class, sizeof(UberGraphPrivate));
-
+	/*
+	 * Prepare GtkWidgetClass.
+	 */
 	widget_class = GTK_WIDGET_CLASS(klass);
 	widget_class->expose_event = uber_graph_expose_event;
 	widget_class->realize = uber_graph_realize;
 	widget_class->size_allocate = uber_graph_size_allocate;
 	widget_class->style_set = uber_graph_style_set;
+	EXIT;
 }
 
 /**
@@ -1624,6 +1732,9 @@ uber_graph_init (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
 
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	ENTRY;
 	graph->priv = GET_PRIVATE(graph, UBER_TYPE_GRAPH, UberGraphPrivate);
 	priv = graph->priv;
 	priv->stride = 60;
@@ -1637,4 +1748,5 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->colors = g_strdupv((gchar **)default_colors);
 	priv->colors_len = G_N_ELEMENTS(default_colors);
 	uber_graph_set_fps(graph, 20);
+	EXIT;
 }
