@@ -369,7 +369,6 @@ uber_graph_pushv (UberGraph *graph,  /* IN */
 		                                  &priv->info[!priv->flipped],
 		                                  values); /* Scaled */
 		priv->flipped = !priv->flipped;
-		priv->fg_dirty = FALSE;
 	} else {
 		uber_graph_render_fg_task(graph, &priv->info[priv->flipped]);
 	}
@@ -673,6 +672,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	priv->content_rect.y = tick_h / 2 + 1;
 	priv->content_rect.width = alloc.width - priv->content_rect.x - 2;
 	priv->content_rect.height = priv->x_tick_rect.y - priv->content_rect.y - 2;
+	gdk_gc_set_clip_rectangle(priv->fg_gc, &priv->content_rect);
 	/*
 	 * Cleanup after allocations.
 	 */
@@ -1122,6 +1122,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 		cairo_stroke(info->fg_cairo);
 	}
 	cairo_restore(info->fg_cairo);
+	priv->fg_dirty = FALSE;
 	priv->fps_off++;
 	EXIT;
 }
@@ -1194,8 +1195,6 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 	                priv->x_each,
 	                priv->content_rect.height);
 	cairo_clip(dst->fg_cairo);
-	cairo_set_line_cap(dst->fg_cairo, CAIRO_LINE_CAP_ROUND);
-	cairo_set_line_join(dst->fg_cairo, CAIRO_LINE_JOIN_ROUND);
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
 		last_y = uber_buffer_get_index(line->scaled, 1);
@@ -1216,6 +1215,7 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 		cairo_stroke(dst->fg_cairo);
 	}
 	cairo_restore(dst->fg_cairo);
+	priv->fg_dirty = FALSE;
 	EXIT;
 }
 
@@ -1454,6 +1454,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	UberGraphPrivate *priv;
 	GdkDrawable *dst;
 	GraphInfo *info;
+	GdkRectangle clip;
 
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 	g_return_if_fail(expose != NULL);
@@ -1473,39 +1474,41 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	/*
 	 * Blit the background for the exposure area.
 	 */
-	if (G_LIKELY(info->bg_pixmap)) {
-		gdk_draw_drawable(dst, priv->bg_gc, GDK_DRAWABLE(info->bg_pixmap),
-		                  expose->area.x, expose->area.y,
-		                  expose->area.x, expose->area.y,
-		                  expose->area.width, expose->area.height);
-	}
+	g_assert(info->bg_pixmap);
+	gdk_draw_drawable(dst, priv->bg_gc, GDK_DRAWABLE(info->bg_pixmap),
+	                  expose->area.x, expose->area.y,
+	                  expose->area.x, expose->area.y,
+	                  expose->area.width, expose->area.height);
 	/*
-	 * Blit the foreground if needed.
+	 * Create the foreground clip area.
 	 */
-	if (G_LIKELY(info->fg_pixmap)) {
-		/*
-		 * If the foreground is dirty, we need to re-render its entire
-		 * contents.
-		 */
-		if (G_UNLIKELY(priv->fg_dirty)) {
-			uber_graph_render_fg_task(UBER_GRAPH(widget), info);
-			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
-							  expose->area.x + 2, expose->area.y,
-							  expose->area.x + 2, expose->area.y,
-							  expose->area.width - 4, expose->area.height);
-			priv->fps_off++;
-		} else {
-			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
-			                  priv->content_rect.x,
-			                  priv->content_rect.y,
-			                  priv->content_rect.x - (priv->fps_each * priv->fps_off),
-			                  priv->content_rect.y,
-			                  priv->content_rect.width + priv->x_each,
-			                  priv->content_rect.height);
-			priv->fps_off++;
-		}
+	gdk_rectangle_intersect(&priv->content_rect, &expose->area, &clip);
+	gdk_gc_set_clip_rectangle(priv->fg_gc, &clip);
+	/*
+	 * If the foreground is dirty, we need to re-render its entire
+	 * contents.
+	 */
+	g_assert(info->fg_pixmap);
+	if (G_UNLIKELY(priv->fg_dirty)) {
+		uber_graph_render_fg_task(UBER_GRAPH(widget), info);
+		gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
+		                  priv->content_rect.x,
+		                  priv->content_rect.y,
+		                  priv->content_rect.x,
+		                  priv->content_rect.y,
+		                  priv->content_rect.width,
+		                  priv->content_rect.height);
+		priv->fps_off++;
+	} else {
+		gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
+		                  priv->content_rect.x,
+		                  priv->content_rect.y,
+		                  priv->content_rect.x - (priv->fps_each * priv->fps_off),
+		                  priv->content_rect.y,
+		                  priv->content_rect.width + priv->x_each,
+		                  priv->content_rect.height);
+		priv->fps_off++;
 	}
-
 	return FALSE;
 }
 
