@@ -445,10 +445,12 @@ create_main_window (void)
 	return window;
 }
 
-static gpointer G_GNUC_NORETURN
+static volatile gboolean quit = FALSE;
+
+static gpointer
 sample_func (gpointer data)
 {
-	while (TRUE) {
+	while (!quit) {
 		DEBUG("Running samplers ...");
 		next_load();
 		next_cpu();
@@ -456,6 +458,7 @@ sample_func (gpointer data)
 		next_mem();
 		g_usleep(G_USEC_PER_SEC);
 	}
+	return NULL;
 }
 
 static gboolean
