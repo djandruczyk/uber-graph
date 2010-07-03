@@ -557,18 +557,14 @@ main (gint   argc,
 	run_buffer_tests();
 
 	/* initialize sources to -INFINITY */
-	#define CLEAR_INFO(t,n) \
-		G_STMT_START { \
-			gint i; \
-			for (i = 0; i < (sizeof(t) / sizeof(gdouble)); i++) { \
-				((gdouble *)(&n))[i] = -INFINITY; \
-			} \
-		} G_STMT_END
-
-	CLEAR_INFO(MemInfo, mem_info);
-	CLEAR_INFO(CpuInfo, cpu_info);
-	CLEAR_INFO(NetInfo, net_info);
-	CLEAR_INFO(LoadInfo, load_info);
+	cpu_info.cpuUsage = -INFINITY;
+	net_info.bytesIn = -INFINITY;
+	net_info.bytesOut = -INFINITY;
+	mem_info.memFree = -INFINITY;
+	mem_info.swapFree = -INFINITY;
+	load_info.load5 = -INFINITY;
+	load_info.load10 = -INFINITY;
+	load_info.load15 = -INFINITY;
 
 	/* run the test gui */
 	window = create_main_window();

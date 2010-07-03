@@ -981,7 +981,7 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 
 	priv = closure->graph->priv;
 	x = closure->x_epoch - (closure->offset++ * priv->x_each);
-	if (value == -INFINITY) {
+	if (isnan(value) || isinf(value)) {
 		goto skip;
 	}
 	y = closure->pixel_range.end - value;
@@ -995,7 +995,6 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 	               closure->last_y,
 	               closure->last_x - (priv->x_each / 2.),
 	               y, x, y);
-	goto finish;
   skip:
   finish:
   	closure->last_x = x;
@@ -1197,8 +1196,16 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 	cairo_clip(dst->fg_cairo);
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
-		y = y_end - uber_buffer_get_index(line->scaled, 0);
-		last_y = y_end - uber_buffer_get_index(line->scaled, 1);
+		y = uber_buffer_get_index(line->scaled, 0);
+		last_y = uber_buffer_get_index(line->scaled, 1);
+		/*
+		 * Don't try to draw before we have real values.
+		 */
+		if ((isnan(y) || isinf(y)) || (isnan(last_y) || isinf(last_y))) {
+			continue;
+		}
+		y = y_end - y;
+		last_y = y_end - last_y;
 		/*
 		 * Convert relative position to fixed from bottom pixel.
 		 */
