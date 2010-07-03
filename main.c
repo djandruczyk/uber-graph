@@ -427,7 +427,7 @@ create_main_window (void)
 
 	mem_graph = create_graph(vbox);
 	uber_graph_set_format(UBER_GRAPH(mem_graph), UBER_GRAPH_PERCENT);
-	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), TRUE);
+	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), FALSE);
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
 	uber_graph_set_value_func(UBER_GRAPH(mem_graph), get_mem, NULL, NULL);
