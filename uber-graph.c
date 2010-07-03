@@ -323,20 +323,22 @@ uber_graph_append (UberGraph *graph, /* IN */
 	ENTRY;
 	priv = graph->priv;
 	GET_PIXEL_RANGE(pixel_range, priv->content_rect);
-	if (priv->yautoscale) {
-		if (value > priv->yrange.end) {
-			priv->yrange.end = value * SCALE_FACTOR;
-			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
-			scale_changed = TRUE;
-		} else if (value < priv->yrange.begin) {
-			priv->yrange.begin = value * SCALE_FACTOR;
-			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
-			scale_changed = TRUE;
-		}
-	}
 	uber_buffer_append(info->buffer, value);
-	if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
-		value = -INFINITY;
+	if (value != -INFINITY) {
+		if (priv->yautoscale) {
+			if (value > priv->yrange.end) {
+				priv->yrange.end = value * SCALE_FACTOR;
+				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+				scale_changed = TRUE;
+			} else if (value < priv->yrange.begin) {
+				priv->yrange.begin = value * SCALE_FACTOR;
+				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+				scale_changed = TRUE;
+			}
+		}
+		if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
+			value = -INFINITY;
+		}
 	}
 	uber_buffer_append(info->scaled, value);
 	RETURN(scale_changed);
