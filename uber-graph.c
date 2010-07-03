@@ -1636,6 +1636,39 @@ uber_graph_realize (GtkWidget *widget) /* IN */
 	EXIT;
 }
 
+/**
+ * uber_graph_size_request:
+ * @widget: A #GtkWidget.
+ * @req: A #GtkRequisition.
+ *
+ * Handles a request for the size of the widget.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_size_request (GtkWidget      *widget, /* IN */
+                         GtkRequisition *req)    /* OUT */
+{
+	g_return_if_fail(UBER_IS_GRAPH(widget));
+
+	req->width = 150;
+	req->height = 50;
+}
+
+/**
+ * uber_scale_linear:
+ * @graph: A #UberGraph.
+ * @values: An #UberRange for the range of values.
+ * @pixels: An #UberRange for the range of pixels.
+ * @value: A location to the current value, which will be scaled.
+ *
+ * Scales the value found at @value from the source scale to the graphs
+ * pixel scale.
+ *
+ * Returns: %TRUE if successful; otherwise %FALSE.
+ * Side effects: None.
+ */
 gboolean
 uber_scale_linear (UberGraph       *graph,  /* IN */
                    const UberRange *values, /* IN */
@@ -1727,6 +1760,7 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 	widget_class->realize = uber_graph_realize;
 	widget_class->size_allocate = uber_graph_size_allocate;
 	widget_class->style_set = uber_graph_style_set;
+	widget_class->size_request = uber_graph_size_request;
 	EXIT;
 }
 
