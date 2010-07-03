@@ -1283,7 +1283,6 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 		cairo_stroke(dst->fg_cairo);
 	}
 	cairo_restore(dst->fg_cairo);
-	priv->fg_dirty = FALSE;
 	EXIT;
 }
 
@@ -1567,8 +1566,6 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		                  priv->content_rect.y,
 		                  priv->content_rect.width,
 		                  priv->content_rect.height);
-		priv->fg_dirty = FALSE;
-		priv->fps_off++;
 	} else {
 		gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
 		                  priv->content_rect.x,
@@ -1577,8 +1574,8 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		                  priv->content_rect.y,
 		                  priv->content_rect.width + priv->x_each,
 		                  priv->content_rect.height);
-		priv->fps_off++;
 	}
+	priv->fps_off++;
 	return FALSE;
 }
 
