@@ -123,6 +123,7 @@ struct _UberGraphPrivate
 	gfloat            x_each;       /* Precalculated space between points.  */
 	UberGraphFormat   format;       /* The graph format. */
 	guint             fps_handler;  /* GSource identifier for invalidating rect. */
+	guint             down_handler; /* Downscale timeout handler. */
 	UberScale         scale;        /* Scaling of values to pixels. */
 	UberRange         yrange;       /* Y-Axis range in for raw values. */
 	GArray           *lines;        /* Lines to draw. */
@@ -181,6 +182,8 @@ static void uber_graph_render_fg_shifted_task(UberGraph    *graph,
                                               GraphInfo    *dst);
 static void uber_graph_render_fg_task        (UberGraph    *graph,
                                               GraphInfo    *info);
+static void uber_graph_render_bg_task        (UberGraph    *graph,
+                                              GraphInfo    *info);
 
 /**
  * uber_graph_new:
@@ -200,6 +203,24 @@ uber_graph_new (void)
 	RETURN(GTK_WIDGET(graph));
 }
 
+static inline void
+uber_graph_copy_background (UberGraph *graph, /* IN */
+                            GraphInfo *src,   /* IN */
+                            GraphInfo *dst)   /* IN */
+{
+	UberGraphPrivate *priv;
+	GtkAllocation alloc;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	ENTRY;
+	priv = graph->priv;
+	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
+	gdk_draw_drawable(dst->bg_pixmap, priv->bg_gc, src->bg_pixmap,
+	                  0, 0, 0, 0, alloc.width, alloc.height);
+	EXIT;
+}
+
 static void
 uber_graph_scale_changed (UberGraph *graph) /* IN */
 {
@@ -209,10 +230,12 @@ uber_graph_scale_changed (UberGraph *graph) /* IN */
 
 	ENTRY;
 	priv = graph->priv;
-	priv->bg_dirty = TRUE;
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
+	uber_graph_render_bg_task(graph, &priv->info[0]);
+	uber_graph_copy_background(graph, &priv->info[0], &priv->info[1]);
+	priv->fg_dirty = TRUE;
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
 	EXIT;
 }
@@ -327,11 +350,11 @@ uber_graph_append (UberGraph *graph, /* IN */
 	if (value != -INFINITY) {
 		if (priv->yautoscale) {
 			if (value > priv->yrange.end) {
-				priv->yrange.end = value * SCALE_FACTOR;
+				priv->yrange.end = value + ABS((SCALE_FACTOR - 1.) * value);
 				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 				scale_changed = TRUE;
 			} else if (value < priv->yrange.begin) {
-				priv->yrange.begin = value * SCALE_FACTOR;
+				priv->yrange.begin = value - ABS((SCALE_FACTOR - 1.) * value);
 				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 				scale_changed = TRUE;
 			}
@@ -406,6 +429,58 @@ uber_graph_set_yrange (UberGraph       *graph,  /* IN */
 	EXIT;
 }
 
+static inline gboolean
+uber_graph_extend_range (UberBuffer *buffer, /* IN */
+                         gdouble     value,  /* IN */
+                         UberRange  *range)  /* IN */
+{
+	g_return_if_fail(buffer != NULL);
+	g_return_if_fail(range != NULL);
+
+	range->begin = MIN(range->begin, value);
+	range->end = MAX(range->end, value);
+	return FALSE;
+}
+
+/**
+ * uber_graph_downscale_timeout:
+ * @data: An #UberGraph.
+ *
+ * Timeout handler called when we need to recalculate if we can shrink
+ * the range of the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static gboolean
+uber_graph_downscale_timeout (gpointer data) /* IN */
+{
+	UberGraph *graph = data;
+	UberGraphPrivate *priv;
+	UberRange range = { 0 };
+	LineInfo *line;
+	gint i;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	ENTRY;
+	priv = graph->priv;
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		uber_buffer_foreach(line->buffer, uber_graph_extend_range, &range);
+	}
+	if (range.begin == range.end) {
+		RETURN(TRUE);
+	}
+	if ((range.end * SCALE_FACTOR) < priv->yrange.end) {
+		priv->yrange.end = range.end * SCALE_FACTOR;
+		priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+		uber_graph_scale_changed(graph);
+	}
+	/* TODO: Scale yrange.begin */
+	RETURN(TRUE);
+}
+
 /**
  * uber_graph_set_yautoscale:
  * @graph: A UberGraph.
@@ -432,7 +507,14 @@ uber_graph_set_yautoscale (UberGraph *graph,      /* IN */
 
 	ENTRY;
 	priv = graph->priv;
-	priv->yautoscale = TRUE;
+	priv->yautoscale = yautoscale;
+	if (priv->down_handler) {
+		g_source_remove(priv->down_handler);
+	}
+	if (yautoscale) {
+		priv->down_handler =
+			g_timeout_add_seconds(5, uber_graph_downscale_timeout, graph);
+	}
 	EXIT;
 }
 
@@ -491,8 +573,6 @@ uber_graph_fps_timeout (gpointer data) /* IN */
 		}
 		if (scale_changed) {
 			uber_graph_scale_changed(graph);
-			uber_graph_render_fg_task(graph,
-			                          &priv->info[priv->flipped]);
 		} else {
 			uber_graph_render_fg_shifted_task(graph,
 											  &priv->info[priv->flipped],
@@ -872,24 +952,6 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
 	DRAW_Y_LABEL(range.end, n_lines, n_lines);
 	EXIT;
 	#undef DRAW_Y_LABEL
-}
-
-static inline void
-uber_graph_copy_background (UberGraph *graph, /* IN */
-                            GraphInfo *src,   /* IN */
-                            GraphInfo *dst)   /* IN */
-{
-	UberGraphPrivate *priv;
-	GtkAllocation alloc;
-
-	g_return_if_fail(UBER_IS_GRAPH(graph));
-
-	ENTRY;
-	priv = graph->priv;
-	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
-	gdk_draw_drawable(dst->bg_pixmap, priv->bg_gc, src->bg_pixmap,
-	                  0, 0, 0, 0, alloc.width, alloc.height);
-	EXIT;
 }
 
 /**
@@ -1505,6 +1567,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		                  priv->content_rect.y,
 		                  priv->content_rect.width,
 		                  priv->content_rect.height);
+		priv->fg_dirty = FALSE;
 		priv->fps_off++;
 	} else {
 		gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
