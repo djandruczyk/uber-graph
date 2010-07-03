@@ -40,6 +40,8 @@
 #define GIBIBYTE     (1073741824)
 #define GIBIBYTE_STR ("Gi")
 
+#define SCALE_FACTOR (1.3334)
+
 #define GET_PIXEL_RANGE(pr, rect)                \
     G_STMT_START {                               \
         (pr).begin = (rect).y + 1;               \
@@ -136,6 +138,9 @@ struct _UberGraphPrivate
 	gchar           **colors;       /* Array of colors to assign. */
 	gint              colors_len;   /* Length of colors array. */
 	gint              color;        /* Next color to hand out. */
+	UberGraphFunc     value_func;
+	gpointer          value_user_data;
+	GDestroyNotify    value_notify;
 };
 
 typedef struct
@@ -173,8 +178,7 @@ static void uber_graph_init_graph_info       (UberGraph    *graph,
                                               GraphInfo    *info);
 static void uber_graph_render_fg_shifted_task(UberGraph    *graph,
                                               GraphInfo    *src,
-                                              GraphInfo    *dst,
-                                              gdouble      *values);
+                                              GraphInfo    *dst);
 static void uber_graph_render_fg_task        (UberGraph    *graph,
                                               GraphInfo    *info);
 
@@ -240,144 +244,102 @@ uber_graph_set_scale (UberGraph *graph, /* IN */
 }
 
 /**
- * uber_graph_push:
+ * uber_graph_set_value_func:
  * @graph: A UberGraph.
- * @first_id: 
- * @...: 
+ * @func: The callback function.
+ * @user_data: user data for @func.
+ * @notify: A #GDestroyNotify to cleanup after user_data.
  *
- * XXX
+ * Sets the function callback to retrieve the next value for a particular
+ * graph line.
  *
  * Returns: None.
  * Side effects: None.
  */
 void
-uber_graph_push (UberGraph *graph,    /* IN */
-                 gint       first_id, /* IN */
-                 ...)                 /* IN */
+uber_graph_set_value_func (UberGraph      *graph,     /* IN */
+                           UberGraphFunc   func,      /* IN */
+                           gpointer        user_data, /* IN */
+                           GDestroyNotify  notify)    /* IN */
 {
 	UberGraphPrivate *priv;
-	va_list args;
-	gdouble value;
-	gdouble *values;
-	gint id;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(func != NULL);
 
 	ENTRY;
 	priv = graph->priv;
-	values = g_malloc0_n(priv->stride, sizeof(gdouble));
-	va_start(args, first_id);
-	id = first_id;
-	while (id != -1) {
-		if (id < 0 || id >= priv->stride) {
-			g_critical("%s(): %d not a valid line id.", G_STRFUNC, id);
-			va_end(args);
-			return;
-		}
-		value = va_arg(args, gdouble);
-		values[id] = value;
-		id = va_arg(args, gint);
+	if (priv->value_notify) {
+		priv->value_notify(priv->value_user_data);
 	}
-	va_end(args);
-	uber_graph_pushv(graph, values);
-	g_free(values);
+	priv->value_notify = notify;
+	priv->value_user_data = user_data;
+	priv->value_func = func;
 	EXIT;
 }
 
 /**
- * uber_graph_pushv:
+ * uber_graph_get_next_value:
  * @graph: A #UberGraph.
- * @values: An ordered list of line values.
  *
- * Pushes the new values for all of the lines onto the graph.  @values must
- * be an array containing a value for all lines.
+ * Retrieves the next value for a particular line in the graph.
  *
  * Returns: None.
  * Side effects: None.
  */
-void
-uber_graph_pushv (UberGraph *graph,  /* IN */
-                  gdouble   *values) /* IN */
+static inline void
+uber_graph_get_next_value (UberGraph *graph, /* IN */
+                           gint       line,  /* IN */
+                           LineInfo  *info,  /* IN */
+                           gdouble   *value) /* OUT */
 {
 	UberGraphPrivate *priv;
-	GdkWindow *window;
-	UberRange pixel_range;
-	gboolean scale_changed = FALSE;
-	LineInfo *line;
-	gdouble value;
-	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
-	g_return_if_fail(values != NULL);
+	g_return_if_fail(info != NULL);
+	g_return_if_fail(value != NULL);
 
 	ENTRY;
 	priv = graph->priv;
-	priv->fps_off = 0;
-	priv->fg_dirty = TRUE;
-	GET_PIXEL_RANGE(pixel_range, priv->content_rect);
-	/*
-	 * Check if value is outside the current range.
-	 */
-	if (priv->yautoscale) {
-		for (i = 0; i < priv->lines->len; i++) {
-			value = values[i];
-			if (value > priv->yrange.end) {
-				priv->yrange.end = value + ((value - priv->yrange.begin) / 4.);
-				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
-				priv->bg_dirty = TRUE;
-				scale_changed = TRUE;
-			} else if (value < priv->yrange.begin) {
-				priv->yrange.begin = value - ((priv->yrange.end - value) / 4.);
-				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
-				priv->bg_dirty = TRUE;
-				scale_changed = TRUE;
-			}
-		}
-		if (scale_changed) {
-			uber_graph_scale_changed(graph);
-		}
+	*value = -INFINITY;
+	if (G_LIKELY(priv->value_func)) {
+		priv->value_func(graph, line, value, priv->value_user_data);
 	}
-	for (i = 0; i < priv->lines->len; i++) {
-		/*
-		 * Push raw data value to buffer.
-		 */
-		value = values[i];
-		line = &g_array_index(priv->lines, LineInfo, i);
-		uber_buffer_append(line->buffer, value);
-		/*
-		 * Scale value and push value to scaled cache.
-		 */
-		if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
-			value = -INFINITY;
-		}
-		uber_buffer_append(line->scaled, value);
-		values[i] = value; /* FIXME: Dont overwrite their memory. */
-	}
-	/*
-	 * Shift the contents of the previous pixmap to its new offset
-	 * on the flipped pixmap.  Then draw the new value at the end
-	 * of the pixmap and flip said pixmaps.
-	 */
-	if (G_LIKELY(!scale_changed)) {
-		/*
-		 * Attempt to render and send as little data as possible to
-		 * the X-server since we do not need to render the entire
-		 * drawing again.
-		 */
-		uber_graph_render_fg_shifted_task(graph,
-		                                  &priv->info[priv->flipped],
-		                                  &priv->info[!priv->flipped],
-		                                  values); /* Scaled */
-		priv->flipped = !priv->flipped;
-	} else {
-		uber_graph_render_fg_task(graph, &priv->info[priv->flipped]);
-	}
-	/*
-	 * Invalidate regions and render.
-	 */
-	window = gtk_widget_get_window(GTK_WIDGET(graph));
-	gdk_window_invalidate_rect(window, &priv->content_rect, FALSE);
 	EXIT;
+}
+
+static inline gboolean
+uber_graph_append (UberGraph *graph, /* IN */
+                   LineInfo  *info,  /* IN */
+                   gdouble    value) /* IN */
+{
+	UberGraphPrivate *priv;
+	UberRange pixel_range;
+	gboolean scale_changed = FALSE;
+
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
+	g_return_val_if_fail(info != NULL, FALSE);
+
+	ENTRY;
+	priv = graph->priv;
+	GET_PIXEL_RANGE(pixel_range, priv->content_rect);
+	if (priv->yautoscale) {
+		if (value > priv->yrange.end) {
+			priv->yrange.end = value * SCALE_FACTOR;
+			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+			scale_changed = TRUE;
+		} else if (value < priv->yrange.begin) {
+			priv->yrange.begin = value * SCALE_FACTOR;
+			priv->yrange.range = priv->yrange.end - priv->yrange.begin;
+			scale_changed = TRUE;
+		}
+	}
+	uber_buffer_append(info->buffer, value);
+	if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
+		value = -INFINITY;
+	}
+	uber_buffer_append(info->scaled, value);
+	RETURN(scale_changed);
 }
 
 /**
@@ -503,11 +465,43 @@ uber_graph_get_yautoscale (UberGraph *graph) /* IN */
 static gboolean
 uber_graph_fps_timeout (gpointer data) /* IN */
 {
+	UberGraphPrivate *priv;
 	UberGraph *graph = data;
+	LineInfo *info;
 	GdkWindow *window;
+	gdouble value;
+	gboolean scale_changed = FALSE;
+	gint i;
 
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
 
+	priv = graph->priv;
+	/*
+	 * Retrieve the next value for the graph if necessary.
+	 */
+	if (G_UNLIKELY(priv->fps_off >= priv->fps)) {
+		for (i = 0; i < priv->lines->len; i++) {
+			info = &g_array_index(priv->lines, LineInfo, i);
+			uber_graph_get_next_value(graph, i + 1, info, &value);
+			if (uber_graph_append(graph, info, value)) {
+				scale_changed = TRUE;
+			}
+		}
+		if (scale_changed) {
+			uber_graph_scale_changed(graph);
+			uber_graph_render_fg_task(graph,
+			                          &priv->info[priv->flipped]);
+		} else {
+			uber_graph_render_fg_shifted_task(graph,
+											  &priv->info[priv->flipped],
+											  &priv->info[!priv->flipped]);
+			priv->flipped = !priv->flipped;
+		}
+		priv->fps_off = 0;
+	}
+	/*
+	 * Update the content area.
+	 */
 	window = gtk_widget_get_window(GTK_WIDGET(graph));
 	gdk_window_invalidate_rect(window, &graph->priv->content_rect, FALSE);
 	return TRUE;
@@ -672,7 +666,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	priv->content_rect.y = tick_h / 2 + 1;
 	priv->content_rect.width = alloc.width - priv->content_rect.x - 2;
 	priv->content_rect.height = priv->x_tick_rect.y - priv->content_rect.y - 2;
-	gdk_gc_set_clip_rectangle(priv->fg_gc, &priv->content_rect);
+	//gdk_gc_set_clip_rectangle(priv->fg_gc, &priv->content_rect);
 	/*
 	 * Cleanup after allocations.
 	 */
@@ -1001,7 +995,6 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 	               y, x, y);
 	goto finish;
   skip:
-	cairo_move_to(closure->info->fg_cairo, x, closure->pixel_range.end);
   finish:
   	closure->last_x = x;
   	closure->last_y = y;
@@ -1108,6 +1101,12 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 	 * Render data point contents.
 	 */
 	cairo_save(info->fg_cairo);
+	cairo_rectangle(info->fg_cairo,
+	                priv->content_rect.x,
+	                priv->content_rect.y,
+	                priv->content_rect.width + priv->x_each,
+	                priv->content_rect.height);
+	cairo_clip(info->fg_cairo);
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
 		closure.last_x = -INFINITY;
@@ -1130,11 +1129,12 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 /**
  * uber_graph_render_fg_shifted_task:
  * @graph: A #UberGraph.
+ * @src: A GraphInfo with contents to copy.
+ * @dst: A GraphInfo to copy shifted src contents to.
  *
  * Renders a portion of @src pixmap to @dst pixmap at the shifting
- * rate.  The new value is then rendered onto the new graph and clipped
- * to the proper area.  This prevents the need to send all of the graph
- * contents to the X-server on redraws.
+ * rate.  It is assumed that the most recent value in the circular buffer
+ * is the value that needs to be rendered and added to the pixmap.
  *
  * Returns: None.
  * Side effects: None.
@@ -1142,8 +1142,7 @@ uber_graph_render_fg_task (UberGraph *graph, /* IN */
 static void
 uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
                                    GraphInfo    *src,    /* IN */
-                                   GraphInfo    *dst,    /* IN */
-                                   gdouble      *values) /* IN */
+                                   GraphInfo    *dst)    /* IN */
 {
 	UberGraphPrivate *priv;
 	LineInfo *line;
@@ -1157,7 +1156,6 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(src != NULL);
 	g_return_if_fail(dst != NULL);
-	g_return_if_fail(values != NULL);
 
 	ENTRY;
 	priv = graph->priv;
@@ -1197,12 +1195,11 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 	cairo_clip(dst->fg_cairo);
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
-		last_y = uber_buffer_get_index(line->scaled, 1);
+		y = y_end - uber_buffer_get_index(line->scaled, 0);
+		last_y = y_end - uber_buffer_get_index(line->scaled, 1);
 		/*
 		 * Convert relative position to fixed from bottom pixel.
 		 */
-		y = y_end - values[i];
-		last_y = y_end - last_y;
 		uber_graph_stylize_line(graph, line, dst->fg_cairo);
 		cairo_move_to(dst->fg_cairo, x_epoch, y);
 		cairo_curve_to(dst->fg_cairo,
@@ -1271,7 +1268,8 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	cr = gdk_cairo_create(GDK_DRAWABLE(fg_pixmap));
 	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
 	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
-	cairo_fill(cr);
+	cairo_set_source_rgb(cr, 1, 1, 1);
+	cairo_paint(cr);
 	cairo_destroy(cr);
 	/*
 	 * Cleanup after any previous cairo contexts.
@@ -1456,8 +1454,8 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	GraphInfo *info;
 	GdkRectangle clip;
 
-	g_return_if_fail(UBER_IS_GRAPH(widget));
-	g_return_if_fail(expose != NULL);
+	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
+	g_return_val_if_fail(expose != NULL, FALSE);
 
 	priv = UBER_GRAPH(widget)->priv;
 	dst = expose->window;
@@ -1545,10 +1543,9 @@ uber_graph_style_set (GtkWidget *widget,     /* IN */
  * uber_graph_add_line:
  * @graph: A UberGraph.
  *
- * Adds a new line to the graph.  Values should be added to the graph
- * using uber_graph_push() with the returned line id.
+ * Adds a new line to the graph.
  *
- * Returns: the line-id to use with uber_graph_push().
+ * Returns: the line-id.
  * Side effects: None.
  */
 guint
@@ -1677,6 +1674,9 @@ uber_graph_finalize (GObject *object) /* IN */
 	}
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
+	}
+	if (priv->value_notify) {
+		priv->value_notify(priv->value_user_data);
 	}
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);

@@ -55,11 +55,31 @@ typedef struct _UberRange UberRange;
  * raw scale into a value within the pixel scale.
  *
  * Returns: %TRUE if successful; otherwise %FALSE.
+ * Side effects: Implementation specific.
  */
 typedef gboolean (*UberScale) (UberGraph       *graph,
                                const UberRange *values,
                                const UberRange *pixels,
                                gdouble         *value);
+
+/**
+ * UberGraphFunc:
+ * @graph: A #UberGraph.
+ * @line: The line of which to retrieve the value.
+ * @value: A location for the resulting value.
+ * @user_data: User data supplied to uber_graph_set_value_func().
+ *
+ * Callback to retrieve the next value for the graph.  Uber graph uses a
+ * callback model so that the graph can be drawn in a way that doesn't cause
+ * heavy jitter on the graph rendering.
+ *
+ * Returns: %TRUE if successful; otherwise %FALSE.
+ * Side effects: Implementation specific.
+ */
+typedef gboolean (*UberGraphFunc) (UberGraph *graph,
+                                   gint       line,
+                                   gdouble   *value,
+                                   gpointer   user_data);
 
 /**
  * UberGraphFormat:
@@ -102,15 +122,14 @@ guint          uber_graph_add_line        (UberGraph       *graph);
 GType          uber_graph_get_type        (void) G_GNUC_CONST;
 gboolean       uber_graph_get_yautoscale  (UberGraph       *graph);
 GtkWidget*     uber_graph_new             (void);
-void           uber_graph_push            (UberGraph       *graph,
-                                           gint             first_id,
-                                           ...);
-void           uber_graph_pushv           (UberGraph       *graph,
-                                           gdouble         *values);
 void           uber_graph_set_format      (UberGraph       *graph,
                                            UberGraphFormat  format);
 void           uber_graph_set_fps         (UberGraph       *graph,
                                            gint             fps);
+void           uber_graph_set_value_func  (UberGraph       *graph,
+                                           UberGraphFunc    func,
+                                           gpointer         user_data,
+                                           GDestroyNotify   notify);
 void           uber_graph_set_scale       (UberGraph       *graph,
                                            UberScale        scale);
 void           uber_graph_set_stride      (UberGraph       *graph,
