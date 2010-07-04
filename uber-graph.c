@@ -90,6 +90,10 @@
  * for realtime graphs.  It uses server-side pixmaps to reduce the rendering
  * overhead.  Multiple pixmaps are used which can be blitted for additional
  * speed boost.
+ *
+ * When adding new values to the graph, the contents of the pixmap are shifted
+ * and the new sliver of content added to the pixmap.  This helps reduce the
+ * amount of data to send to the X-server.
  */
 
 G_DEFINE_TYPE(UberGraph, uber_graph, GTK_TYPE_DRAWING_AREA)
@@ -100,7 +104,7 @@ typedef struct
 	GdkPixmap   *fg_pixmap;   /* Server-side pixmap for foreground. */
 	cairo_t     *bg_cairo;    /* Cairo context for foreground pixmap. */
 	cairo_t     *fg_cairo;    /* Cairo context for background pixmap. */
-	PangoLayout *tick_layout; /* TODO */
+	PangoLayout *tick_layout; /* Pango layout for tick labels. */
 } GraphInfo;
 
 typedef struct
@@ -112,36 +116,36 @@ typedef struct
 
 struct _UberGraphPrivate
 {
-	GraphInfo         info[2];      /* Two GraphInfo's for swapping. */
-	gboolean          flipped;      /* Which GraphInfo is active. */
-	gint              tick_len;     /* Length of axis ticks in pixels. */
-	gint              fps;          /* Frames per second. */
-	gint              fps_off;      /* Offset in frame-slide */
-	gint              fps_to;       /* Frames per second timeout (in MS) */
-	gint              stride;       /* Number of data points to store. */
-	gfloat            fps_each;     /* How much each frame skews. */
-	gfloat            x_each;       /* Precalculated space between points.  */
-	UberGraphFormat   format;       /* The graph format. */
-	guint             fps_handler;  /* GSource identifier for invalidating rect. */
-	guint             down_handler; /* Downscale timeout handler. */
-	UberScale         scale;        /* Scaling of values to pixels. */
-	UberRange         yrange;       /* Y-Axis range in for raw values. */
-	GArray           *lines;        /* Lines to draw. */
-	gboolean          bg_dirty;     /* Do we need to update the background. */
-	gboolean          fg_dirty;     /* Do we need to update the foreground. */
-	gboolean          yautoscale;   /* Should the graph autoscale to handle values
-	                                 * outside the current range. */
-	GdkGC            *bg_gc;        /* Drawing context for blitting background */
-	GdkGC            *fg_gc;        /* Drawing context for blitting foreground */
-	GdkRectangle      x_tick_rect;  /* Pre-calculated X tick area. */
-	GdkRectangle      y_tick_rect;  /* Pre-calculated Y tick area. */
-	GdkRectangle      content_rect; /* Main content area. */
-	gchar           **colors;       /* Array of colors to assign. */
-	gint              colors_len;   /* Length of colors array. */
-	gint              color;        /* Next color to hand out. */
-	UberGraphFunc     value_func;
-	gpointer          value_user_data;
-	GDestroyNotify    value_notify;
+	GraphInfo         info[2];         /* Two GraphInfo's for swapping. */
+	gboolean          flipped;         /* Which GraphInfo is active. */
+	gint              tick_len;        /* Length of axis ticks in pixels. */
+	gint              fps;             /* Frames per second. */
+	gint              fps_off;         /* Offset in frame-slide */
+	gint              fps_to;          /* Frames per second timeout (in MS) */
+	gint              stride;          /* Number of data points to store. */
+	gfloat            fps_each;        /* How much each frame skews. */
+	gfloat            x_each;          /* Precalculated space between points.  */
+	UberGraphFormat   format;          /* The graph format. */
+	guint             fps_handler;     /* GSource identifier for invalidating rect. */
+	guint             down_handler;    /* Downscale timeout handler. */
+	UberScale         scale;           /* Scaling of values to pixels. */
+	UberRange         yrange;          /* Y-Axis range in for raw values. */
+	GArray           *lines;           /* Lines to draw. */
+	gboolean          bg_dirty;        /* Do we need to update the background. */
+	gboolean          fg_dirty;        /* Do we need to update the foreground. */
+	gboolean          yautoscale;      /* Should the graph autoscale to handle values
+	                                    * outside the current range. */
+	GdkGC            *bg_gc;           /* Drawing context for blitting background */
+	GdkGC            *fg_gc;           /* Drawing context for blitting foreground */
+	GdkRectangle      x_tick_rect;     /* Pre-calculated X tick area. */
+	GdkRectangle      y_tick_rect;     /* Pre-calculated Y tick area. */
+	GdkRectangle      content_rect;    /* Main content area. */
+	gchar           **colors;          /* Array of colors to assign. */
+	gint              colors_len;      /* Length of colors array. */
+	gint              color;           /* Next color to hand out. */
+	UberGraphFunc     value_func;      /* Callback to retrieve next value. */
+	gpointer          value_user_data; /* User data for callback. */
+	GDestroyNotify    value_notify;    /* Cleanup callback for value_user_data. */
 };
 
 typedef struct
