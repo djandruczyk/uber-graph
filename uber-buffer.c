@@ -31,6 +31,18 @@
 #endif
 
 /**
+ * SECTION:uber-buffer
+ * @title: UberBuffer
+ * @short_description: A ciricular buffer for #gdouble<!-- -->'s.
+ *
+ * #UberBuffer is a circular buffer which is designed to store
+ * #gdouble<!-- -->'s.  uber_buffer_foreach() is a macro which can
+ * be used to iterate through the values in the buffer.
+ *
+ * The default #gdouble value is -INFINITY.
+ */
+
+/**
  * uber_buffer_dispose:
  * @buffer: A #UberBuffer.
  *

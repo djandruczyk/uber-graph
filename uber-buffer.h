@@ -23,6 +23,12 @@
 
 G_BEGIN_DECLS
 
+/**
+ * UberBuffer:
+ *
+ * #UberBuffer is a circular buffer for storing #gdouble<!-- -->'s.  It is used
+ * by #UberGraph to store both raw and scaled values for the graph.
+ */
 typedef struct _UberBuffer UberBuffer;
 
 /**
@@ -65,7 +71,8 @@ gdouble     uber_buffer_get_index (UberBuffer  *buffer,
  * @buffer: A #UberBuffer.
  *
  * Iterates through each item in the circular buffer from the current
- * position to the oldest value.
+ * value to the oldest value.  This is implemented as a macro so that
+ * the callback methods may be static inline.
  *
  * Returns: None.
  * Side effects: None.
