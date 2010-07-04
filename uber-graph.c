@@ -174,20 +174,21 @@ static const gchar *default_colors[] = {
 	"#a40000",
 };
 
-static void gdk_cairo_rectangle_clean        (cairo_t      *cr,
-                                              GdkRectangle *rect);
-static void pango_layout_get_pixel_rectangle (PangoLayout  *layout,
-                                              GdkRectangle *rect);
-static void uber_graph_calculate_rects       (UberGraph    *graph);
-static void uber_graph_init_graph_info       (UberGraph    *graph,
-                                              GraphInfo    *info);
-static void uber_graph_render_fg_shifted_task(UberGraph    *graph,
-                                              GraphInfo    *src,
-                                              GraphInfo    *dst);
-static void uber_graph_render_fg_task        (UberGraph    *graph,
-                                              GraphInfo    *info);
-static void uber_graph_render_bg_task        (UberGraph    *graph,
-                                              GraphInfo    *info);
+static void gdk_cairo_rectangle_clean         (cairo_t      *cr,
+                                               GdkRectangle *rect);
+static void pango_layout_get_pixel_rectangle  (PangoLayout  *layout,
+                                               GdkRectangle *rect);
+static void uber_graph_calculate_rects        (UberGraph    *graph);
+static void uber_graph_init_graph_info        (UberGraph    *graph,
+                                               GraphInfo    *info);
+static void uber_graph_render_fg_shifted_task (UberGraph    *graph,
+                                               GraphInfo    *src,
+                                               GraphInfo    *dst);
+static void uber_graph_render_fg_task         (UberGraph    *graph,
+                                               GraphInfo    *info);
+static void uber_graph_render_bg_task         (UberGraph    *graph,
+                                               GraphInfo    *info);
+static void uber_graph_scale_changed          (UberGraph    *graph);
 
 /**
  * uber_graph_new:
@@ -335,6 +336,17 @@ uber_graph_get_next_value (UberGraph *graph, /* IN */
 	EXIT;
 }
 
+/**
+ * uber_graph_append:
+ * @graph: A #UberGraph.
+ * @info: A LineInfo.
+ *
+ * Appends @value to the LineInfo.  If the graph is set to autoscale
+ * and the scale was changed, %TRUE will be returned.
+ *
+ * Returns: %TRUE if the scale changed; otherwise %FALSE.
+ * Side effects: None.
+ */
 static inline gboolean
 uber_graph_append (UberGraph *graph, /* IN */
                    LineInfo  *info,  /* IN */
@@ -433,6 +445,15 @@ uber_graph_set_yrange (UberGraph       *graph,  /* IN */
 	EXIT;
 }
 
+/**
+ * uber_graph_extend_range:
+ * @graph: A #UberGraph.
+ *
+ * Callback for determining the range of an #UberBuffer.
+ *
+ * Returns: always %FALSE to continue iteration.
+ * Side effects: None.
+ */
 static inline gboolean
 uber_graph_extend_range (UberBuffer *buffer, /* IN */
                          gdouble     value,  /* IN */
@@ -451,9 +472,10 @@ uber_graph_extend_range (UberBuffer *buffer, /* IN */
  * @data: An #UberGraph.
  *
  * Timeout handler called when we need to recalculate if we can shrink
- * the range of the graph.
+ * the range of the graph.  If the graph y-axis range can be shrunk,
+ * the the graph contents are marked dirty and re-rendered.
  *
- * Returns: None.
+ * Returns: %TRUE always to keep the timeout continuing.
  * Side effects: None.
  */
 static gboolean
@@ -787,7 +809,7 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 	ENTRY;
 	priv = graph->priv;
 
-	#define DRAW_TICK_LABEL(f, v, o)                                         \
+	#define DRAW_TICK_LABEL(v, o)                                            \
 	    G_STMT_START {                                                       \
 	        gint _v = (v);                                                   \
 	        gchar *_v_str;                                                   \
@@ -810,7 +832,7 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 		} G_STMT_END
 
 	n_lines = priv->stride / 10;
-	DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", 0, 0);
+	DRAW_TICK_LABEL(0, 0);
 	for (i = 1; i < n_lines; i++) {
 		cairo_move_to(info->bg_cairo,
 		              priv->content_rect.x + (int)(i * (priv->x_tick_rect.width / (gfloat)n_lines)) + .5,
@@ -820,11 +842,9 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 		              priv->x_tick_rect.y + priv->tick_len);
 		cairo_stroke(info->bg_cairo);
 		fraction = (1. / (gfloat)n_lines) * priv->stride;
-		DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>",
-		                fraction * i,
-		                i);
+		DRAW_TICK_LABEL(fraction * i, i);
 	}
-	DRAW_TICK_LABEL("<span size='smaller'>%d %% </span>", priv->stride, n_lines);
+	DRAW_TICK_LABEL(priv->stride, n_lines);
 	EXIT;
 	#undef DRAW_TICK_LABEL
 }
