@@ -42,7 +42,12 @@ typedef struct _UberGraphPrivate UberGraphPrivate;
  * scale.  It contains the beginning value, ending value, and a pre-calculated
  * range between the values.
  */
-typedef struct _UberRange UberRange;
+typedef struct
+{
+	gdouble begin;
+	gdouble end;
+	gdouble range;
+} UberRange;
 
 /**
  * UberScale:
@@ -98,13 +103,6 @@ typedef enum
 	UBER_GRAPH_PERCENT,
 } UberGraphFormat;
 
-struct _UberRange
-{
-	gdouble begin;
-	gdouble end;
-	gdouble range;
-};
-
 struct _UberGraph
 {
 	GtkDrawingArea parent;
@@ -126,14 +124,14 @@ void           uber_graph_set_format      (UberGraph       *graph,
                                            UberGraphFormat  format);
 void           uber_graph_set_fps         (UberGraph       *graph,
                                            gint             fps);
-void           uber_graph_set_value_func  (UberGraph       *graph,
-                                           UberGraphFunc    func,
-                                           gpointer         user_data,
-                                           GDestroyNotify   notify);
 void           uber_graph_set_scale       (UberGraph       *graph,
                                            UberScale        scale);
 void           uber_graph_set_stride      (UberGraph       *graph,
                                            gint             stride);
+void           uber_graph_set_value_func  (UberGraph       *graph,
+                                           UberGraphFunc    func,
+                                           gpointer         user_data,
+                                           GDestroyNotify   notify);
 void           uber_graph_set_yautoscale  (UberGraph       *graph,
                                            gboolean         yautoscale);
 void           uber_graph_set_yrange      (UberGraph       *graph,
