@@ -189,6 +189,7 @@ static void uber_graph_render_fg_task         (UberGraph    *graph,
 static void uber_graph_render_bg_task         (UberGraph    *graph,
                                                GraphInfo    *info);
 static void uber_graph_scale_changed          (UberGraph    *graph);
+static void uber_graph_update_scaled          (UberGraph    *graph);
 
 /**
  * uber_graph_new:
@@ -235,6 +236,7 @@ uber_graph_scale_changed (UberGraph *graph) /* IN */
 
 	ENTRY;
 	priv = graph->priv;
+	uber_graph_update_scaled(graph);
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
 	uber_graph_calculate_rects(graph);
@@ -1440,6 +1442,43 @@ uber_graph_destroy_graph_info (UberGraph *graph, /* IN */
 }
 
 /**
+ * uber_graph_update_scaled:
+ * @graph: A #UberGraph.
+ *
+ * Rescales all cached values using their raw value.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_update_scaled (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+	UberRange pixel_range = { 0 };
+	LineInfo *line;
+	gdouble value;
+	gint i;
+	gint j;
+
+	ENTRY;
+	priv = graph->priv;
+	GET_PIXEL_RANGE(pixel_range, priv->content_rect);
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		for (j = 0; j < line->buffer->len; j++) {
+			if (line->buffer->buffer[j] != -INFINITY) {
+				value = line->buffer->buffer[j];
+				if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
+					value = -INFINITY;
+				}
+				line->scaled->buffer[j] = value;
+			}
+		}
+	}
+	EXIT;
+}
+
+/**
  * uber_graph_size_allocate:
  * @widget: A GtkWidget.
  *
@@ -1455,45 +1494,23 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 {
 	UberGraph *graph;
 	UberGraphPrivate *priv;
-	UberRange pixel_range;
-	LineInfo *line;
-	gdouble value;
-	gint i;
-	gint j;
 
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
 	ENTRY;
-	BASE_CLASS->size_allocate(widget, alloc);
 	graph = UBER_GRAPH(widget);
 	priv = graph->priv;
+	BASE_CLASS->size_allocate(widget, alloc);
 	/*
 	 * Adjust the sizing of the blit pixmaps.
 	 */
 	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
-	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[0]);
-	uber_graph_init_graph_info(UBER_GRAPH(widget), &priv->info[1]);
 	uber_graph_calculate_rects(UBER_GRAPH(widget));
 	uber_graph_set_fps(graph, priv->fps); /* Re-calculate */
 	priv->x_each = ((gdouble)priv->content_rect.width - 2)
 	             / ((gdouble)priv->stride - 2.);
-	/*
-	 * Rescale values relative to new content area.
-	 */
-	GET_PIXEL_RANGE(pixel_range, priv->content_rect);
-	for (i = 0; i < priv->lines->len; i++) {
-		line = &g_array_index(priv->lines, LineInfo, i);
-		for (j = 0; j < line->buffer->len; j++) {
-			if (line->buffer->buffer[j] != -INFINITY) {
-				value = line->buffer->buffer[j];
-				if (!priv->scale(graph, &priv->yrange, &pixel_range, &value)) {
-					value = -INFINITY;
-				}
-				line->scaled->buffer[j] = value;
-			}
-		}
-	}
+	uber_graph_scale_changed(graph);
 	EXIT;
 }
 
