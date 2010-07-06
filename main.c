@@ -36,6 +36,8 @@
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <signal.h>
 
 #include "uber-graph.h"
 #include "uber-buffer.h"
@@ -45,10 +47,6 @@
 #else
 #define DEBUG(f,...) g_debug(f, ## __VA_ARGS__)
 #endif
-
-static GOptionEntry options[] = {
-	{ NULL }
-};
 
 typedef struct
 {
@@ -74,14 +72,25 @@ typedef struct
 	volatile gdouble load15;
 } LoadInfo;
 
+typedef struct
+{
+	volatile gdouble size;
+	volatile gdouble resident;
+} PmemInfo;
+
 static MemInfo    mem_info   = { 0 };
 static CpuInfo    cpu_info   = { 0 };
 static NetInfo    net_info   = { 0 };
 static LoadInfo   load_info  = { 0 };
+static PmemInfo   pmem_info  = { 0 };
 static GtkWidget *load_graph = NULL;
 static GtkWidget *cpu_graph  = NULL;
 static GtkWidget *net_graph  = NULL;
 static GtkWidget *mem_graph  = NULL;
+static gboolean   reaped     = FALSE;
+static GtkWidget *vbox       = NULL;
+static GtkWidget *pmem_graph = NULL;
+static GPid       pid        = 0;
 
 static gboolean
 get_cpu (UberGraph *graph,
@@ -154,7 +163,7 @@ get_net (UberGraph *graph,
 }
 
 static inline GtkWidget*
-create_graph (GtkWidget *vbox)
+create_graph (void)
 {
 	GtkWidget *graph;
 	GtkWidget *align;
@@ -363,7 +372,6 @@ static GtkWidget*
 create_main_window (void)
 {
 	GtkWidget *window;
-	GtkWidget *vbox;
 	GtkWidget *load_label;
 	GtkWidget *cpu_label;
 	GtkWidget *net_label;
@@ -386,7 +394,7 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(cpu_label), .0, .5);
 	gtk_widget_show(cpu_label);
 
-	cpu_graph = create_graph(vbox);
+	cpu_graph = create_graph();
 	uber_graph_set_format(UBER_GRAPH(cpu_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), FALSE);
 	uber_graph_set_yrange(UBER_GRAPH(cpu_graph), &cpu_range);
@@ -399,7 +407,7 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(load_label), .0, .5);
 	gtk_widget_show(load_label);
 
-	load_graph = create_graph(vbox);
+	load_graph = create_graph();
 	uber_graph_set_yautoscale(UBER_GRAPH(load_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(load_graph));
 	uber_graph_add_line(UBER_GRAPH(load_graph));
@@ -412,7 +420,7 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(net_label), .0, .5);
 	gtk_widget_show(net_label);
 
-	net_graph = create_graph(vbox);
+	net_graph = create_graph();
 	uber_graph_set_format(UBER_GRAPH(net_graph), UBER_GRAPH_DIRECT1024);
 	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(net_graph));
@@ -425,7 +433,7 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(mem_label), .0, .5);
 	gtk_widget_show(mem_label);
 
-	mem_graph = create_graph(vbox);
+	mem_graph = create_graph();
 	uber_graph_set_format(UBER_GRAPH(mem_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), FALSE);
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
@@ -445,6 +453,65 @@ create_main_window (void)
 	return window;
 }
 
+static void
+next_pmem (void)
+{
+	static char *path = NULL;
+	int fd;
+	char buf[1024];
+	long size = 0;
+	long resident = 0;
+
+	if (G_UNLIKELY(!path)) {
+		path = g_strdup_printf("/proc/%d/statm", pid);
+	}
+
+	fd = open(path, O_RDONLY);
+	read(fd, buf, sizeof(buf));
+	sscanf(buf, "%ld %ld", &size, &resident);
+	pmem_info.size = size;
+	pmem_info.resident = resident;
+	close(fd);
+}
+
+static gboolean
+get_pmem (UberGraph *graph,
+          gint       line,
+          gdouble   *value,
+          gpointer   user_data)
+{
+	switch (line) {
+	case 1:
+		*value = pmem_info.size;
+		break;
+	case 2:
+		*value = pmem_info.resident;
+		break;
+	default:
+		*value = 0;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static void
+create_pid_graphs (GPid pid)
+{
+	GtkWidget *label;
+
+	label = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(label), "<b>Process Memory History</b>");
+	gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, TRUE, 0);
+	gtk_misc_set_alignment(GTK_MISC(label), .0, .5);
+	gtk_widget_show(label);
+
+	pmem_graph = create_graph();
+	uber_graph_set_yautoscale(UBER_GRAPH(pmem_graph), TRUE);
+	uber_graph_add_line(UBER_GRAPH(pmem_graph));
+	uber_graph_add_line(UBER_GRAPH(pmem_graph));
+	uber_graph_set_value_func(UBER_GRAPH(pmem_graph), get_pmem, NULL, NULL);
+}
+
 static volatile gboolean quit = FALSE;
 
 static gpointer
@@ -456,6 +523,7 @@ sample_func (gpointer data)
 		next_cpu();
 		next_net();
 		next_mem();
+		next_pmem();
 		g_usleep(G_USEC_PER_SEC);
 	}
 	return NULL;
@@ -529,32 +597,28 @@ run_buffer_tests (void)
 	uber_buffer_foreach(buf, test_2e_foreach, NULL);
 }
 
+static void
+child_exited (GPid     pid,
+              gint     status,
+              gpointer data)
+{
+	g_printerr("Child exited.\n");
+	reaped = TRUE;
+	gtk_main_quit();
+}
+
 gint
 main (gint   argc,
       gchar *argv[])
 {
-	GOptionContext *context;
 	GError *error = NULL;
 	GtkWidget *window;
+	gchar **args;
+	gint i;
 
-	/* initialize i18n */
-	textdomain(GETTEXT_PACKAGE);
-	bindtextdomain(GETTEXT_PACKAGE, LOCALE_DIR);
-	bind_textdomain_codeset(GETTEXT_PACKAGE, "UTF-8");
-	g_set_application_name(_("uber-load_graph"));
-
-	/* initialize threading early */
+	g_set_application_name(_("uber-graph"));
 	g_thread_init(NULL);
-
-	/* parse command line arguments */
-	context = g_option_context_new(_("- realtime graph prototype"));
-	g_option_context_add_main_entries(context, options, GETTEXT_PACKAGE);
-	g_option_context_add_group(context, gtk_get_option_group(TRUE));
-	if (!g_option_context_parse(context, &argc, &argv, &error)) {
-		g_printerr("%s\n", error->message);
-		g_error_free(error);
-		return EXIT_FAILURE;
-	}
+	gtk_init(&argc, &argv);
 
 	/* run the UberBuffer tests */
 	run_buffer_tests();
@@ -569,11 +633,43 @@ main (gint   argc,
 	load_info.load10 = -INFINITY;
 	load_info.load15 = -INFINITY;
 
+	/* if we need to spawn a process, do so */
+	if (argc > 1) {
+		g_print("Spawning subprocess ...\n");
+		args = g_new0(gchar*, argc);
+		for (i = 0; i < argc - 1; i++) {
+			args[i] = g_strdup(argv[i + 1]);
+		}
+		if (!g_spawn_async(".", args, NULL,
+		                   G_SPAWN_SEARCH_PATH | G_SPAWN_LEAVE_DESCRIPTORS_OPEN | G_SPAWN_DO_NOT_REAP_CHILD,
+		                   NULL, NULL,
+		                   &pid, &error)) {
+			g_printerr("%s\n", error->message);
+			g_clear_error(&error);
+			return EXIT_FAILURE;
+		}
+		g_child_watch_add(pid, child_exited, NULL);
+		g_print("Process %d started.\n", (gint)pid);
+	}
+
 	/* run the test gui */
 	window = create_main_window();
+
+	/* add application specific graphs */
+	if (pid) {
+		create_pid_graphs(pid);
+	}
+
 	g_signal_connect(window, "delete-event", gtk_main_quit, NULL);
 	g_thread_create(sample_func, NULL, FALSE, NULL);
+
 	gtk_main();
+
+	/* kill child process if needed */
+	if (!reaped) {
+		g_print("Exiting, killing child prcess.\n");
+		kill(pid, SIGINT);
+	}
 
 	return EXIT_SUCCESS;
 }
