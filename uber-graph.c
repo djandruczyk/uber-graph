@@ -231,11 +231,13 @@ static void
 uber_graph_scale_changed (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
+	gint fps_off;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	ENTRY;
 	priv = graph->priv;
+	fps_off = priv->fps_off;
 	uber_graph_update_scaled(graph);
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
@@ -243,6 +245,7 @@ uber_graph_scale_changed (UberGraph *graph) /* IN */
 	uber_graph_render_bg_task(graph, &priv->info[0]);
 	uber_graph_copy_background(graph, &priv->info[0], &priv->info[1]);
 	priv->fg_dirty = TRUE;
+	priv->fps_off = fps_off;
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
 	EXIT;
 }
