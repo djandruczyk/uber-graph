@@ -633,7 +633,7 @@ create_pid_graphs (GPid pid)
 	uber_graph_set_value_func(UBER_GRAPH(sched_graph), get_sched, NULL, NULL);
 
 	label = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(label), "<b>Thread History</b>");
+	gtk_label_set_markup(GTK_LABEL(label), "<b>Thread Count History</b>");
 	gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(label), .0, .5);
 	gtk_widget_show(label);
