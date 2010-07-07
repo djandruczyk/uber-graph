@@ -101,6 +101,7 @@ typedef enum
 	UBER_GRAPH_DIRECT,
 	UBER_GRAPH_DIRECT1024,
 	UBER_GRAPH_PERCENT,
+	UBER_GRAPH_INTEGRAL,
 } UberGraphFormat;
 
 struct _UberGraph
@@ -116,30 +117,31 @@ struct _UberGraphClass
 	GtkDrawingAreaClass parent_class;
 };
 
-guint          uber_graph_add_line        (UberGraph       *graph);
-gdouble        uber_graph_get_line_width  (UberGraph       *graph);
-GType          uber_graph_get_type        (void) G_GNUC_CONST;
-gboolean       uber_graph_get_yautoscale  (UberGraph       *graph);
-GtkWidget*     uber_graph_new             (void);
-void           uber_graph_set_format      (UberGraph       *graph,
-                                           UberGraphFormat  format);
-void           uber_graph_set_fps         (UberGraph       *graph,
-                                           gint             fps);
-void           uber_graph_set_line_width  (UberGraph       *graph,
-                                           gdouble          line_width);
-void           uber_graph_set_scale       (UberGraph       *graph,
-                                           UberScale        scale);
-void           uber_graph_set_stride      (UberGraph       *graph,
-                                           gint             stride);
-void           uber_graph_set_value_func  (UberGraph       *graph,
-                                           UberGraphFunc    func,
-                                           gpointer         user_data,
-                                           GDestroyNotify   notify);
-void           uber_graph_set_yautoscale  (UberGraph       *graph,
-                                           gboolean         yautoscale);
-void           uber_graph_set_yrange      (UberGraph       *graph,
-                                           const UberRange *range);
-gboolean       uber_scale_linear          (UberGraph       *graph,
+guint           uber_graph_add_line       (UberGraph       *graph);
+UberGraphFormat uber_graph_get_format     (UberGraph       *graph);
+gdouble         uber_graph_get_line_width (UberGraph       *graph);
+GType           uber_graph_get_type       (void) G_GNUC_CONST;
+gboolean        uber_graph_get_yautoscale (UberGraph       *graph);
+GtkWidget*      uber_graph_new            (void);
+void            uber_graph_set_format     (UberGraph       *graph,
+                                            UberGraphFormat  format);
+void            uber_graph_set_fps        (UberGraph       *graph,
+                                            gint             fps);
+void            uber_graph_set_line_width (UberGraph       *graph,
+                                            gdouble          line_width);
+void            uber_graph_set_scale      (UberGraph       *graph,
+                                            UberScale        scale);
+void            uber_graph_set_stride     (UberGraph       *graph,
+                                            gint             stride);
+void            uber_graph_set_value_func (UberGraph       *graph,
+                                            UberGraphFunc    func,
+                                            gpointer         user_data,
+                                            GDestroyNotify   notify);
+void            uber_graph_set_yautoscale (UberGraph       *graph,
+                                            gboolean         yautoscale);
+void            uber_graph_set_yrange     (UberGraph       *graph,
+                                            const UberRange *range);
+gboolean        uber_scale_linear         (UberGraph       *graph,
                                            const UberRange *values,
                                            const UberRange *pixels,
                                            gdouble         *value);

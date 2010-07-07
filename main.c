@@ -642,6 +642,7 @@ create_pid_graphs (GPid pid)
 	gtk_widget_show(label);
 
 	thread_graph = create_graph();
+	uber_graph_set_format(UBER_GRAPH(thread_graph), UBER_GRAPH_INTEGRAL);
 	uber_graph_set_yautoscale(UBER_GRAPH(thread_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(thread_graph));
 	uber_graph_set_value_func(UBER_GRAPH(thread_graph), get_threads, NULL, NULL);

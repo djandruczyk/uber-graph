@@ -49,6 +49,49 @@
         (pr).range = (rect).height - 2;          \
     } G_STMT_END
 
+#define DRAW_Y_LABEL_FRACTION(y, i, n)                               \
+    G_STMT_START {                                                   \
+        gchar *v = uber_graph_get_ylabel_at_pos(graph, y, i, n);     \
+        gint h, w;                                                   \
+        pango_layout_set_markup(info->tick_layout, v, -1);           \
+        pango_layout_get_pixel_size(info->tick_layout, &w, &h);      \
+        cairo_move_to(info->bg_cairo,                                \
+                      priv->content_rect.x - priv->tick_len - w,     \
+		              ((gint)y) - (h / 2) + .5);                     \
+		pango_cairo_show_layout(info->bg_cairo, info->tick_layout);  \
+		g_free(v);                                                   \
+    } G_STMT_END
+
+#define DRAW_Y_LABEL(_y, i)                                                \
+    G_STMT_START {                                                         \
+    	gdouble o = i;                                                     \
+    	gchar *v;                                                          \
+        gint h, w;                                                         \
+        gdouble ry = _y;                                                   \
+        priv->scale(graph, &priv->yrange, &pixel_range, &o);               \
+    	v = g_strdup_printf("<span size=\"smaller\">%d </span>",           \
+    	                    (gint)i);                                      \
+        pango_layout_set_markup(info->tick_layout, v, -1);                 \
+        pango_layout_get_pixel_size(info->tick_layout, &w, &h);            \
+        if (ry == -1) {                                                    \
+			ry = i;                                                        \
+			priv->scale(graph, &priv->yrange, &pixel_range, &ry);          \
+			ry = priv->content_rect.y + priv->content_rect.height - ry;    \
+			cairo_move_to(info->bg_cairo,                                  \
+						  priv->content_rect.x - priv->tick_len,           \
+						  (gint)ry + .5);                                  \
+			cairo_line_to(info->bg_cairo,                                  \
+						  priv->content_rect.x + priv->content_rect.width, \
+						  (gint)ry + .5);                                  \
+			cairo_stroke(info->bg_cairo);                                  \
+		}                                                                  \
+        cairo_move_to(info->bg_cairo,                                      \
+                      priv->content_rect.x - priv->tick_len - w,           \
+		              ((gint)ry) - (h / 2) + .5);                          \
+		pango_cairo_show_layout(info->bg_cairo, info->tick_layout);        \
+		g_free(v);                                                         \
+    } G_STMT_END
+
 #ifdef UBER_TRACE
 #define TRACE(_f,...) \
     G_STMT_START { \
@@ -377,8 +420,11 @@ uber_graph_append (UberGraph *graph, /* IN */
 	uber_buffer_append(info->buffer, value);
 	if (value != -INFINITY) {
 		if (priv->yautoscale) {
-			if (value > priv->yrange.end) {
+			if (value >= priv->yrange.end) {
 				priv->yrange.end = value + ABS((SCALE_FACTOR - 1.) * value);
+				if (priv->format == UBER_GRAPH_INTEGRAL) {
+					priv->yrange.end = ceil(priv->yrange.end);
+				}
 				priv->yrange.range = priv->yrange.end - priv->yrange.begin;
 				scale_changed = TRUE;
 			} else if (value < priv->yrange.begin) {
@@ -537,6 +583,7 @@ uber_graph_downscale_timeout (gpointer data) /* IN */
 	UberGraph *graph = data;
 	UberGraphPrivate *priv;
 	UberRange range = { 0 };
+	UberRange yorig;
 	LineInfo *line;
 	gint i;
 
@@ -544,6 +591,7 @@ uber_graph_downscale_timeout (gpointer data) /* IN */
 
 	ENTRY;
 	priv = graph->priv;
+	yorig = priv->yrange;
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
 		uber_buffer_foreach(line->buffer, uber_graph_extend_range, &range);
@@ -553,8 +601,14 @@ uber_graph_downscale_timeout (gpointer data) /* IN */
 	}
 	if ((range.end * SCALE_FACTOR) < priv->yrange.end) {
 		priv->yrange.end = range.end * SCALE_FACTOR;
+		if (priv->format == UBER_GRAPH_INTEGRAL) {
+			priv->yrange.end = ceil(priv->yrange.end);
+		}
 		priv->yrange.range = priv->yrange.end - priv->yrange.begin;
-		uber_graph_scale_changed(graph);
+		if ((yorig.begin != priv->yrange.begin) &&
+		    (yorig.end != priv->yrange.end)) {
+			uber_graph_scale_changed(graph);
+		}
 	}
 	/* TODO: Scale yrange.begin */
 	RETURN(TRUE);
@@ -968,10 +1022,80 @@ uber_graph_get_ylabel_at_pos (UberGraph *graph,  /* IN */
 		ret = g_markup_printf_escaped("<span size='smaller'>%d %% </span>", (gint)f);
 		break;
 	}
+	CASE(UBER_GRAPH_INTEGRAL);
 	default:
 		g_assert_not_reached();
 	}
 	RETURN(ret);
+}
+
+static void
+uber_graph_render_bg_y_ticks_basic (UberGraph *graph, /* IN */
+                                    GraphInfo *info)  /* IN */
+{
+	UberGraphPrivate *priv;
+	UberRange range;
+	gfloat y;
+	gint n_lines;
+	gint i;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	ENTRY;
+	priv = graph->priv;
+	GET_PIXEL_RANGE(range, priv->content_rect);
+	n_lines = MIN(priv->content_rect.height / 20, 5);
+	DRAW_Y_LABEL_FRACTION(range.begin, 0, n_lines);
+	for (i = 1; i < n_lines; i++) {
+		y = priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i);
+		cairo_move_to(info->bg_cairo,
+		              priv->content_rect.x - priv->tick_len,
+		              y + .5);
+		cairo_line_to(info->bg_cairo,
+		              priv->content_rect.x + priv->content_rect.width,
+		              y + .5);
+		cairo_stroke(info->bg_cairo);
+		DRAW_Y_LABEL_FRACTION(y, i, n_lines);
+	}
+	DRAW_Y_LABEL_FRACTION(range.end, n_lines, n_lines);
+	EXIT;
+}
+
+/**
+ * uber_graph_render_bg_y_ticks_integral:
+ * @graph: A #UberGraph.
+ *
+ * Renders the graph ticks for a graph using the integral format.  This is
+ * split out since it requires special care to handle only drawing real
+ * integers.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_render_bg_y_ticks_integral (UberGraph *graph, /* IN */
+                                       GraphInfo *info)  /* IN */
+{
+	UberGraphPrivate *priv;
+	UberRange pixel_range;
+	gdouble value;
+	gint n_lines;
+	gint end;
+	gint i;
+
+	ENTRY;
+	priv = graph->priv;
+	GET_PIXEL_RANGE(pixel_range, priv->content_rect);
+	n_lines = MIN(5, MAX(1, (gint)priv->yrange.end - (gint)priv->yrange.begin));
+	n_lines = MIN(priv->content_rect.height / 20, n_lines);
+	end = priv->yrange.end - priv->yrange.begin;
+	DRAW_Y_LABEL((gint)pixel_range.end, 0);
+	for (i = 1; i < n_lines; i++) {
+		value = priv->yrange.begin + (i * (priv->yrange.range / n_lines));
+		DRAW_Y_LABEL(-1, value);
+	}
+	DRAW_Y_LABEL((gint)pixel_range.begin, end);
+	EXIT;
 }
 
 /**
@@ -989,46 +1113,25 @@ uber_graph_render_bg_y_ticks (UberGraph *graph, /* IN */
                               GraphInfo *info)  /* IN */
 {
 	UberGraphPrivate *priv;
-	UberRange range;
-	gfloat y;
-	gint n_lines;
-	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(info != NULL);
 
 	ENTRY;
 	priv = graph->priv;
-	GET_PIXEL_RANGE(range, priv->content_rect);
-
-	#define DRAW_Y_LABEL(y, i, n)                                        \
-	    G_STMT_START {                                                   \
-	        gchar *v = uber_graph_get_ylabel_at_pos(graph, y, i, n);     \
-	        gint h, w;                                                   \
-	        pango_layout_set_markup(info->tick_layout, v, -1);           \
-	        pango_layout_get_pixel_size(info->tick_layout, &w, &h);      \
-	        cairo_move_to(info->bg_cairo,                                \
-	                      priv->content_rect.x - priv->tick_len - w,     \
-			              ((gint)y) - (h / 2) + .5);                     \
-			pango_cairo_show_layout(info->bg_cairo, info->tick_layout);  \
-			g_free(v);                                                   \
-	    } G_STMT_END
-
-	n_lines = MIN(priv->content_rect.height / 20, 5);
-	DRAW_Y_LABEL(range.begin, 0, n_lines);
-	for (i = 1; i < n_lines; i++) {
-		y = priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i);
-		cairo_move_to(info->bg_cairo,
-		              priv->content_rect.x - priv->tick_len,
-		              y + .5);
-		cairo_line_to(info->bg_cairo,
-		              priv->content_rect.x + priv->content_rect.width,
-		              y + .5);
-		cairo_stroke(info->bg_cairo);
-		DRAW_Y_LABEL(y, i, n_lines);
+	switch (priv->format) {
+	CASE(UBER_GRAPH_DIRECT);
+	CASE(UBER_GRAPH_DIRECT1024);
+	CASE(UBER_GRAPH_PERCENT);
+		uber_graph_render_bg_y_ticks_basic(graph, info);
+		break;
+	CASE(UBER_GRAPH_INTEGRAL);
+		uber_graph_render_bg_y_ticks_integral(graph, info);
+		break;
+	default:
+		g_assert_not_reached();
 	}
-	DRAW_Y_LABEL(range.end, n_lines, n_lines);
 	EXIT;
-	#undef DRAW_Y_LABEL
 }
 
 /**
@@ -1753,7 +1856,7 @@ uber_graph_set_format (UberGraph       *graph, /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(format >= UBER_GRAPH_DIRECT);
-	g_return_if_fail(format <= UBER_GRAPH_PERCENT);
+	g_return_if_fail(format <= UBER_GRAPH_INTEGRAL);
 
 	ENTRY;
 	priv = graph->priv;
@@ -1761,6 +1864,27 @@ uber_graph_set_format (UberGraph       *graph, /* IN */
 	priv->bg_dirty = TRUE;
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
 	EXIT;
+}
+
+/**
+ * uber_graph_get_format:
+ * @graph: A #UberGraph.
+ *
+ * Retrieves the format used for the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+UberGraphFormat
+uber_graph_get_format (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	ENTRY;
+	priv = graph->priv;
+	RETURN(priv->format);
 }
 
 /**
