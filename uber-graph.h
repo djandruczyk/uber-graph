@@ -117,6 +117,7 @@ struct _UberGraphClass
 };
 
 guint          uber_graph_add_line        (UberGraph       *graph);
+gdouble        uber_graph_get_line_width  (UberGraph       *graph);
 GType          uber_graph_get_type        (void) G_GNUC_CONST;
 gboolean       uber_graph_get_yautoscale  (UberGraph       *graph);
 GtkWidget*     uber_graph_new             (void);
@@ -124,6 +125,8 @@ void           uber_graph_set_format      (UberGraph       *graph,
                                            UberGraphFormat  format);
 void           uber_graph_set_fps         (UberGraph       *graph,
                                            gint             fps);
+void           uber_graph_set_line_width  (UberGraph       *graph,
+                                           gdouble          line_width);
 void           uber_graph_set_scale       (UberGraph       *graph,
                                            UberScale        scale);
 void           uber_graph_set_stride      (UberGraph       *graph,

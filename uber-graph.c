@@ -119,6 +119,7 @@ struct _UberGraphPrivate
 	GraphInfo         info[2];         /* Two GraphInfo's for swapping. */
 	gboolean          flipped;         /* Which GraphInfo is active. */
 	gint              tick_len;        /* Length of axis ticks in pixels. */
+	gdouble           line_width;      /* The desired line width. */
 	gint              fps;             /* Frames per second. */
 	gint              fps_off;         /* Offset in frame-slide */
 	gint              fps_to;          /* Frames per second timeout (in MS) */
@@ -165,6 +166,12 @@ typedef struct
 enum
 {
 	LAYOUT_TICK,
+};
+
+enum
+{
+	PROP_0,
+	PROP_LINE_WIDTH,
 };
 
 static const gchar *default_colors[] = {
@@ -386,6 +393,47 @@ uber_graph_append (UberGraph *graph, /* IN */
 	}
 	uber_buffer_append(info->scaled, value);
 	RETURN(scale_changed);
+}
+
+/**
+ * uber_graph_get_line_width:
+ * @graph: A #UberGraph.
+ *
+ * Retrieves the current line width of the lines in the graph.
+ *
+ * Returns: A #gdouble.
+ * Side effects: None.
+ */
+gdouble
+uber_graph_get_line_width (UberGraph *graph) /* IN */
+{
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	ENTRY;
+	RETURN(graph->priv->line_width);
+}
+
+/**
+ * uber_graph_set_line_width:
+ * @graph: A #UberGraph.
+ *
+ * Sets the width of the lines the graph draws.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_line_width (UberGraph *graph,      /* IN */
+                           gdouble    line_width) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	ENTRY;
+	priv = graph->priv;
+	priv->line_width = line_width;
+	EXIT;
 }
 
 /**
@@ -1136,11 +1184,14 @@ uber_graph_stylize_line (UberGraph *graph, /* IN */
                          LineInfo  *line,  /* IN */
                          cairo_t   *cr)    /* IN */
 {
+	UberGraphPrivate *priv;
+
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(line != NULL);
 	g_return_if_fail(cr != NULL);
 
-	cairo_set_line_width(cr, 2.0);
+	priv = graph->priv;
+	cairo_set_line_width(cr, priv->line_width);
 	gdk_cairo_set_source_color(cr, &line->color);
 	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 	cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
@@ -1834,6 +1885,38 @@ uber_graph_finalize (GObject *object) /* IN */
 	EXIT;
 }
 
+static void
+uber_graph_set_property (GObject      *object,  /* IN */
+                         guint         prop_id, /* IN */
+                         const GValue *value,   /* IN */
+                         GParamSpec   *pspec)   /* IN */
+{
+	switch (prop_id) {
+	case (PROP_LINE_WIDTH):
+		uber_graph_set_line_width(UBER_GRAPH(object),
+		                          g_value_get_double(value));
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
+	}
+}
+
+static void
+uber_graph_get_property (GObject    *object,  /* IN */
+                         guint       prop_id, /* IN */
+                         GValue     *value,   /* OUT */
+                         GParamSpec *pspec)   /* IN */
+{
+	switch (prop_id) {
+	case PROP_LINE_WIDTH:
+		g_value_set_double(value,
+		                   uber_graph_get_line_width(UBER_GRAPH(object)));
+		break;
+	default:
+		G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
+	}
+}
+
 /**
  * uber_graph_class_init:
  * @klass: A #UberGraphClass.
@@ -1855,6 +1938,8 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 	 */
 	object_class = G_OBJECT_CLASS(klass);
 	object_class->finalize = uber_graph_finalize;
+	object_class->set_property = uber_graph_set_property;
+	object_class->get_property = uber_graph_get_property;
 	g_type_class_add_private(object_class, sizeof(UberGraphPrivate));
 	/*
 	 * Prepare GtkWidgetClass.
@@ -1865,6 +1950,21 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 	widget_class->size_allocate = uber_graph_size_allocate;
 	widget_class->style_set = uber_graph_style_set;
 	widget_class->size_request = uber_graph_size_request;
+	/**
+	 * UberGraph:line-width:
+	 *
+	 * The "line-width" property specifies the size of the lines as drawn
+	 * using cairo.
+	 */
+	g_object_class_install_property(object_class,
+	                                PROP_LINE_WIDTH,
+	                                g_param_spec_double("line-width",
+	                                                    "line-width",
+	                                                    "LineWidth",
+	                                                    0.,
+	                                                    G_MAXDOUBLE,
+	                                                    1.0,
+	                                                    G_PARAM_READWRITE));
 	EXIT;
 }
 
@@ -1889,6 +1989,7 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv = graph->priv;
 	priv->stride = 60;
 	priv->tick_len = 5;
+	priv->line_width = 1.0;
 	priv->scale = uber_scale_linear;
 	priv->yrange.begin = 0.;
 	priv->yrange.end = 1.;
