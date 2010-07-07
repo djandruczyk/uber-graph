@@ -80,6 +80,11 @@ typedef struct
 
 typedef struct
 {
+	volatile gdouble vruntime;
+} SchedInfo;
+
+typedef struct
+{
 	volatile gint n_threads;
 } ThreadInfo;
 
@@ -88,6 +93,7 @@ static CpuInfo    cpu_info   = { 0 };
 static NetInfo    net_info   = { 0 };
 static LoadInfo   load_info  = { 0 };
 static PmemInfo   pmem_info  = { 0 };
+static SchedInfo  sched_info = { 0 };
 static ThreadInfo thread_info= { 0 };
 static GtkWidget *load_graph = NULL;
 static GtkWidget *cpu_graph  = NULL;
@@ -96,6 +102,7 @@ static GtkWidget *mem_graph  = NULL;
 static gboolean   reaped     = FALSE;
 static GtkWidget *vbox       = NULL;
 static GtkWidget *pmem_graph = NULL;
+static GtkWidget *sched_graph  = NULL;
 static GtkWidget *thread_graph = NULL;
 static GPid       pid        = 0;
 
@@ -302,7 +309,7 @@ next_net (void)
 				}
 				line = NULL;
 			}
-			line = &buf[i+1];
+			line = &buf[++i];
 		}
 	}
 
@@ -412,6 +419,42 @@ next_pmem (void)
 	close(fd);
 }
 
+static void
+next_sched (void)
+{
+	static char *path = NULL;
+	static gdouble last_vruntime = 0;
+	gdouble vruntime = 0;
+	int fd;
+	char buf[4096];
+	char name[128];
+	char *line;
+	gint i;
+
+	if (G_UNLIKELY(!path)) {
+		path = g_strdup_printf("/proc/%d/sched", pid);
+	}
+
+	fd = open(path, O_RDONLY);
+	read(fd, buf, sizeof(buf));
+	line = buf;
+	for (i = 0; buf[i]; i++) {
+		if (buf[i] == '\n') {
+			buf[i] = '\0';
+			if (g_str_has_prefix(line, "se.vruntime")) {
+				if (sscanf(line, "%s : %lf", name, &vruntime) != 2) {
+					g_printerr("Failed to parse vruntime.\n");
+					break;
+				}
+				sched_info.vruntime = (vruntime - last_vruntime);
+				break;
+			}
+			line = &buf[++i];
+		}
+	}
+	close(fd);
+	last_vruntime = vruntime;
+}
 
 static void
 next_threads (void)
@@ -511,6 +554,7 @@ create_main_window (void)
 	next_mem();
 	next_net();
 	next_pmem();
+	next_sched();
 	next_threads();
 
 	next_load();
@@ -518,6 +562,7 @@ create_main_window (void)
 	next_mem();
 	next_net();
 	next_pmem();
+	next_sched();
 
 	return window;
 }
@@ -534,6 +579,23 @@ get_pmem (UberGraph *graph,
 		break;
 	case 2:
 		*value = pmem_info.resident;
+		break;
+	default:
+		*value = 0;
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static gboolean
+get_sched (UberGraph *graph,
+           gint       line,
+           gdouble   *value,
+           gpointer   user_data)
+{
+	switch (line) {
+	case 1:
+		*value = sched_info.vruntime;
 		break;
 	default:
 		*value = 0;
@@ -560,6 +622,17 @@ create_pid_graphs (GPid pid)
 	uber_graph_set_value_func(UBER_GRAPH(pmem_graph), get_pmem, NULL, NULL);
 
 	label = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(label), "<b>Scheduler Time History</b>");
+	gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, TRUE, 0);
+	gtk_misc_set_alignment(GTK_MISC(label), .0, .5);
+	gtk_widget_show(label);
+
+	sched_graph = create_graph();
+	uber_graph_set_yautoscale(UBER_GRAPH(sched_graph), TRUE);
+	uber_graph_add_line(UBER_GRAPH(sched_graph));
+	uber_graph_set_value_func(UBER_GRAPH(sched_graph), get_sched, NULL, NULL);
+
+	label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(label), "<b>Thread History</b>");
 	gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(label), .0, .5);
@@ -583,6 +656,7 @@ sample_func (gpointer data)
 		next_net();
 		next_mem();
 		next_pmem();
+		next_sched();
 		next_threads();
 		g_usleep(G_USEC_PER_SEC);
 	}
