@@ -304,7 +304,7 @@ next_net (void)
 				           iface, &bytesIn, &dummy1, &dummy2, &dummy3, &dummy4,
 				           &dummy5, &dummy6, &dummy7, &bytesOut) != 10) {
 					g_warning("Skipping invalid line: %s", line);
-				} else {
+				} else if (g_strcmp0(iface, "lo") != 0) {
 					totalIn += bytesIn;
 					totalOut += bytesOut;
 				}
