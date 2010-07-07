@@ -78,11 +78,17 @@ typedef struct
 	volatile gdouble resident;
 } PmemInfo;
 
+typedef struct
+{
+	volatile gint n_threads;
+} ThreadInfo;
+
 static MemInfo    mem_info   = { 0 };
 static CpuInfo    cpu_info   = { 0 };
 static NetInfo    net_info   = { 0 };
 static LoadInfo   load_info  = { 0 };
 static PmemInfo   pmem_info  = { 0 };
+static ThreadInfo thread_info= { 0 };
 static GtkWidget *load_graph = NULL;
 static GtkWidget *cpu_graph  = NULL;
 static GtkWidget *net_graph  = NULL;
@@ -90,6 +96,7 @@ static GtkWidget *mem_graph  = NULL;
 static gboolean   reaped     = FALSE;
 static GtkWidget *vbox       = NULL;
 static GtkWidget *pmem_graph = NULL;
+static GtkWidget *thread_graph = NULL;
 static GPid       pid        = 0;
 
 static gboolean
@@ -155,6 +162,22 @@ get_net (UberGraph *graph,
 		break;
 	case 2:
 		*value = net_info.bytesOut;
+		break;
+	default:
+		g_assert_not_reached();
+	}
+	return TRUE;
+}
+
+static gboolean
+get_threads (UberGraph *graph,
+             gint       line,
+             gdouble   *value,
+             gpointer   user_data)
+{
+	switch (line) {
+	case 1:
+		*value = thread_info.n_threads;
 		break;
 	default:
 		g_assert_not_reached();
@@ -368,6 +391,49 @@ next_mem (void)
   	close(fd);
 }
 
+static void
+next_pmem (void)
+{
+	static char *path = NULL;
+	int fd;
+	char buf[1024];
+	long size = 0;
+	long resident = 0;
+
+	if (G_UNLIKELY(!path)) {
+		path = g_strdup_printf("/proc/%d/statm", pid);
+	}
+
+	fd = open(path, O_RDONLY);
+	read(fd, buf, sizeof(buf));
+	sscanf(buf, "%ld %ld", &size, &resident);
+	pmem_info.size = size;
+	pmem_info.resident = resident;
+	close(fd);
+}
+
+
+static void
+next_threads (void)
+{
+	static gchar *path = NULL;
+	gint n_threads = 0;
+	GDir *dir;
+
+	if (G_UNLIKELY(!path)) {
+		path = g_strdup_printf("/proc/%d/task", pid);
+	}
+
+	if (!(dir = g_dir_open(path, 0, NULL))) {
+		return;
+	}
+	while (g_dir_read_name(dir)) {
+		n_threads++;
+	}
+	g_dir_close(dir);
+	thread_info.n_threads = n_threads;
+}
+
 static GtkWidget*
 create_main_window (void)
 {
@@ -444,34 +510,16 @@ create_main_window (void)
 	next_cpu();
 	next_mem();
 	next_net();
+	next_pmem();
+	next_threads();
 
 	next_load();
 	next_cpu();
 	next_mem();
 	next_net();
+	next_pmem();
 
 	return window;
-}
-
-static void
-next_pmem (void)
-{
-	static char *path = NULL;
-	int fd;
-	char buf[1024];
-	long size = 0;
-	long resident = 0;
-
-	if (G_UNLIKELY(!path)) {
-		path = g_strdup_printf("/proc/%d/statm", pid);
-	}
-
-	fd = open(path, O_RDONLY);
-	read(fd, buf, sizeof(buf));
-	sscanf(buf, "%ld %ld", &size, &resident);
-	pmem_info.size = size;
-	pmem_info.resident = resident;
-	close(fd);
 }
 
 static gboolean
@@ -510,6 +558,17 @@ create_pid_graphs (GPid pid)
 	uber_graph_add_line(UBER_GRAPH(pmem_graph));
 	uber_graph_add_line(UBER_GRAPH(pmem_graph));
 	uber_graph_set_value_func(UBER_GRAPH(pmem_graph), get_pmem, NULL, NULL);
+
+	label = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(label), "<b>Thread History</b>");
+	gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, TRUE, 0);
+	gtk_misc_set_alignment(GTK_MISC(label), .0, .5);
+	gtk_widget_show(label);
+
+	thread_graph = create_graph();
+	uber_graph_set_yautoscale(UBER_GRAPH(thread_graph), TRUE);
+	uber_graph_add_line(UBER_GRAPH(thread_graph));
+	uber_graph_set_value_func(UBER_GRAPH(thread_graph), get_threads, NULL, NULL);
 }
 
 static volatile gboolean quit = FALSE;
@@ -524,6 +583,7 @@ sample_func (gpointer data)
 		next_net();
 		next_mem();
 		next_pmem();
+		next_threads();
 		g_usleep(G_USEC_PER_SEC);
 	}
 	return NULL;
@@ -620,8 +680,10 @@ main (gint   argc,
 	g_thread_init(NULL);
 	gtk_init(&argc, &argv);
 
+#if 1
 	/* run the UberBuffer tests */
 	run_buffer_tests();
+#endif
 
 	/* initialize sources to -INFINITY */
 	cpu_info.cpuUsage = -INFINITY;
