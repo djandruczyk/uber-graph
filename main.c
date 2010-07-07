@@ -437,6 +437,7 @@ next_sched (void)
 
 	fd = open(path, O_RDONLY);
 	read(fd, buf, sizeof(buf));
+	buf[sizeof(buf) - 1] = '\0';
 	line = buf;
 	for (i = 0; buf[i]; i++) {
 		if (buf[i] == '\n') {
