@@ -290,6 +290,7 @@ next_net (void)
 		g_assert_not_reached();
 	}
 
+	memset(buf, 0, sizeof(buf));
 	read(fd, buf, sizeof(buf));
 	buf[sizeof(buf) - 1] = '\0';
 	line = buf;
@@ -436,6 +437,7 @@ next_sched (void)
 	}
 
 	fd = open(path, O_RDONLY);
+	memset(buf, 0, sizeof(buf));
 	read(fd, buf, sizeof(buf));
 	buf[sizeof(buf) - 1] = '\0';
 	line = buf;
