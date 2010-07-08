@@ -598,6 +598,7 @@ create_main_window (void)
 	GtkWidget *net_label;
 	GtkWidget *mem_label;
 	GtkWidget *hbox;
+	GtkWidget *label;
 	UberRange cpu_range = { 0., 100., 100. };
 	gint i;
 
@@ -636,11 +637,11 @@ create_main_window (void)
 	//add_label(hbox, "Total CPU", "#2e3436");
 	for (i = 1; i <= get_nprocs(); i++) {
 		char *text = g_strdup_printf("CPU%d", i);
-		GtkWidget *label;
 
 		uber_graph_add_line(UBER_GRAPH(cpu_graph));
 		SET_LINE_COLOR(cpu_graph, i, (gchar *)cpu_colors[(i-1) % G_N_ELEMENTS(cpu_colors)]);
 		label = add_label(hbox, text, (gchar *)cpu_colors[(i-1) % G_N_ELEMENTS(cpu_colors)]);
+		uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(cpu_graph), i);
 		g_ptr_array_add(labels, label);
 		g_free(text);
 	}
@@ -663,9 +664,12 @@ create_main_window (void)
 	uber_graph_set_value_func(UBER_GRAPH(load_graph), get_load, NULL, NULL);
 
 	hbox = new_label_container();
-	add_label(hbox, "5 Minute Average", "#4e9a06");
-	add_label(hbox, "10 Minute Average", "#f57900");
-	add_label(hbox, "15 Minute Average", "#cc0000");
+	label = add_label(hbox, "5 Minute Average", "#4e9a06");
+	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(load_graph), 1);
+	label = add_label(hbox, "10 Minute Average", "#f57900");
+	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(load_graph), 2);
+	label = add_label(hbox, "15 Minute Average", "#cc0000");
+	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(load_graph), 3);
 	gtk_widget_show(hbox);
 
 	net_label = gtk_label_new(NULL);
@@ -684,8 +688,10 @@ create_main_window (void)
 	uber_graph_set_value_func(UBER_GRAPH(net_graph), get_net, NULL, NULL);
 
 	hbox = new_label_container();
-	add_label(hbox, "Bytes In", "#a40000");
-	add_label(hbox, "Bytes Out", "#4e9a06");
+	label = add_label(hbox, "Bytes In", "#a40000");
+	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(net_graph), 1);
+	label = add_label(hbox, "Bytes Out", "#4e9a06");
+	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(net_graph), 2);
 	gtk_widget_show(hbox);
 
 	mem_label = gtk_label_new(NULL);
@@ -704,8 +710,10 @@ create_main_window (void)
 	uber_graph_set_value_func(UBER_GRAPH(mem_graph), get_mem, NULL, NULL);
 
 	hbox = new_label_container();
-	add_label(hbox, "Memory Free", "#3465a4");
-	add_label(hbox, "Swap Free", "#8ae234");
+	label = add_label(hbox, "Memory Free", "#3465a4");
+	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(mem_graph), 1);
+	label = add_label(hbox, "Swap Free", "#8ae234");
+	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(mem_graph), 2);
 	gtk_widget_show(hbox);
 
 	next_load();

@@ -71,6 +71,8 @@ struct _UberLabelPrivate
 	GtkWidget *label;
 	GdkColor   color;
 	gboolean   in_block;
+	UberGraph *graph;
+	gint       graph_line;
 };
 
 /**
@@ -136,6 +138,36 @@ uber_label_set_color (UberLabel      *label, /* IN */
 	ENTRY;
 	priv = label->priv;
 	priv->color = *color;
+	EXIT;
+}
+
+/**
+ * uber_label_bind_graph:
+ * @label: A #UberLabel.
+ *
+ * Binds a particular line in the graph to the label.  Updating the labels
+ * color will in turn update the line within the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_label_bind_graph (UberLabel *label, /* IN */
+                       UberGraph *graph, /* IN */
+                       gint       line)  /* IN */
+{
+	UberLabelPrivate *priv;
+
+	g_return_if_fail(UBER_IS_LABEL(label));
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(line > 0);
+
+	ENTRY;
+	priv = label->priv;
+	priv->graph = graph;
+	priv->graph_line = line;
+	g_object_add_weak_pointer(G_OBJECT(graph), (gpointer *)&priv->graph);
+	uber_graph_set_line_color(graph, line, &priv->color);
 	EXIT;
 }
 
@@ -234,6 +266,44 @@ uber_label_block_leave_notify_event (GtkWidget        *widget, /* IN */
 }
 
 /**
+ * uber_label_block_button_press_event:
+ * @widget: A #GtkWidget.
+ * @event: A #GdkEventButton.
+ * @label: An #UberLabel.
+ *
+ * Callback to handle a button press event within the colored block.
+ *
+ * Returns: %FALSE always to allow further signal emission.
+ * Side effects: None.
+ */
+static gboolean
+uber_label_block_button_press_event (GtkWidget      *widget, /* IN */
+                                     GdkEventButton *event,  /* IN */
+                                     UberLabel      *label)  /* IN */
+{
+	UberLabelPrivate *priv;
+	GtkWidget *dialog;
+	GtkWidget *selection;
+
+	g_return_if_fail(UBER_IS_LABEL(widget));
+
+	ENTRY;
+	priv = label->priv;
+	dialog = gtk_color_selection_dialog_new("");
+	selection = gtk_color_selection_dialog_get_color_selection(GTK_COLOR_SELECTION_DIALOG(dialog));
+	gtk_color_selection_set_current_color(GTK_COLOR_SELECTION(selection), &priv->color);
+	if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
+		gtk_color_selection_get_current_color(GTK_COLOR_SELECTION(selection), &priv->color);
+		gtk_widget_queue_draw(widget);
+		if (priv->graph) {
+			uber_graph_set_line_color(priv->graph, priv->graph_line, &priv->color);
+		}
+	}
+	gtk_widget_destroy(dialog);
+	RETURN(FALSE);
+}
+
+/**
  * uber_label_finalize:
  * @object: A #UberLabel.
  *
@@ -301,7 +371,9 @@ uber_label_init (UberLabel *label) /* IN */
 	gtk_box_pack_start(GTK_BOX(priv->hbox), priv->block, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(priv->hbox), priv->label, TRUE, TRUE, 0);
 	gtk_widget_add_events(priv->block,
-	                      GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
+	                      GDK_ENTER_NOTIFY_MASK |
+	                      GDK_LEAVE_NOTIFY_MASK |
+	                      GDK_BUTTON_PRESS_MASK);
 	g_signal_connect(priv->block,
 	                 "expose-event",
 	                 G_CALLBACK(uber_label_block_expose_event),
@@ -313,6 +385,10 @@ uber_label_init (UberLabel *label) /* IN */
 	g_signal_connect(priv->block,
 	                 "leave-notify-event",
 	                 G_CALLBACK(uber_label_block_leave_notify_event),
+	                 label);
+	g_signal_connect(priv->block,
+	                 "button-press-event",
+	                 G_CALLBACK(uber_label_block_button_press_event),
 	                 label);
 	gtk_widget_show(priv->hbox);
 	gtk_widget_show(priv->block);
