@@ -55,11 +55,14 @@ uber-graph.o: uber-graph.c uber-graph.h Makefile
 uber-buffer.o: uber-buffer.c uber-buffer.h Makefile
 	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-buffer.c $(shell pkg-config --cflags gtk+-2.0)
 
+uber-label.o: uber-label.c uber-label.h Makefile
+	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-label.c $(shell pkg-config --cflags gtk+-2.0)
+
 main.o: main.c Makefile
 	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) main.c $(shell pkg-config --cflags gtk+-2.0)
 
-uber-graph: uber-graph.o main.o uber-buffer.o Makefile
-	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0 gthread-2.0) uber-graph.o main.o uber-buffer.o
+uber-graph: uber-graph.o main.o uber-buffer.o uber-label.o Makefile
+	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0 gthread-2.0) uber-graph.o main.o uber-buffer.o uber-label.o
 
 clean:
 	rm -f uber-graph *.o

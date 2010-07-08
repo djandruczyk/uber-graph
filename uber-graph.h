@@ -124,23 +124,26 @@ GType           uber_graph_get_type       (void) G_GNUC_CONST;
 gboolean        uber_graph_get_yautoscale (UberGraph       *graph);
 GtkWidget*      uber_graph_new            (void);
 void            uber_graph_set_format     (UberGraph       *graph,
-                                            UberGraphFormat  format);
+                                           UberGraphFormat  format);
 void            uber_graph_set_fps        (UberGraph       *graph,
-                                            gint             fps);
+                                           gint             fps);
 void            uber_graph_set_line_width (UberGraph       *graph,
-                                            gdouble          line_width);
+                                           gdouble          line_width);
+void            uber_graph_set_line_color (UberGraph       *graph,
+                                           gint             line,
+                                           const GdkColor  *color);
 void            uber_graph_set_scale      (UberGraph       *graph,
-                                            UberScale        scale);
+                                           UberScale        scale);
 void            uber_graph_set_stride     (UberGraph       *graph,
-                                            gint             stride);
+                                           gint             stride);
 void            uber_graph_set_value_func (UberGraph       *graph,
-                                            UberGraphFunc    func,
-                                            gpointer         user_data,
-                                            GDestroyNotify   notify);
+                                           UberGraphFunc    func,
+                                           gpointer         user_data,
+                                           GDestroyNotify   notify);
 void            uber_graph_set_yautoscale (UberGraph       *graph,
-                                            gboolean         yautoscale);
+                                           gboolean         yautoscale);
 void            uber_graph_set_yrange     (UberGraph       *graph,
-                                            const UberRange *range);
+                                           const UberRange *range);
 gboolean        uber_scale_linear         (UberGraph       *graph,
                                            const UberRange *values,
                                            const UberRange *pixels,

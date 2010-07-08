@@ -40,6 +40,7 @@
 #include <signal.h>
 
 #include "uber-graph.h"
+#include "uber-label.h"
 #include "uber-buffer.h"
 
 #ifdef DISABLE_DEBUG
@@ -206,6 +207,22 @@ create_graph (void)
 	gtk_widget_show(align);
 	gtk_widget_show(graph);
 	return graph;
+}
+
+static inline void
+add_label (GtkWidget   *hbox,
+           const gchar *title,
+           const gchar *color)
+{
+	GtkWidget *label;
+	GdkColor gcolor;
+
+	gdk_color_parse(color, &gcolor);
+	label = uber_label_new();
+	uber_label_set_text(UBER_LABEL(label), title);
+	uber_label_set_color(UBER_LABEL(label), &gcolor);
+	gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, TRUE, 0);
+	gtk_widget_show(label);
 }
 
 static void
@@ -480,6 +497,22 @@ next_threads (void)
 	thread_info.n_threads = n_threads;
 }
 
+static inline GtkWidget*
+new_label_container (void)
+{
+	GtkWidget *align;
+	GtkWidget *hbox;
+
+	align = gtk_alignment_new(.5, .5, 1., 1.);
+	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 6, 12, 60, 0);
+	hbox = gtk_hbox_new(TRUE, 6);
+	gtk_container_add(GTK_CONTAINER(align), hbox);
+	gtk_box_pack_start(GTK_BOX(vbox), align, FALSE, TRUE, 0);
+	gtk_widget_show(align);
+	gtk_widget_show(hbox);
+	return hbox;
+}
+
 static GtkWidget*
 create_main_window (void)
 {
@@ -488,6 +521,7 @@ create_main_window (void)
 	GtkWidget *cpu_label;
 	GtkWidget *net_label;
 	GtkWidget *mem_label;
+	GtkWidget *hbox;
 	UberRange cpu_range = { 0., 100., 100. };
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -506,12 +540,24 @@ create_main_window (void)
 	gtk_misc_set_alignment(GTK_MISC(cpu_label), .0, .5);
 	gtk_widget_show(cpu_label);
 
+	#define SET_LINE_COLOR(g, n, c) \
+		G_STMT_START { \
+			GdkColor gc; \
+			gdk_color_parse(c, &gc); \
+			uber_graph_set_line_color(UBER_GRAPH(g), n, &gc); \
+		} G_STMT_END
+
 	cpu_graph = create_graph();
 	uber_graph_set_format(UBER_GRAPH(cpu_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), FALSE);
 	uber_graph_set_yrange(UBER_GRAPH(cpu_graph), &cpu_range);
 	uber_graph_add_line(UBER_GRAPH(cpu_graph));
+	SET_LINE_COLOR(cpu_graph, 1, "#2e3436");
 	uber_graph_set_value_func(UBER_GRAPH(cpu_graph), get_cpu, NULL, NULL);
+
+	hbox = new_label_container();
+	add_label(hbox, "Total CPU", "#2e3436");
+	gtk_widget_show(hbox);
 
 	load_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(load_label), "<b>Load History</b>");
@@ -524,7 +570,16 @@ create_main_window (void)
 	uber_graph_add_line(UBER_GRAPH(load_graph));
 	uber_graph_add_line(UBER_GRAPH(load_graph));
 	uber_graph_add_line(UBER_GRAPH(load_graph));
+	SET_LINE_COLOR(load_graph, 1, "#4e9a06");
+	SET_LINE_COLOR(load_graph, 2, "#f57900");
+	SET_LINE_COLOR(load_graph, 3, "#cc0000");
 	uber_graph_set_value_func(UBER_GRAPH(load_graph), get_load, NULL, NULL);
+
+	hbox = new_label_container();
+	add_label(hbox, "5 Minute Average", "#4e9a06");
+	add_label(hbox, "10 Minute Average", "#f57900");
+	add_label(hbox, "15 Minute Average", "#cc0000");
+	gtk_widget_show(hbox);
 
 	net_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(net_label), "<b>Network History</b>");
@@ -537,7 +592,14 @@ create_main_window (void)
 	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(net_graph));
 	uber_graph_add_line(UBER_GRAPH(net_graph));
+	SET_LINE_COLOR(net_graph, 1, "#a40000");
+	SET_LINE_COLOR(net_graph, 2, "#4e9a06");
 	uber_graph_set_value_func(UBER_GRAPH(net_graph), get_net, NULL, NULL);
+
+	hbox = new_label_container();
+	add_label(hbox, "Bytes In", "#a40000");
+	add_label(hbox, "Bytes Out", "#4e9a06");
+	gtk_widget_show(hbox);
 
 	mem_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(mem_label), "<b>Memory History</b>");
@@ -550,7 +612,14 @@ create_main_window (void)
 	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), FALSE);
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
+	SET_LINE_COLOR(mem_graph, 1, "#3465a4");
+	SET_LINE_COLOR(mem_graph, 2, "#8ae234");
 	uber_graph_set_value_func(UBER_GRAPH(mem_graph), get_mem, NULL, NULL);
+
+	hbox = new_label_container();
+	add_label(hbox, "Memory Free", "#3465a4");
+	add_label(hbox, "Swap Free", "#8ae234");
+	gtk_widget_show(hbox);
 
 	next_load();
 	next_cpu();

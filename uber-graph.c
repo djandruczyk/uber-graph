@@ -327,6 +327,39 @@ uber_graph_set_scale (UberGraph *graph, /* IN */
 }
 
 /**
+ * uber_graph_set_line_color:
+ * @graph: A #UberGraph.
+ *
+ * Set the color used for a line in the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_line_color (UberGraph      *graph, /* IN */
+                           gint            line,  /* IN */
+                           const GdkColor *color) /* IN */
+{
+	UberGraphPrivate *priv;
+	LineInfo *info;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(line > 0);
+	g_return_if_fail(line <= graph->priv->lines->len);
+
+	ENTRY;
+	priv = graph->priv;
+	info = &g_array_index(priv->lines, LineInfo, line - 1);
+	info->color = *color;
+	info->color.red ^= 0xFFFF;
+	info->color.green ^= 0xFFFF;
+	info->color.blue ^= 0xFFFF;
+	priv->fg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
+	EXIT;
+}
+
+/**
  * uber_graph_set_value_func:
  * @graph: A UberGraph.
  * @func: The callback function.
