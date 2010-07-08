@@ -70,6 +70,7 @@ struct _UberLabelPrivate
 	GtkWidget *block;
 	GtkWidget *label;
 	GdkColor   color;
+	gboolean   in_block;
 };
 
 /**
@@ -165,6 +166,13 @@ uber_label_block_expose_event (GtkWidget      *block, /* IN */
 	cairo_rectangle(cr, .5, .5, alloc.width - 1., alloc.height - 1.);
 	cairo_fill_preserve(cr);
 	/*
+	 * Add highlight if mouse is in the block.
+	 */
+	if (priv->in_block) {
+		cairo_set_source_rgba(cr, 1., 1., 1., .3);
+		cairo_fill_preserve(cr);
+	}
+	/*
 	 * Stroke the edge of the block.
 	 */
 	cairo_set_line_width(cr, 1.0);
@@ -177,6 +185,52 @@ uber_label_block_expose_event (GtkWidget      *block, /* IN */
 	cairo_set_source_rgba(cr, 1., 1., 1., .5);
 	cairo_stroke(cr);
 	EXIT;
+}
+
+/**
+ * uber_label_block_enter_notify_event:
+ * @label: A #UberLabel.
+ *
+ * Tracks the mouse entering the block widget.
+ *
+ * Returns: %FALSE to allow further callbacks.
+ * Side effects: None.
+ */
+static gboolean
+uber_label_block_enter_notify_event (GtkWidget        *widget, /* IN */
+                                     GdkEventCrossing *event,  /* IN */
+                                     UberLabel        *label)  /* IN */
+{
+	UberLabelPrivate *priv;
+
+	ENTRY;
+	priv = label->priv;
+	priv->in_block = TRUE;
+	gtk_widget_queue_draw(widget);
+	RETURN(FALSE);
+}
+
+/**
+ * uber_label_block_leave_notify_event:
+ * @label: A #UberLabel.
+ *
+ * Tracks the mouse leaving the block widget.
+ *
+ * Returns: %FALSE to allow further callbacks.
+ * Side effects: None.
+ */
+static gboolean
+uber_label_block_leave_notify_event (GtkWidget        *widget, /* IN */
+                                     GdkEventCrossing *event,  /* IN */
+                                     UberLabel        *label)  /* IN */
+{
+	UberLabelPrivate *priv;
+
+	ENTRY;
+	priv = label->priv;
+	priv->in_block = FALSE;
+	gtk_widget_queue_draw(widget);
+	RETURN(FALSE);
 }
 
 /**
@@ -246,9 +300,19 @@ uber_label_init (UberLabel *label) /* IN */
 	gtk_container_add(GTK_CONTAINER(label), priv->hbox);
 	gtk_box_pack_start(GTK_BOX(priv->hbox), priv->block, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(priv->hbox), priv->label, TRUE, TRUE, 0);
+	gtk_widget_add_events(priv->block,
+	                      GDK_ENTER_NOTIFY_MASK | GDK_LEAVE_NOTIFY_MASK);
 	g_signal_connect(priv->block,
 	                 "expose-event",
 	                 G_CALLBACK(uber_label_block_expose_event),
+	                 label);
+	g_signal_connect(priv->block,
+	                 "enter-notify-event",
+	                 G_CALLBACK(uber_label_block_enter_notify_event),
+	                 label);
+	g_signal_connect(priv->block,
+	                 "leave-notify-event",
+	                 G_CALLBACK(uber_label_block_leave_notify_event),
 	                 label);
 	gtk_widget_show(priv->hbox);
 	gtk_widget_show(priv->block);
