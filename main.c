@@ -37,6 +37,7 @@
 #include <gtk/gtk.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/sysinfo.h>
 #include <signal.h>
 
 #include "uber-graph.h"
@@ -57,7 +58,8 @@ typedef struct
 
 typedef struct
 {
-	volatile gdouble cpuUsage;
+	volatile gdouble  cpuUsage;  /* Total cpu */
+	volatile gdouble *cpusUsage; /* Per cpu */
 } CpuInfo;
 
 typedef struct
@@ -106,6 +108,18 @@ static GtkWidget *pmem_graph = NULL;
 static GtkWidget *sched_graph  = NULL;
 static GtkWidget *thread_graph = NULL;
 static GPid       pid        = 0;
+static GPtrArray *labels     = NULL;
+
+static const gchar* cpu_colors[] = {
+	"#73d216",
+	"#f57900",
+	"#3465a4",
+	"#ef2929",
+	"#75507b",
+	"#ce5c00",
+	"#c17d11",
+	"#ce5c00",
+};
 
 static gboolean
 get_cpu (UberGraph *graph,
@@ -113,7 +127,23 @@ get_cpu (UberGraph *graph,
          gdouble   *value,
          gpointer   user_data)
 {
-	*value = cpu_info.cpuUsage;
+	UberLabel *label;
+	gint i = line - 1;
+	gchar *str;
+
+#if 0
+	if (line == 1) {
+		*value = cpu_info.cpuUsage;
+	} else {
+		*value = cpu_info.cpusUsage[line - 2];
+	}
+#endif
+
+	*value = cpu_info.cpusUsage[i];
+	str = g_strdup_printf("CPU%d  %.1f%%", i + 1, cpu_info.cpusUsage[i]);
+	label = g_ptr_array_index(labels, i);
+	uber_label_set_text(label, str);
+	g_free(str);
 	return TRUE;
 }
 
@@ -209,7 +239,7 @@ create_graph (void)
 	return graph;
 }
 
-static inline void
+static inline GtkWidget*
 add_label (GtkWidget   *hbox,
            const gchar *title,
            const gchar *color)
@@ -223,6 +253,7 @@ add_label (GtkWidget   *hbox,
 	uber_label_set_color(UBER_LABEL(label), &gcolor);
 	gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, TRUE, 0);
 	gtk_widget_show(label);
+	return label;
 }
 
 static void
@@ -250,38 +281,83 @@ next_cpu (void)
 {
 	static gboolean initialized = FALSE;
 	static gfloat u1, n1, s1, i1;
+	static gfloat *_u1, *_n1, *_s1, *_i1;
 	gfloat u2, n2, s2, i2;
 	gfloat u3, n3, s3, i3;
 	gdouble total;
 	int fd;
-	char buf[1024];
-
-	fd = open("/proc/stat", O_RDONLY);
-	read(fd, buf, sizeof(buf));
-	buf[sizeof(buf) - 1] = '\0';
-	if (sscanf(buf, "cpu %f %f %f %f", &u2, &n2, &s2, &i2) != 4) {
-		g_warning("Failed to read cpu line.");
-	}
+	char buf[4096];
+	char *line;
+	gint i;
+	gint cpu;
 
 	if (!initialized) {
-		initialized = TRUE;
-		goto finish;
+		cpu_info.cpusUsage = g_new0(gdouble, get_nprocs());
+		_u1 = g_new0(gfloat, get_nprocs());
+		_n1 = g_new0(gfloat, get_nprocs());
+		_s1 = g_new0(gfloat, get_nprocs());
+		_i1 = g_new0(gfloat, get_nprocs());
 	}
 
-	u3 = (u2 - u1);
-	n3 = (n2 - n1);
-	s3 = (s2 - s1);
-	i3 = (i2 - i1);
+	fd = open("/proc/stat", O_RDONLY);
+	i = read(fd, buf, sizeof(buf));
+	buf[i - 1] = '\0';
+	line = buf;
+	for (i = 0; buf[i]; i++) {
+		if (buf[i] == '\n') {
+			buf[i] = '\0';
+			if (g_str_has_prefix(line, "cpu ")) {
+				if (sscanf(line, "cpu %f %f %f %f", &u2, &n2, &s2, &i2) != 4) {
+					g_warning("Failed to read total cpu line.");
+					break;
+				} else {
+					u3 = (u2 - u1);
+					n3 = (n2 - n1);
+					s3 = (s2 - s1);
+					i3 = (i2 - i1);
+					total = (u3 + n3 + s3 + i3);
+					if (initialized) {
+						if (total != 0.) {
+							cpu_info.cpuUsage = (100 * (u3 + n3 + s3)) / total;
+						}
+					}
+					u1 = u2;
+					i1 = i2;
+					s1 = s2;
+					n1 = n2;
+				}
+			} else if (strncmp(line, "cpu", 3) == 0) {
+				line += 3;
+				cpu = strtoll(line, &line, 10);
+				if (sscanf(line, "%f %f %f %f", &u2, &n2, &s2, &i2) != 4) {
+					g_warning("Failed to read cpu %d line.", cpu);
+					break;
+				} else {
+					u3 = (u2 - _u1[cpu]);
+					n3 = (n2 - _n1[cpu]);
+					s3 = (s2 - _s1[cpu]);
+					i3 = (i2 - _i1[cpu]);
+					total = (u3 + n3 + s3 + i3);
+					if (initialized) {
+						if (total == 0.) {
+							cpu_info.cpusUsage[cpu] = 0.;
+						} else {
+							cpu_info.cpusUsage[cpu] = (100 * (u3 + n3 + s3)) / total;
+						}
+					}
+					_u1[cpu] = u2;
+					_i1[cpu] = i2;
+					_s1[cpu] = s2;
+					_n1[cpu] = n2;
+				}
+			}
+			line = &buf[++i];
+		}
+	}
 
-	total = (u3 + n3 + s3 + i3);
-	cpu_info.cpuUsage = (100 * (u3 + n3 + s3)) / total;
+	initialized = TRUE;
 
-  finish:
   	close(fd);
-	u1 = u2;
-	i1 = i2;
-	s1 = s2;
-	n1 = n2;
 }
 
 static void
@@ -523,6 +599,7 @@ create_main_window (void)
 	GtkWidget *mem_label;
 	GtkWidget *hbox;
 	UberRange cpu_range = { 0., 100., 100. };
+	gint i;
 
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 12);
@@ -551,12 +628,22 @@ create_main_window (void)
 	uber_graph_set_format(UBER_GRAPH(cpu_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), FALSE);
 	uber_graph_set_yrange(UBER_GRAPH(cpu_graph), &cpu_range);
-	uber_graph_add_line(UBER_GRAPH(cpu_graph));
-	SET_LINE_COLOR(cpu_graph, 1, "#2e3436");
+	//uber_graph_add_line(UBER_GRAPH(cpu_graph));
+	//SET_LINE_COLOR(cpu_graph, 1, "#2e3436");
 	uber_graph_set_value_func(UBER_GRAPH(cpu_graph), get_cpu, NULL, NULL);
 
 	hbox = new_label_container();
-	add_label(hbox, "Total CPU", "#2e3436");
+	//add_label(hbox, "Total CPU", "#2e3436");
+	for (i = 1; i <= get_nprocs(); i++) {
+		char *text = g_strdup_printf("CPU%d", i);
+		GtkWidget *label;
+
+		uber_graph_add_line(UBER_GRAPH(cpu_graph));
+		SET_LINE_COLOR(cpu_graph, i, (gchar *)cpu_colors[(i-1) % G_N_ELEMENTS(cpu_colors)]);
+		label = add_label(hbox, text, (gchar *)cpu_colors[(i-1) % G_N_ELEMENTS(cpu_colors)]);
+		g_ptr_array_add(labels, label);
+		g_free(text);
+	}
 	gtk_widget_show(hbox);
 
 	load_label = gtk_label_new(NULL);
@@ -831,6 +918,8 @@ main (gint   argc,
 	/* run the UberBuffer tests */
 	run_buffer_tests();
 #endif
+
+	labels = g_ptr_array_new();
 
 	/* initialize sources to -INFINITY */
 	cpu_info.cpuUsage = -INFINITY;
