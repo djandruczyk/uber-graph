@@ -164,6 +164,7 @@ struct _UberGraphPrivate
 	gint              tick_len;        /* Length of axis ticks in pixels. */
 	gdouble           line_width;      /* The desired line width. */
 	gint              fps;             /* Frames per second. */
+	gint              fps_calc;        /* Calculated FPS, might be reduced from fps. */
 	gint              fps_off;         /* Offset in frame-slide */
 	gint              fps_to;          /* Frames per second timeout (in MS) */
 	gint              stride;          /* Number of data points to store. */
@@ -729,7 +730,7 @@ uber_graph_fps_timeout (gpointer data) /* IN */
 	/*
 	 * Retrieve the next value for the graph if necessary.
 	 */
-	if (G_UNLIKELY(priv->fps_off >= priv->fps)) {
+	if (G_UNLIKELY(priv->fps_off >= priv->fps_calc)) {
 		for (i = 0; i < priv->lines->len; i++) {
 			info = &g_array_index(priv->lines, LineInfo, i);
 			uber_graph_get_next_value(graph, i + 1, info, &value);
@@ -777,12 +778,22 @@ uber_graph_set_fps (UberGraph *graph, /* IN */
 	ENTRY;
 	priv = graph->priv;
 	priv->fps = fps;
+	priv->fps_calc = fps;
 	priv->fps_to = 1000. / fps;
 	priv->fps_each = (gfloat)priv->content_rect.width /
 	                 (gfloat)priv->stride /
 	                 (gfloat)priv->fps;
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
+	}
+	/*
+	 * If we are moving less than one pixel per frame, then go ahead and lower
+	 * the actual framerate and move 1 pixel at a time.
+	 */
+	if (priv->fps_each < 1.) {
+		priv->fps_each = 1.;
+		priv->fps_calc = (gfloat)priv->content_rect.width / (gfloat)priv->stride;
+		priv->fps_to = 1000. / priv->fps_calc;
 	}
 	priv->fps_handler = g_timeout_add(priv->fps_to,
 	                                  uber_graph_fps_timeout,
