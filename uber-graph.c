@@ -1765,6 +1765,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	GdkDrawable *dst;
 	GraphInfo *info;
 	GdkRectangle clip;
+	GdkRectangle area;
 
 	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
 	g_return_val_if_fail(expose != NULL, FALSE);
@@ -1790,9 +1791,14 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	                  expose->area.x, expose->area.y,
 	                  expose->area.width, expose->area.height);
 	/*
-	 * Set the foreground clip area.
+	 * Set the foreground clip area to just inside the content_area.
 	 */
-	gdk_rectangle_intersect(&priv->content_rect, &expose->area, &clip);
+	area = priv->content_rect;
+	area.x += 1;
+	area.y += 1;
+	area.width -= 2;
+	area.height -= 2;
+	gdk_rectangle_intersect(&area, &expose->area, &clip);
 	gdk_gc_set_clip_rectangle(priv->fg_gc, &clip);
 	/*
 	 * If the foreground is dirty, we need to re-render its entire
@@ -1818,6 +1824,10 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		                  priv->content_rect.height);
 	}
 	priv->fps_off++;
+	/*
+	 * Reset the clip region.
+	 */
+	gdk_gc_set_clip_rectangle(priv->fg_gc, NULL);
 	return FALSE;
 }
 
