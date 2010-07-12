@@ -972,7 +972,7 @@ main (gint   argc,
 	gtk_main();
 
 	/* kill child process if needed */
-	if (!reaped) {
+	if (pid && !reaped) {
 		g_print("Exiting, killing child prcess.\n");
 		kill(pid, SIGINT);
 	}
