@@ -1223,10 +1223,14 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	gdk_cairo_rectangle_clean(info->bg_cairo, &priv->content_rect);
 	cairo_set_source_rgb(info->bg_cairo, 1, 1, 1);
 	cairo_fill_preserve(info->bg_cairo);
-	cairo_set_dash(info->bg_cairo, dashes, G_N_ELEMENTS(dashes), 0);
+	cairo_set_dash(info->bg_cairo, dashes, G_N_ELEMENTS(dashes), .5);
 	cairo_set_line_width(info->bg_cairo, 1.0);
 	cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
 	cairo_stroke(info->bg_cairo);
+	/*
+	 * Ticks expect 0 offset for dashes.
+	 */
+	cairo_set_dash(info->bg_cairo, dashes, G_N_ELEMENTS(dashes), 0);
 	/*
 	 * Render the X-Axis ticks.
 	 */
