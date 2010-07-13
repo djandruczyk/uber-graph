@@ -21,6 +21,8 @@
 
 #include <gtk/gtk.h>
 
+#include "uber-range.h"
+
 G_BEGIN_DECLS
 
 #define UBER_TYPE_GRAPH            (uber_graph_get_type())
@@ -34,20 +36,6 @@ G_BEGIN_DECLS
 typedef struct _UberGraph        UberGraph;
 typedef struct _UberGraphClass   UberGraphClass;
 typedef struct _UberGraphPrivate UberGraphPrivate;
-
-/**
- * UberRange:
- *
- * #UberRange is a structure that encapsulates the range of a particular
- * scale.  It contains the beginning value, ending value, and a pre-calculated
- * range between the values.
- */
-typedef struct
-{
-	gdouble begin;
-	gdouble end;
-	gdouble range;
-} UberRange;
 
 /**
  * UberScale:
