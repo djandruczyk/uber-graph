@@ -876,6 +876,9 @@ uber_heat_map_motion_notify_event (GtkWidget      *widget, /* IN */
 	if ((active_column != priv->active_column) ||
 	    (active_row != priv->active_row)) {
 	    if (active_column > -1 && active_row > -1) {
+			/*
+			 * TODO: Add format callback to determine tooltip contents.
+			 */
 			tooltip = g_strdup_printf("Row %d\nColumn %d", active_row, active_column);
 			gtk_widget_set_tooltip_text(widget, tooltip);
 			g_free(tooltip);
