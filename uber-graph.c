@@ -903,7 +903,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 * Determine largest size of tick labels.
 	 */
 	uber_graph_prepare_layout(graph, pl, LAYOUT_TICK);
-	pango_layout_set_text(pl, "XXXXXXX", -1);
+	pango_layout_set_text(pl, "XXXXXXXX", -1);
 	pango_layout_get_pixel_size(pl, &tick_w, &tick_h);
 	/*
 	 * Calculate the X-Axis tick area.
