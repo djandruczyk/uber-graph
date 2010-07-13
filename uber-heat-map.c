@@ -295,6 +295,7 @@ static void
 uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 {
 	UberHeatMapPrivate *priv;
+	GdkRectangle area;
 	gint xcount;
 	gint ycount;
 	gint ix;
@@ -310,23 +311,31 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	gdk_color_parse("#204a87", &color);
 	cairo_save(priv->fg_cairo);
 	/*
+	 * Calculate rendering area.
+	 */
+	area = priv->content_rect;
+	area.x += 1;
+	area.y += 1;
+	area.width -= 2;
+	area.height -= 2;
+	/*
 	 * Calculate the number of x-axis blocks.
 	 */
 	xcount = 100;
-	block_width = priv->content_rect.width / (gfloat)xcount;
+	block_width = area.width / (gfloat)xcount;
 	/*
 	 * Calculate the number of y-axis blocks.
 	 */
 	ycount = 10;
-	block_height = priv->content_rect.height / (gfloat)ycount;
+	block_height = area.height / (gfloat)ycount;
 	/*
 	 * Render the contents for the various blocks.
 	 */
 	for (ix = 0; ix < xcount; ix++) {
 		for (iy = 0; iy < ycount; iy++) {
 			cairo_rectangle(priv->fg_cairo,
-			                priv->content_rect.x + (ix * block_width),
-			                priv->content_rect.y + (iy * block_height),
+			                area.x + (ix * block_width),
+			                area.y + (iy * block_height),
 			                block_width,
 			                block_height);
 			alpha = g_random_double_range(0., 1.);
