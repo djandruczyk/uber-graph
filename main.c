@@ -43,6 +43,7 @@
 #include "uber-graph.h"
 #include "uber-label.h"
 #include "uber-buffer.h"
+#include "uber-heat-map.h"
 
 #ifdef DISABLE_DEBUG
 #define DEBUG(f,...)
@@ -599,6 +600,7 @@ create_main_window (void)
 	GtkWidget *mem_label;
 	GtkWidget *hbox;
 	GtkWidget *label;
+	GtkWidget *heat;
 	UberRange cpu_range = { 0., 100., 100. };
 	gint i;
 
@@ -715,6 +717,10 @@ create_main_window (void)
 	label = add_label(hbox, "Swap Free", "#8ae234");
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(mem_graph), 2);
 	gtk_widget_show(hbox);
+
+	heat = uber_heat_map_new();
+	gtk_container_add(GTK_CONTAINER(vbox), heat);
+	gtk_widget_show(heat);
 
 	next_load();
 	next_cpu();

@@ -41,6 +41,14 @@ INCLUDES =								\
 	-DHAVE_CONFIG_H=0						\
 	$(NULL)
 
+OBJECTS =								\
+	uber-graph.o							\
+	uber-buffer.o							\
+	uber-label.o							\
+	uber-heat-map.o							\
+	main.o								\
+	$(NULL)
+
 ifeq ($(DISABLE_DEBUG),1)
 	INCLUDES += $(DEBUG_INCLUDES)
 endif
@@ -49,23 +57,17 @@ ifeq ($(DISABLE_TRACE),0)
 	INCLUDES += $(TRACE_INCLUDES)
 endif
 
-uber-graph.o: uber-graph.c uber-graph.h Makefile
-	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-graph.c $(shell pkg-config --cflags gtk+-2.0)
-
-uber-buffer.o: uber-buffer.c uber-buffer.h Makefile
-	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-buffer.c $(shell pkg-config --cflags gtk+-2.0)
-
-uber-label.o: uber-label.c uber-label.h Makefile
-	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) uber-label.c $(shell pkg-config --cflags gtk+-2.0)
-
 main.o: main.c Makefile
-	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) main.c $(shell pkg-config --cflags gtk+-2.0)
+	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) main.c $(shell pkg-config --cflags gtk+-2.0 gthread-2.0)
 
-uber-graph: uber-graph.o main.o uber-buffer.o uber-label.o Makefile
-	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0 gthread-2.0) uber-graph.o main.o uber-buffer.o uber-label.o
+%.o: %.c %.h Makefile
+	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) $*.c $(shell pkg-config --cflags gtk+-2.0 gthread-2.0)
+
+uber-graph: $(OBJECTS) Makefile
+	$(CC) -g -o $@ $(shell pkg-config --libs gtk+-2.0 gthread-2.0) $(OBJECTS)
 
 clean:
-	rm -f uber-graph *.o
+	rm -f uber-graph $(OBJECTS)
 
 run: uber-graph
 	./uber-graph
