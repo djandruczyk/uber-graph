@@ -21,6 +21,8 @@
 
 #include <gtk/gtk.h>
 
+#include "uber-range.h"
+
 G_BEGIN_DECLS
 
 #define UBER_TYPE_HEAT_MAP            (uber_heat_map_get_type())
@@ -48,8 +50,17 @@ struct _UberHeatMapClass
 	GtkDrawingAreaClass parent_class;
 };
 
-GType      uber_heat_map_get_type (void) G_GNUC_CONST;
-GtkWidget* uber_heat_map_new      (void);
+GType      uber_heat_map_get_type       (void) G_GNUC_CONST;
+GtkWidget* uber_heat_map_new            (void);
+void       uber_heat_map_set_x_range    (UberHeatMap     *map,
+                                         const UberRange *x_range);
+void       uber_heat_map_set_y_range    (UberHeatMap     *map,
+                                         const UberRange *y_range);
+void       uber_heat_map_set_block_size (UberHeatMap     *map,
+                                         gint             width,
+                                         gboolean         width_is_count,
+                                         gint             height,
+                                         gboolean         height_is_count);
 
 G_END_DECLS
 

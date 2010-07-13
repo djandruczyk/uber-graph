@@ -42,10 +42,17 @@ struct _UberHeatMapPrivate
 	cairo_t      *fg_cairo;
 	gboolean      bg_dirty;
 	gboolean      fg_dirty;
+	gboolean      have_rgba;
 	GdkRectangle  content_rect;
 	GdkRectangle  x_tick_rect;
 	GdkRectangle  y_tick_rect;
 	gint          tick_len;
+	UberRange     x_range;
+	UberRange     y_range;
+	gint          width_block_size;
+	gboolean      width_is_count;
+	gint          height_block_size;
+	gboolean      height_is_count;
 };
 
 /**
@@ -63,6 +70,36 @@ uber_heat_map_new (void)
 }
 
 /**
+ * uber_heat_map_clear_cairo:
+ * @map: A #UberHeatMap.
+ * @cr: A #cairo_t.
+ * @width: The width of the context.
+ * @height: The height of the context.
+ *
+ * Clears the contents of a cairo context.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_heat_map_clear_cairo (UberHeatMap *map,    /* IN */
+                           cairo_t     *cr,     /* IN */
+                           gint         width,  /* IN */
+                           gint         height) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+
+	priv = map->priv;
+	cairo_save(cr);
+	cairo_rectangle(cr, 0, 0, width, height);
+	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+	cairo_fill(cr);
+	cairo_restore(cr);
+}
+
+/**
  * uber_heat_map_init_drawables:
  * @map: A #UberHeatMap.
  *
@@ -77,22 +114,36 @@ uber_heat_map_init_drawables (UberHeatMap *map) /* IN */
 	UberHeatMapPrivate *priv;
 	GdkDrawable *drawable;
 	GtkAllocation alloc;
+	GdkColormap *colormap;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
 	priv = map->priv;
 	drawable = gtk_widget_get_window(GTK_WIDGET(map));
 	gtk_widget_get_allocation(GTK_WIDGET(map), &alloc);
+	colormap = gdk_screen_get_rgba_colormap(gdk_drawable_get_screen(drawable));
+	priv->have_rgba = (colormap != NULL);
 	/*
 	 * Create server-side pixmaps.
 	 */
 	priv->bg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
-	priv->fg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
+	/*
+	 * If we have RGBA colormaps, we can draw cleanly with cairo.  Otherwise, we
+	 * will need to do more calculation by hand and XOR our content onto the
+	 * surface.
+	 */
+	if (priv->have_rgba) {
+		priv->fg_pixmap = gdk_pixmap_new(NULL, alloc.width, alloc.height, 32);
+		gdk_drawable_set_colormap(priv->fg_pixmap, colormap);
+	} else {
+		priv->fg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
+	}
 	/*
 	 * Setup cairo.
 	 */
 	priv->bg_cairo = gdk_cairo_create(priv->bg_pixmap);
 	priv->fg_cairo = gdk_cairo_create(priv->fg_pixmap);
+	uber_heat_map_clear_cairo(map, priv->fg_cairo, alloc.width, alloc.height);
 }
 
 /**
@@ -120,8 +171,14 @@ uber_heat_map_destroy_drawables (UberHeatMap *map) /* IN */
 		g_object_unref(priv->fg_pixmap);
 		priv->fg_pixmap = NULL;
 	}
-	cairo_destroy(priv->bg_cairo);
-	cairo_destroy(priv->fg_cairo);
+	if (priv->bg_cairo) {
+		cairo_destroy(priv->bg_cairo);
+		priv->bg_cairo = NULL;
+	}
+	if (priv->fg_cairo) {
+		cairo_destroy(priv->fg_cairo);
+		priv->fg_cairo = NULL;
+	}
 }
 
 /**
@@ -238,10 +295,53 @@ static void
 uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 {
 	UberHeatMapPrivate *priv;
+	gint xcount;
+	gint ycount;
+	gint ix;
+	gint iy;
+	gdouble block_width;
+	gdouble block_height;
+	gdouble alpha;
+	GdkColor color;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
 	priv = map->priv;
+	gdk_color_parse("#204a87", &color);
+	cairo_save(priv->fg_cairo);
+	/*
+	 * Calculate the number of x-axis blocks.
+	 */
+	xcount = 100;
+	block_width = priv->content_rect.width / (gfloat)xcount;
+	/*
+	 * Calculate the number of y-axis blocks.
+	 */
+	ycount = 10;
+	block_height = priv->content_rect.height / (gfloat)ycount;
+	/*
+	 * Render the contents for the various blocks.
+	 */
+	for (ix = 0; ix < xcount; ix++) {
+		for (iy = 0; iy < ycount; iy++) {
+			cairo_rectangle(priv->fg_cairo,
+			                priv->content_rect.x + (ix * block_width),
+			                priv->content_rect.y + (iy * block_height),
+			                block_width,
+			                block_height);
+			alpha = g_random_double_range(0., 1.);
+			cairo_set_source_rgba(priv->fg_cairo,
+			                      color.red / 65535.,
+			                      color.green / 65535.,
+			                      color.blue / 65535.,
+			                      alpha);
+			cairo_fill(priv->fg_cairo);
+		}
+	}
+	/*
+	 * Cleanup after resources.
+	 */
+	cairo_restore(priv->fg_cairo);
 }
 
 /**
@@ -261,11 +361,13 @@ uber_heat_map_render_x_axis (UberHeatMap *map) /* IN */
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
 	priv = map->priv;
+#if 0
 	cairo_save(priv->bg_cairo);
 	gdk_cairo_rectangle(priv->bg_cairo, &priv->x_tick_rect);
 	cairo_set_source_rgba(priv->bg_cairo, 0, 0, 0, .3);
 	cairo_fill(priv->bg_cairo);
 	cairo_restore(priv->bg_cairo);
+#endif
 }
 
 /**
@@ -285,11 +387,13 @@ uber_heat_map_render_y_axis (UberHeatMap *map) /* IN */
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
 	priv = map->priv;
+#if 0
 	cairo_save(priv->bg_cairo);
 	gdk_cairo_rectangle(priv->bg_cairo, &priv->y_tick_rect);
 	cairo_set_source_rgba(priv->bg_cairo, 0, 0, 0, .3);
 	cairo_fill(priv->bg_cairo);
 	cairo_restore(priv->bg_cairo);
+#endif
 }
 
 /**
@@ -367,7 +471,7 @@ uber_heat_map_expose_event (GtkWidget      *widget, /* IN */
 	GtkAllocation alloc;
 	cairo_t *cr;
 
-	g_return_if_fail(UBER_IS_HEAT_MAP(widget));
+	g_return_val_if_fail(UBER_IS_HEAT_MAP(widget), FALSE);
 
 	priv = UBER_HEAT_MAP(widget)->priv;
 	gtk_widget_get_allocation(widget, &alloc);
@@ -398,10 +502,122 @@ uber_heat_map_expose_event (GtkWidget      *widget, /* IN */
 	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
 	cairo_paint(cr);
 	/*
+	 * Draw the foreground.
+	 */
+	gdk_cairo_set_source_pixmap(cr, priv->fg_pixmap, 0, 0);
+	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
+	cairo_paint(cr);
+	/*
 	 * Cleanup after drawing.
 	 */
 	cairo_destroy(cr);
 	return FALSE;
+}
+
+/**
+ * uber_heat_map_set_x_range:
+ * @map: A #UberHeatMap.
+ * @x_range: An #UberRange.
+ *
+ * Sets the range of valid inputs for the X axis.  Values outside of this range
+ * will not show up on the heat map.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_heat_map_set_x_range (UberHeatMap     *map,     /* IN */
+                           const UberRange *x_range) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(x_range != NULL);
+
+	priv = map->priv;
+	/*
+	 * Store and recalculate range.
+	 */
+	priv->x_range = *x_range;
+	priv->x_range.range = priv->x_range.end - priv->x_range.begin;
+	/*
+	 * Force full draw of entire widget.
+	 */
+	priv->fg_dirty = TRUE;
+	priv->bg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(map));
+}
+
+/**
+ * uber_heat_map_set_y_range:
+ * @map: A #UberHeatMap.
+ * @x_range: An #UberRange.
+ *
+ * Sets the range of valid inputs for the X axis.  Values outside of this range
+ * will not show up on the heat map.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_heat_map_set_y_range (UberHeatMap     *map,     /* IN */
+                           const UberRange *x_range) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(x_range != NULL);
+
+	priv = map->priv;
+	/*
+	 * Store and recalculate range.
+	 */
+	priv->x_range = *x_range;
+	priv->x_range.range = priv->x_range.end - priv->x_range.begin;
+	/*
+	 * Force full draw of entire widget.
+	 */
+	priv->fg_dirty = TRUE;
+	priv->bg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(map));
+}
+
+/**
+ * uber_heat_map_set_block_size:
+ * @map: A #UberHeatMap.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_heat_map_set_block_size (UberHeatMap *map,             /* IN */
+                              gint         width,           /* IN */
+                              gboolean     width_is_count,  /* IN */
+                              gint         height,          /* IN */
+                              gboolean     height_is_count) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(width > 0);
+	g_return_if_fail(height > 0);
+
+	priv = map->priv;
+	/*
+	 * Store new width/height block size settings.
+	 */
+	priv->width_block_size = width;
+	priv->width_is_count = width_is_count;
+	priv->height_block_size = height;
+	priv->height_is_count = height_is_count;
+	/*
+	 * Force full draw of entire widget.
+	 */
+	priv->fg_dirty = TRUE;
+	priv->bg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(map));
 }
 
 /**
@@ -439,11 +655,12 @@ uber_heat_map_size_allocate (GtkWidget     *widget, /* IN */
 {
 	UberHeatMapPrivate *priv;
 
-	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(UBER_IS_HEAT_MAP(widget));
 
 	priv = UBER_HEAT_MAP(widget)->priv;
 	WIDGET->size_allocate(widget, alloc);
 	uber_heat_map_calculate_rects(UBER_HEAT_MAP(widget));
+	uber_heat_map_destroy_drawables(UBER_HEAT_MAP(widget));
 	uber_heat_map_init_drawables(UBER_HEAT_MAP(widget));
 	priv->bg_dirty = TRUE;
 	priv->fg_dirty = TRUE;
