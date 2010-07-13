@@ -294,9 +294,9 @@ uber_graph_scale_changed (UberGraph *graph) /* IN */
 	priv = graph->priv;
 	fps_off = priv->fps_off;
 	uber_graph_update_scaled(graph);
+	uber_graph_calculate_rects(graph);
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
-	uber_graph_calculate_rects(graph);
 	uber_graph_render_bg_task(graph, &priv->info[0]);
 	uber_graph_copy_background(graph, &priv->info[0], &priv->info[1]);
 	priv->fg_dirty = TRUE;
@@ -545,9 +545,9 @@ uber_graph_set_stride (UberGraph *graph, /* IN */
 		uber_buffer_set_size(line->buffer, stride);
 		uber_buffer_set_size(line->scaled, stride);
 	}
+	uber_graph_calculate_rects(graph);
 	uber_graph_init_graph_info(graph, &priv->info[0]);
 	uber_graph_init_graph_info(graph, &priv->info[1]);
-	uber_graph_calculate_rects(graph);
 	EXIT;
 }
 
@@ -1521,6 +1521,7 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	GdkVisual *visual;
 	GdkColor bg_color;
 	cairo_t *cr;
+	gint fg_width;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(info != NULL);
@@ -1535,14 +1536,15 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	 * Try to use a 32-bit colormap for alpha channel. If the system doesn't
 	 * support it, we need to note it so we can fallback to an XOR draw.
 	 */
+	fg_width = alloc.width + priv->x_each + 1;
 	if (priv->have_rgba) {
 		visual = gdk_visual_get_best_with_depth(32);
-		fg_pixmap = gdk_pixmap_new(NULL, alloc.width + 30, alloc.height, 32);
+		fg_pixmap = gdk_pixmap_new(NULL, fg_width, alloc.height, 32);
 		colormap = gdk_colormap_new(visual, FALSE);
 		gdk_drawable_set_colormap(GDK_DRAWABLE(fg_pixmap), colormap);
 		g_object_unref(colormap);
 	} else {
-		fg_pixmap = gdk_pixmap_new(drawable, alloc.width + 30, alloc.height, -1);
+		fg_pixmap = gdk_pixmap_new(drawable, fg_width, alloc.height, -1);
 	}
 	/*
 	 * Set background to default widget background.
