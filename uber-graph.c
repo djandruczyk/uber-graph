@@ -180,6 +180,7 @@ struct _UberGraphPrivate
 	gboolean          fg_dirty;        /* Do we need to update the foreground. */
 	gboolean          yautoscale;      /* Should the graph autoscale to handle values
 	                                    * outside the current range. */
+	gboolean          have_rgba;       /* Do we have RGBA colormaps. */
 	GdkGC            *bg_gc;           /* Drawing context for blitting background */
 	GdkGC            *fg_gc;           /* Drawing context for blitting foreground */
 	GdkRectangle      x_tick_rect;     /* Pre-calculated X tick area. */
@@ -273,8 +274,11 @@ uber_graph_copy_background (UberGraph *graph, /* IN */
 	ENTRY;
 	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
-	gdk_draw_drawable(dst->bg_pixmap, priv->bg_gc, src->bg_pixmap,
-	                  0, 0, 0, 0, alloc.width, alloc.height);
+	cairo_save(dst->bg_cairo);
+	gdk_cairo_set_source_pixmap(dst->bg_cairo, src->bg_pixmap, 0, 0);
+	cairo_rectangle(dst->bg_cairo, 0, 0, alloc.width, alloc.height);
+	cairo_paint(dst->bg_cairo);
+	cairo_restore(dst->bg_cairo);
 	EXIT;
 }
 
@@ -352,9 +356,6 @@ uber_graph_set_line_color (UberGraph      *graph, /* IN */
 	priv = graph->priv;
 	info = &g_array_index(priv->lines, LineInfo, line - 1);
 	info->color = *color;
-	info->color.red ^= 0xFFFF;
-	info->color.green ^= 0xFFFF;
-	info->color.blue ^= 0xFFFF;
 	priv->fg_dirty = TRUE;
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
 	EXIT;
@@ -1289,33 +1290,6 @@ uber_graph_render_fg_each (UberBuffer *buffer,    /* IN */
 }
 
 /**
- * gdk_color_parse_xor:
- * @color: A #GdkColor.
- * @spec: A color string ("#fff, #000000").
- * @xor: The value to xor against.
- *
- * Parses a color spec and xor's it against @xor.  The value is stored
- * in @color.
- *
- * Returns: %TRUE if successful; otherwise %FALSE.
- * Side effects: None.
- */
-static inline gboolean
-gdk_color_parse_xor (GdkColor    *color, /* IN */
-                     const gchar *spec,  /* IN */
-                     gint         xor)   /* IN */
-{
-	gboolean ret;
-
-	if ((ret = gdk_color_parse(spec, color))) {
-		color->red   ^= xor;
-		color->green ^= xor;
-		color->blue  ^= xor;
-	}
-	return ret;
-}
-
-/**
  * uber_graph_stylize_line:
  * @graph: A #UberGraph.
  * @line: A LineInfo.
@@ -1332,6 +1306,7 @@ uber_graph_stylize_line (UberGraph *graph, /* IN */
                          cairo_t   *cr)    /* IN */
 {
 	UberGraphPrivate *priv;
+	GdkColor color;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(line != NULL);
@@ -1339,7 +1314,13 @@ uber_graph_stylize_line (UberGraph *graph, /* IN */
 
 	priv = graph->priv;
 	cairo_set_line_width(cr, priv->line_width);
-	gdk_cairo_set_source_color(cr, &line->color);
+	color = line->color;
+	if (!priv->have_rgba) {
+		color.red ^= 0xFFFF;
+		color.green ^= 0xFFFF;
+		color.blue ^= 0xFFFF;
+	}
+	gdk_cairo_set_source_color(cr, &color);
 	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 	cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
 }
@@ -1449,6 +1430,7 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 
 	ENTRY;
 	priv = graph->priv;
+	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	/*
 	 * Clear the old pixmap contents.
 	 */
@@ -1462,15 +1444,12 @@ uber_graph_render_fg_shifted_task (UberGraph    *graph,  /* IN */
 	 * Shift contents of source onto destination pixmap.  The unused
 	 * data point is lost and contents shifted over.
 	 */
-	gdk_gc_set_function(priv->fg_gc, GDK_COPY);
-	gdk_draw_drawable(dst->fg_pixmap, priv->fg_gc, src->fg_pixmap,
-	                  priv->content_rect.x + priv->x_each,
-	                  priv->content_rect.y,
-	                  priv->content_rect.x,
-	                  priv->content_rect.y,
-	                  priv->content_rect.width,
-	                  priv->content_rect.height);
-	gdk_gc_set_function(priv->fg_gc, GDK_XOR);
+	cairo_save(dst->fg_cairo);
+	cairo_set_operator(dst->fg_cairo, CAIRO_OPERATOR_OVER);
+	gdk_cairo_set_source_pixmap(dst->fg_cairo, src->fg_pixmap, -(gint)priv->x_each, 0);
+	cairo_rectangle(dst->fg_cairo, 0, 0, alloc.width, alloc.height);
+	cairo_fill(dst->fg_cairo);
+	cairo_restore(dst->fg_cairo);
 	/*
 	 * Render the lines of data.  Clip the region to the new area only.
 	 */
@@ -1538,6 +1517,8 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	GdkDrawable *drawable;
 	GdkPixmap *bg_pixmap;
 	GdkPixmap *fg_pixmap;
+	GdkColormap *colormap;
+	GdkVisual *visual;
 	GdkColor bg_color;
 	cairo_t *cr;
 
@@ -1548,8 +1529,21 @@ uber_graph_init_graph_info (UberGraph *graph, /* IN */
 	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	drawable = GDK_DRAWABLE(gtk_widget_get_window(GTK_WIDGET(graph)));
+	priv->have_rgba = !!gdk_screen_get_rgba_colormap(gdk_drawable_get_screen(drawable));
 	bg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
-	fg_pixmap = gdk_pixmap_new(drawable, alloc.width + 30, alloc.height, -1);
+	/*
+	 * Try to use a 32-bit colormap for alpha channel. If the system doesn't
+	 * support it, we need to note it so we can fallback to an XOR draw.
+	 */
+	if (priv->have_rgba) {
+		visual = gdk_visual_get_best_with_depth(32);
+		fg_pixmap = gdk_pixmap_new(NULL, alloc.width + 30, alloc.height, 32);
+		colormap = gdk_colormap_new(visual, FALSE);
+		gdk_drawable_set_colormap(GDK_DRAWABLE(fg_pixmap), colormap);
+		g_object_unref(colormap);
+	} else {
+		fg_pixmap = gdk_pixmap_new(drawable, alloc.width + 30, alloc.height, -1);
+	}
 	/*
 	 * Set background to default widget background.
 	 */
@@ -1766,13 +1760,22 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	GraphInfo *info;
 	GdkRectangle clip;
 	GdkRectangle area;
+	cairo_t *cr;
+	GtkAllocation alloc;
 
 	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
 	g_return_val_if_fail(expose != NULL, FALSE);
 
 	priv = UBER_GRAPH(widget)->priv;
+	gtk_widget_get_allocation(widget, &alloc);
 	dst = expose->window;
 	info = &priv->info[priv->flipped];
+	cr = gdk_cairo_create(dst);
+	/*
+	 * Set the clip region.
+	 */
+	gdk_cairo_rectangle(cr, &expose->area);
+	cairo_clip(cr);
 	/*
 	 * Render the background to the pixmap again if needed.
 	 */
@@ -1783,51 +1786,96 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		priv->bg_dirty = FALSE;
 	}
 	/*
-	 * Blit the background for the exposure area.
+	 * Blit the background to the exposure area.
 	 */
 	g_assert(info->bg_pixmap);
-	gdk_draw_drawable(dst, priv->bg_gc, GDK_DRAWABLE(info->bg_pixmap),
-	                  expose->area.x, expose->area.y,
-	                  expose->area.x, expose->area.y,
-	                  expose->area.width, expose->area.height);
+	gdk_cairo_set_source_pixmap(cr, info->bg_pixmap, 0, 0);
+	cairo_rectangle(cr,
+	                expose->area.x, expose->area.y,
+	                expose->area.width, expose->area.height);
+	cairo_paint(cr);
 	/*
-	 * Set the foreground clip area to just inside the content_area.
+	 * If the foreground is dirty, we need to re-render its entire
+	 * contents.
+	 */
+	g_assert(info->fg_pixmap);
+	/*
+	 * Determine the foreground clipping area.
 	 */
 	area = priv->content_rect;
 	area.x += 1;
 	area.y += 1;
 	area.width -= 2;
 	area.height -= 2;
-	gdk_rectangle_intersect(&area, &expose->area, &clip);
-	gdk_gc_set_clip_rectangle(priv->fg_gc, &clip);
 	/*
-	 * If the foreground is dirty, we need to re-render its entire
-	 * contents.
+	 * Render the full foreground if needed.
 	 */
-	g_assert(info->fg_pixmap);
-	if (G_UNLIKELY(priv->fg_dirty)) {
+	if (priv->fg_dirty) {
 		uber_graph_render_fg_task(UBER_GRAPH(widget), info);
-		gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
-		                  priv->content_rect.x,
-		                  priv->content_rect.y,
-		                  priv->content_rect.x,
-		                  priv->content_rect.y,
-		                  priv->content_rect.width,
-		                  priv->content_rect.height);
+	}
+	/*
+	 * Determine the clip region for the foreground.
+	 */
+	gdk_rectangle_intersect(&area, &expose->area, &clip);
+	/*
+	 * Render the foreground lines on top of the background.
+	 */
+	if (G_UNLIKELY(!priv->have_rgba)) {
+		/*
+		 * Fallback path for systems which do not support RGBA colormaps.
+		 * This is inherently buggy since X11 XOR command will cause content
+		 * overlapping the grid lines to be incorrect.  It's not really all
+		 * that bad though, it just has an effect similar to flicker.
+		 */
+		gdk_gc_set_clip_rectangle(priv->fg_gc, &clip);
+		/*
+		 * Blit the drawable.
+		 */
+		if (G_UNLIKELY(priv->fg_dirty)) {
+			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
+			                  priv->content_rect.x,
+			                  priv->content_rect.y,
+			                  priv->content_rect.x,
+			                  priv->content_rect.y,
+			                  priv->content_rect.width,
+			                  priv->content_rect.height);
+		} else {
+			gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
+			                  priv->content_rect.x,
+			                  priv->content_rect.y,
+			                  priv->content_rect.x - (priv->fps_each * priv->fps_off),
+			                  priv->content_rect.y,
+			                  priv->content_rect.width + priv->x_each,
+			                  priv->content_rect.height);
+		}
+		gdk_gc_set_clip_rectangle(priv->fg_gc, NULL);
 	} else {
-		gdk_draw_drawable(dst, priv->fg_gc, GDK_DRAWABLE(info->fg_pixmap),
-		                  priv->content_rect.x,
-		                  priv->content_rect.y,
-		                  priv->content_rect.x - (priv->fps_each * priv->fps_off),
-		                  priv->content_rect.y,
-		                  priv->content_rect.width + priv->x_each,
-		                  priv->content_rect.height);
+		/*
+		 * Handle the case where we have RGBA colormaps on the system.  This allows
+		 * us to draw with the alpha channel so that the line colors come up correct
+		 * even if on top of grid lines.
+		 */
+		gdk_cairo_reset_clip(cr, expose->window);
+		gdk_cairo_rectangle(cr, &clip);
+		cairo_clip(cr);
+		/*
+		 * Blit the drawable.
+		 */
+		if (G_UNLIKELY(priv->fg_dirty)) {
+			gdk_cairo_set_source_pixmap(cr, info->fg_pixmap, 0, 0);
+		} else {
+			gdk_cairo_set_source_pixmap(cr, info->fg_pixmap,
+			                            -(gint)(priv->fps_each * priv->fps_off),
+			                            0);
+		}
+		cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
+		cairo_paint(cr);
 	}
 	priv->fps_off++;
 	/*
 	 * Reset the clip region.
 	 */
-	gdk_gc_set_clip_rectangle(priv->fg_gc, NULL);
+	cairo_destroy(cr);
 	return FALSE;
 }
 
@@ -1883,7 +1931,7 @@ uber_graph_add_line (UberGraph *graph) /* IN */
 	line.scaled = uber_buffer_new();
 	uber_buffer_set_size(line.buffer, priv->stride);
 	uber_buffer_set_size(line.scaled, priv->stride);
-	gdk_color_parse_xor(&line.color, priv->colors[priv->color], 0xFFFF);
+	gdk_color_parse(priv->colors[priv->color], &line.color);
 	priv->color = (priv->color + 1) % priv->colors_len;
 	g_array_append_val(priv->lines, line);
 	RETURN(priv->lines->len);
