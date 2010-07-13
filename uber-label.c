@@ -285,7 +285,7 @@ uber_label_block_button_press_event (GtkWidget      *widget, /* IN */
 	GtkWidget *dialog;
 	GtkWidget *selection;
 
-	g_return_if_fail(UBER_IS_LABEL(widget));
+	g_return_val_if_fail(UBER_IS_LABEL(label), FALSE);
 
 	ENTRY;
 	priv = label->priv;

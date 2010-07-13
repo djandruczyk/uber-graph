@@ -488,7 +488,7 @@ uber_graph_append (UberGraph *graph, /* IN */
 gdouble
 uber_graph_get_line_width (UberGraph *graph) /* IN */
 {
-	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), 0);
 
 	ENTRY;
 	RETURN(graph->priv->line_width);
@@ -593,8 +593,8 @@ uber_graph_extend_range (UberBuffer *buffer, /* IN */
                          gdouble     value,  /* IN */
                          UberRange  *range)  /* IN */
 {
-	g_return_if_fail(buffer != NULL);
-	g_return_if_fail(range != NULL);
+	g_return_val_if_fail(buffer != NULL, FALSE);
+	g_return_val_if_fail(range != NULL, FALSE);
 
 	range->begin = MIN(range->begin, value);
 	range->end = MAX(range->end, value);
@@ -622,7 +622,7 @@ uber_graph_downscale_timeout (gpointer data) /* IN */
 	LineInfo *line;
 	gint i;
 
-	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
 
 	ENTRY;
 	priv = graph->priv;
@@ -1988,7 +1988,7 @@ uber_graph_get_format (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
 
-	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), 0);
 
 	ENTRY;
 	priv = graph->priv;
