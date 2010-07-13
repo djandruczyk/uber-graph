@@ -45,8 +45,8 @@
 #define GET_PIXEL_RANGE(pr, rect)                \
     G_STMT_START {                               \
         (pr).begin = (rect).y + 1;               \
-        (pr).end = (rect).y + (rect).height - 1; \
-        (pr).range = (rect).height - 2;          \
+        (pr).end = (rect).y + (rect).height - 2; \
+        (pr).range = (pr).end - (pr).begin;      \
     } G_STMT_END
 
 #define DRAW_Y_LABEL_FRACTION(y, i, n)                               \
