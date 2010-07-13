@@ -24,6 +24,15 @@
 
 #define WIDGET ((GtkWidgetClass *)uber_heat_map_parent_class)
 
+#define DEBUG_RECT(r)                                       \
+    g_debug("GdkRectangle(X=%d, Y=%d, Width=%d, Height=%d", \
+            (r).x, (r).y, (r).width, (r).height)
+#define GDK_RECTANGLE_RIGHT(r)  ((r).x + (r).width)
+#define GDK_RECTANGLE_BOTTOM(r) ((r).y + (r).height)
+#define GDK_RECTANGLE_CONTAINS(r, _x, _y)                   \
+    ((((_x) > (r).x) && ((_x) < GDK_RECTANGLE_RIGHT(r))) && \
+     (((_y) > (r).y) && ((_y) < GDK_RECTANGLE_BOTTOM(r))))
+
 /**
  * SECTION:uber-heat-map.h
  * @title: UberHeatMap
@@ -38,11 +47,16 @@ struct _UberHeatMapPrivate
 {
 	GdkPixmap    *bg_pixmap;
 	GdkPixmap    *fg_pixmap;
+	GdkPixmap    *hl_pixmap;
 	cairo_t      *bg_cairo;
 	cairo_t      *fg_cairo;
+	cairo_t      *hl_cairo;
 	gboolean      bg_dirty;
 	gboolean      fg_dirty;
 	gboolean      have_rgba;
+	gboolean      in_hover;
+	gint          active_column;
+	gint          active_row;
 	GdkRectangle  content_rect;
 	GdkRectangle  x_tick_rect;
 	GdkRectangle  y_tick_rect;
@@ -53,6 +67,8 @@ struct _UberHeatMapPrivate
 	gboolean      width_is_count;
 	gint          height_block_size;
 	gboolean      height_is_count;
+	gdouble       cur_block_width;
+	gdouble       cur_block_height;
 };
 
 /**
@@ -134,16 +150,21 @@ uber_heat_map_init_drawables (UberHeatMap *map) /* IN */
 	 */
 	if (priv->have_rgba) {
 		priv->fg_pixmap = gdk_pixmap_new(NULL, alloc.width, alloc.height, 32);
+		priv->hl_pixmap = gdk_pixmap_new(NULL, alloc.width, alloc.height, 32);
 		gdk_drawable_set_colormap(priv->fg_pixmap, colormap);
+		gdk_drawable_set_colormap(priv->hl_pixmap, colormap);
 	} else {
 		priv->fg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
+		priv->hl_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
 	}
 	/*
 	 * Setup cairo.
 	 */
 	priv->bg_cairo = gdk_cairo_create(priv->bg_pixmap);
 	priv->fg_cairo = gdk_cairo_create(priv->fg_pixmap);
+	priv->hl_cairo = gdk_cairo_create(priv->hl_pixmap);
 	uber_heat_map_clear_cairo(map, priv->fg_cairo, alloc.width, alloc.height);
+	uber_heat_map_clear_cairo(map, priv->hl_cairo, alloc.width, alloc.height);
 }
 
 /**
@@ -304,12 +325,15 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	gdouble block_height;
 	gdouble alpha;
 	GdkColor color;
+	GdkColor hl_color;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
 	priv = map->priv;
 	gdk_color_parse("#204a87", &color);
+	gdk_color_parse("#fce94f", &hl_color);
 	cairo_save(priv->fg_cairo);
+	cairo_save(priv->hl_cairo);
 	/*
 	 * Calculate rendering area.
 	 */
@@ -321,36 +345,58 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	/*
 	 * Calculate the number of x-axis blocks.
 	 */
-	xcount = 100;
-	block_width = area.width / (gfloat)xcount;
+	if (priv->width_is_count) {
+		xcount = priv->width_block_size;
+	} else g_assert_not_reached();
+	block_width = priv->cur_block_width;
 	/*
 	 * Calculate the number of y-axis blocks.
 	 */
-	ycount = 10;
-	block_height = area.height / (gfloat)ycount;
+	if (priv->height_is_count) {
+		ycount = priv->height_block_size;
+	} else g_assert_not_reached();
+	block_height = priv->cur_block_height;
 	/*
 	 * Render the contents for the various blocks.
 	 */
 	for (ix = 0; ix < xcount; ix++) {
 		for (iy = 0; iy < ycount; iy++) {
+			alpha = g_random_double_range(0., 1.);
+			/*
+			 * Render the foreground.
+			 */
 			cairo_rectangle(priv->fg_cairo,
 			                area.x + (ix * block_width),
 			                area.y + (iy * block_height),
 			                block_width,
 			                block_height);
-			alpha = g_random_double_range(0., 1.);
 			cairo_set_source_rgba(priv->fg_cairo,
 			                      color.red / 65535.,
 			                      color.green / 65535.,
 			                      color.blue / 65535.,
 			                      alpha);
 			cairo_fill(priv->fg_cairo);
+			/*
+			 * Render the highlight.
+			 */
+			cairo_rectangle(priv->hl_cairo,
+			                area.x + (ix * block_width),
+			                area.y + (iy * block_height),
+			                block_width,
+			                block_height);
+			cairo_set_source_rgba(priv->hl_cairo,
+			                      hl_color.red / 65535.,
+			                      hl_color.green / 65535.,
+			                      hl_color.blue / 65535.,
+			                      alpha);
+			cairo_fill(priv->hl_cairo);
 		}
 	}
 	/*
 	 * Cleanup after resources.
 	 */
 	cairo_restore(priv->fg_cairo);
+	cairo_restore(priv->hl_cairo);
 }
 
 /**
@@ -403,6 +449,31 @@ uber_heat_map_render_y_axis (UberHeatMap *map) /* IN */
 	cairo_fill(priv->bg_cairo);
 	cairo_restore(priv->bg_cairo);
 #endif
+}
+
+/**
+ * uber_heat_map_get_active_rect:
+ * @map: A #UberHeatMap.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_heat_map_get_active_rect (UberHeatMap  *map,  /* IN */
+                               GdkRectangle *rect) /* OUT */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(rect != NULL);
+
+	priv = map->priv;
+	rect->x = 1 + priv->content_rect.x + (priv->active_column * priv->cur_block_width);
+	rect->y = 1 + priv->content_rect.y + (priv->active_row * priv->cur_block_height);
+	rect->width = priv->cur_block_width;
+	rect->height = priv->cur_block_height;
 }
 
 /**
@@ -478,6 +549,7 @@ uber_heat_map_expose_event (GtkWidget      *widget, /* IN */
 {
 	UberHeatMapPrivate *priv;
 	GtkAllocation alloc;
+	GdkRectangle area;
 	cairo_t *cr;
 
 	g_return_val_if_fail(UBER_IS_HEAT_MAP(widget), FALSE);
@@ -516,6 +588,20 @@ uber_heat_map_expose_event (GtkWidget      *widget, /* IN */
 	gdk_cairo_set_source_pixmap(cr, priv->fg_pixmap, 0, 0);
 	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
 	cairo_paint(cr);
+	/*
+	 * Draw the highlight rectangle if needed.
+	 */
+	if (priv->in_hover) {
+		if (priv->active_column > -1 && priv->active_row > -1) {
+			uber_heat_map_get_active_rect(UBER_HEAT_MAP(widget), &area);
+			gdk_cairo_reset_clip(cr, gtk_widget_get_window(widget));
+			gdk_cairo_rectangle(cr, &area);
+			cairo_clip(cr);
+			gdk_cairo_set_source_pixmap(cr, priv->hl_pixmap, 0, 0);
+			cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
+			cairo_fill(cr);
+		}
+	}
 	/*
 	 * Cleanup after drawing.
 	 */
@@ -608,12 +694,14 @@ uber_heat_map_set_block_size (UberHeatMap *map,             /* IN */
                               gboolean     height_is_count) /* IN */
 {
 	UberHeatMapPrivate *priv;
+	GtkAllocation alloc;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 	g_return_if_fail(width > 0);
 	g_return_if_fail(height > 0);
 
 	priv = map->priv;
+	gtk_widget_get_allocation(GTK_WIDGET(map), &alloc);
 	/*
 	 * Store new width/height block size settings.
 	 */
@@ -621,6 +709,22 @@ uber_heat_map_set_block_size (UberHeatMap *map,             /* IN */
 	priv->width_is_count = width_is_count;
 	priv->height_block_size = height;
 	priv->height_is_count = height_is_count;
+	/*
+	 * Recalculate the real block sizes.
+	 */
+	if (width_is_count) {
+		priv->cur_block_width = (priv->content_rect.width - 2) / (gdouble)width;
+	} else {
+		priv->cur_block_width = width;
+	}
+	if (height_is_count) {
+		priv->cur_block_height = (priv->content_rect.height - 2) / (gdouble)height;
+	} else {
+		priv->cur_block_height = height;
+	}
+	/*
+	 * TODO: Recalculate buckets.
+	 */
 	/*
 	 * Force full draw of entire widget.
 	 */
@@ -671,8 +775,119 @@ uber_heat_map_size_allocate (GtkWidget     *widget, /* IN */
 	uber_heat_map_calculate_rects(UBER_HEAT_MAP(widget));
 	uber_heat_map_destroy_drawables(UBER_HEAT_MAP(widget));
 	uber_heat_map_init_drawables(UBER_HEAT_MAP(widget));
+	uber_heat_map_set_block_size(UBER_HEAT_MAP(widget),
+	                             priv->width_block_size,
+	                             priv->width_is_count,
+	                             priv->height_block_size,
+	                             priv->height_is_count);
 	priv->bg_dirty = TRUE;
 	priv->fg_dirty = TRUE;
+}
+
+/**
+ * uber_heat_map_enter_notify_event:
+ * @widget: A #GtkWidget.
+ * @crossing: A #GdkEventCrossing.
+ *
+ * XXX
+ *
+ * Returns: %FALSE always.
+ * Side effects: None.
+ */
+static gboolean
+uber_heat_map_enter_notify_event (GtkWidget        *widget,   /* IN */
+                                  GdkEventCrossing *crossing) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_val_if_fail(UBER_IS_HEAT_MAP(widget), FALSE);
+
+	priv = UBER_HEAT_MAP(widget)->priv;
+	priv->in_hover = TRUE;
+	gdk_window_invalidate_rect(gtk_widget_get_window(widget),
+	                           &priv->content_rect,
+	                           FALSE);
+	return FALSE;
+}
+
+/**
+ * uber_heat_map_leave_notify_event:
+ * @widget: A #GtkWidget.
+ * @crossing: A #GdkEventCrossing.
+ *
+ * XXX
+ *
+ * Returns: %FALSE always.
+ * Side effects: None.
+ */
+static gboolean
+uber_heat_map_leave_notify_event (GtkWidget        *widget,   /* IN */
+                                  GdkEventCrossing *crossing) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_val_if_fail(UBER_IS_HEAT_MAP(widget), FALSE);
+
+	priv = UBER_HEAT_MAP(widget)->priv;
+	priv->in_hover = FALSE;
+	gdk_window_invalidate_rect(gtk_widget_get_window(widget),
+	                           &priv->content_rect,
+	                           FALSE);
+	return FALSE;
+}
+
+/**
+ * uber_heat_map_motion_notify_event:
+ * @widget: A #GtkWidget.
+ * @motion: A #GdkEventMotion.
+ *
+ * Handles the motion event within the widget.  This is used to determine
+ * the currently hovered block that is active.
+ *
+ * Returns: %FALSE always.
+ * Side effects: None.
+ */
+static gboolean
+uber_heat_map_motion_notify_event (GtkWidget      *widget, /* IN */
+                                   GdkEventMotion *motion) /* IN */
+{
+	UberHeatMapPrivate *priv;
+	gdouble x_offset;
+	gdouble y_offset;
+	gint active_column = -1;
+	gint active_row = -1;
+	gchar *tooltip;
+
+	g_return_val_if_fail(UBER_IS_HEAT_MAP(widget), FALSE);
+
+	priv = UBER_HEAT_MAP(widget)->priv;
+	if (GDK_RECTANGLE_CONTAINS(priv->content_rect, motion->x, motion->y)) {
+		/*
+		 * Get relative coordinate within the content area.
+		 */
+		x_offset = motion->x - priv->content_rect.x;
+		y_offset = motion->y - priv->content_rect.y;
+		/*
+		 * Set the active row and column.
+		 */
+		active_column = x_offset / priv->cur_block_width;
+		active_row = y_offset / priv->cur_block_height;
+	}
+	if ((active_column != priv->active_column) ||
+	    (active_row != priv->active_row)) {
+	    if (active_column > -1 && active_row > -1) {
+			tooltip = g_strdup_printf("Row %d\nColumn %d", active_row, active_column);
+			gtk_widget_set_tooltip_text(widget, tooltip);
+			g_free(tooltip);
+		} else {
+			gtk_widget_set_tooltip_text(widget, "");
+		}
+		gdk_window_invalidate_rect(gtk_widget_get_window(widget),
+		                           &priv->content_rect, FALSE);
+	}
+	priv->active_column = active_column;
+	priv->active_row = active_row;
+	return FALSE;
 }
 
 /**
@@ -715,6 +930,9 @@ uber_heat_map_class_init (UberHeatMapClass *klass) /* IN */
 	widget_class->realize = uber_heat_map_realize;
 	widget_class->expose_event = uber_heat_map_expose_event;
 	widget_class->size_allocate = uber_heat_map_size_allocate;
+	widget_class->enter_notify_event = uber_heat_map_enter_notify_event;
+	widget_class->leave_notify_event = uber_heat_map_leave_notify_event;
+	widget_class->motion_notify_event = uber_heat_map_motion_notify_event;
 }
 
 /**
@@ -730,10 +948,26 @@ static void
 uber_heat_map_init (UberHeatMap *map) /* IN */
 {
 	UberHeatMapPrivate *priv;
+	GdkEventMask mask = 0;
 
 	map->priv = G_TYPE_INSTANCE_GET_PRIVATE(map,
 	                                        UBER_TYPE_HEAT_MAP,
 	                                        UberHeatMapPrivate);
 	priv = map->priv;
+
+	/*
+	 * Setup defaults.
+	 */
 	priv->tick_len = 10;
+	priv->active_column = -1;
+	priv->active_row = -1;
+	uber_heat_map_set_block_size(map, 200, TRUE, 20, TRUE);
+
+	/*
+	 * Enable required GdkEvents.
+	 */
+	mask |= GDK_ENTER_NOTIFY_MASK;
+	mask |= GDK_LEAVE_NOTIFY_MASK;
+	mask |= GDK_POINTER_MOTION_MASK;
+	gtk_widget_set_events(GTK_WIDGET(map), mask);
 }
