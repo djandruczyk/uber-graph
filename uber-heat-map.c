@@ -43,6 +43,9 @@ struct _UberHeatMapPrivate
 	gboolean      bg_dirty;
 	gboolean      fg_dirty;
 	GdkRectangle  content_rect;
+	GdkRectangle  x_tick_rect;
+	GdkRectangle  y_tick_rect;
+	gint          tick_len;
 };
 
 /**
@@ -122,6 +125,53 @@ uber_heat_map_destroy_drawables (UberHeatMap *map) /* IN */
 }
 
 /**
+ * uber_heat_map_get_label_size:
+ * @map: A #UberHeatMap.
+ * @width: A location for the label width.
+ * @height: A location for the label height.
+ *
+ * Calculates the maximum label size required for the graph in pixels.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_heat_map_get_label_size (UberHeatMap *map,    /* IN */
+                              gint        *width,  /* OUT */
+                              gint        *height) /* OUT */
+{
+	UberHeatMapPrivate *priv;
+	GdkWindow *window;
+	PangoLayout *layout;
+	PangoFontDescription *font_desc;
+	cairo_t *cr;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(width != NULL);
+	g_return_if_fail(height != NULL);
+
+	priv = map->priv;
+	window = gtk_widget_get_window(GTK_WIDGET(map));
+	/*
+	 * Create cairo/pango resources to calculate size.
+	 */
+	cr = gdk_cairo_create(GDK_DRAWABLE(window));
+	layout = pango_cairo_create_layout(cr);
+	font_desc = pango_font_description_new();
+	pango_font_description_set_family_static(font_desc, "Monospace");
+	pango_font_description_set_size(font_desc, PANGO_SCALE * 8);
+	pango_layout_set_font_description(layout, font_desc);
+	pango_layout_set_text(layout, "XXXXXXXX", -1);
+	pango_layout_get_pixel_size(layout, width, height);
+	/*
+	 * Cleanup resources.
+	 */
+	pango_font_description_free(font_desc);
+	g_object_unref(layout);
+	cairo_destroy(cr);
+}
+
+/**
  * uber_heat_map_calculate_rects:
  * @map: A #UberHeatMap.
  *
@@ -135,20 +185,44 @@ uber_heat_map_calculate_rects (UberHeatMap *map) /* IN */
 {
 	UberHeatMapPrivate *priv;
 	GtkAllocation alloc;
+	gint label_width;
+	gint label_height;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
-
 	priv = map->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(map), &alloc);
-	g_message("Calculating %d,%d", alloc.width, alloc.height);
+	/*
+	 * Calculate tick label size.
+	 */
+	uber_heat_map_get_label_size(map, &label_width, &label_height);
+	/*
+	 * Calculate Y axis tick area.
+	 */
+	priv->y_tick_rect.y = 1 + (label_height / 2.);
+	priv->y_tick_rect.x = 1;
+	priv->y_tick_rect.width = label_width
+	                        + 3
+	                        + priv->tick_len;
+	priv->y_tick_rect.height = alloc.height
+	                         - priv->y_tick_rect.y
+	                         - priv->tick_len
+	                         - 3
+	                         - label_height;
+	/*
+	 * Calculate X axis tick area.
+	 */
+	priv->x_tick_rect.y = priv->y_tick_rect.y + priv->y_tick_rect.height;
+	priv->x_tick_rect.x = priv->y_tick_rect.x + priv->y_tick_rect.width;
+	priv->x_tick_rect.height = alloc.height - priv->x_tick_rect.y;
+	priv->x_tick_rect.width = alloc.width - priv->x_tick_rect.x;
 	/*
 	 * Calculate main content area.
 	 */
-	priv->content_rect.x = 1.5;
-	priv->content_rect.y = 1.5;
-	priv->content_rect.width = alloc.width - 3.;
-	priv->content_rect.height = alloc.height - 3.;
+	priv->content_rect.x = priv->y_tick_rect.x + priv->y_tick_rect.width;
+	priv->content_rect.y = priv->y_tick_rect.y;
+	priv->content_rect.width = alloc.width - priv->content_rect.x - 1;
+	priv->content_rect.height = priv->x_tick_rect.y - priv->content_rect.y;
 }
 
 /**
@@ -168,6 +242,54 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
 	priv = map->priv;
+}
+
+/**
+ * uber_heat_map_render_x_axis:
+ * @map: A #UberHeatMap.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_heat_map_render_x_axis (UberHeatMap *map) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+
+	priv = map->priv;
+	cairo_save(priv->bg_cairo);
+	gdk_cairo_rectangle(priv->bg_cairo, &priv->x_tick_rect);
+	cairo_set_source_rgba(priv->bg_cairo, 0, 0, 0, .3);
+	cairo_fill(priv->bg_cairo);
+	cairo_restore(priv->bg_cairo);
+}
+
+/**
+ * uber_heat_map_render_y_axis:
+ * @map: A #UberHeatMap.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_heat_map_render_y_axis (UberHeatMap *map) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+
+	priv = map->priv;
+	cairo_save(priv->bg_cairo);
+	gdk_cairo_rectangle(priv->bg_cairo, &priv->y_tick_rect);
+	cairo_set_source_rgba(priv->bg_cairo, 0, 0, 0, .3);
+	cairo_fill(priv->bg_cairo);
+	cairo_restore(priv->bg_cairo);
 }
 
 /**
@@ -216,6 +338,11 @@ uber_heat_map_render_bg (UberHeatMap *map) /* IN */
 	cairo_set_dash(priv->bg_cairo, dashes, G_N_ELEMENTS(dashes), .5);
 	cairo_set_line_width(priv->bg_cairo, 1.0);
 	cairo_stroke(priv->bg_cairo);
+	/*
+	 * Render the axis labels.
+	 */
+	uber_heat_map_render_x_axis(map);
+	uber_heat_map_render_y_axis(map);
 	/*
 	 * Cleanup after drawing.
 	 */
@@ -382,4 +509,5 @@ uber_heat_map_init (UberHeatMap *map) /* IN */
 	                                        UBER_TYPE_HEAT_MAP,
 	                                        UberHeatMapPrivate);
 	priv = map->priv;
+	priv->tick_len = 10;
 }
