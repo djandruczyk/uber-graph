@@ -20,6 +20,8 @@
 #include "config.h"
 #endif
 
+#include <glib/gi18n.h>
+
 #include "uber-label.h"
 
 #ifdef UBER_TRACE
@@ -390,6 +392,8 @@ uber_label_init (UberLabel *label) /* IN */
 	                 "button-press-event",
 	                 G_CALLBACK(uber_label_block_button_press_event),
 	                 label);
+	gtk_widget_set_tooltip_text(GTK_WIDGET(priv->block),
+	                            _("Click to select color"));
 	gtk_widget_show(priv->hbox);
 	gtk_widget_show(priv->block);
 	gtk_widget_show(priv->label);
