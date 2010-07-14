@@ -491,8 +491,8 @@ uber_heat_map_get_active_rect (UberHeatMap  *map,  /* IN */
 	g_return_if_fail(rect != NULL);
 
 	priv = map->priv;
-	rect->x = 1 + priv->content_rect.x + (priv->active_column * priv->cur_block_width);
-	rect->y = 1 + priv->content_rect.y + (priv->active_row * priv->cur_block_height);
+	rect->x = priv->content_rect.x + 1 + (priv->active_column * priv->cur_block_width);
+	rect->y = priv->content_rect.y + 1 + (priv->active_row * priv->cur_block_height);
 	rect->width = priv->cur_block_width;
 	rect->height = priv->cur_block_height;
 }
