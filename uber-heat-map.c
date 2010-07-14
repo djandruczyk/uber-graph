@@ -55,6 +55,8 @@ struct _UberHeatMapPrivate
 	gboolean      fg_dirty;
 	gboolean      have_rgba;
 	gboolean      in_hover;
+	gint          x_stride;
+	gint          y_stride;
 	gint          active_column;
 	gint          active_row;
 	GdkRectangle  content_rect;
@@ -347,14 +349,18 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	 */
 	if (priv->width_is_count) {
 		xcount = priv->width_block_size;
-	} else g_assert_not_reached();
+	} else {
+		xcount = priv->content_rect.width / (gdouble)priv->x_stride;
+	}
 	block_width = priv->cur_block_width;
 	/*
 	 * Calculate the number of y-axis blocks.
 	 */
 	if (priv->height_is_count) {
 		ycount = priv->height_block_size;
-	} else g_assert_not_reached();
+	} else {
+		ycount = priv->content_rect.height / (gdouble)priv->y_stride;
+	}
 	block_height = priv->cur_block_height;
 	/*
 	 * Render the contents for the various blocks.
@@ -716,11 +722,13 @@ uber_heat_map_set_block_size (UberHeatMap *map,             /* IN */
 		priv->cur_block_width = (priv->content_rect.width - 2) / (gdouble)width;
 	} else {
 		priv->cur_block_width = width;
+		priv->x_stride = width;
 	}
 	if (height_is_count) {
 		priv->cur_block_height = (priv->content_rect.height - 2) / (gdouble)height;
 	} else {
 		priv->cur_block_height = height;
+		priv->y_stride = height;
 	}
 	/*
 	 * TODO: Recalculate buckets.
@@ -894,6 +902,28 @@ uber_heat_map_motion_notify_event (GtkWidget      *widget, /* IN */
 }
 
 /**
+ * uber_heat_map_size_request:
+ * @widget: A #GtkWidget.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_heat_map_size_request (GtkWidget      *widget, /* IN */
+                            GtkRequisition *req)    /* OUT */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(widget));
+
+	priv = UBER_HEAT_MAP(widget)->priv;
+	req->width = priv->y_tick_rect.width + priv->x_stride;
+	req->height = priv->x_tick_rect.height + priv->y_stride;
+}
+
+/**
  * uber_heat_map_finalize:
  * @object: A #UberHeatMap.
  *
@@ -936,6 +966,7 @@ uber_heat_map_class_init (UberHeatMapClass *klass) /* IN */
 	widget_class->enter_notify_event = uber_heat_map_enter_notify_event;
 	widget_class->leave_notify_event = uber_heat_map_leave_notify_event;
 	widget_class->motion_notify_event = uber_heat_map_motion_notify_event;
+	widget_class->size_request = uber_heat_map_size_request;
 }
 
 /**
@@ -964,7 +995,7 @@ uber_heat_map_init (UberHeatMap *map) /* IN */
 	priv->tick_len = 10;
 	priv->active_column = -1;
 	priv->active_row = -1;
-	uber_heat_map_set_block_size(map, 200, TRUE, 20, TRUE);
+	uber_heat_map_set_block_size(map, 20, TRUE, 10, TRUE);
 
 	/*
 	 * Enable required GdkEvents.
