@@ -720,13 +720,16 @@ create_main_window (void)
 	gtk_widget_show(hbox);
 
 	heat = uber_heat_map_new();
+	uber_heat_map_set_block_size(UBER_HEAT_MAP(heat),
+	                             60, TRUE,
+	                             5, FALSE);
 	gtk_container_add(GTK_CONTAINER(vbox), heat);
 	gtk_widget_show(heat);
 
 	heat2 = uber_heat_map_new();
 	uber_heat_map_set_block_size(UBER_HEAT_MAP(heat2),
 	                             5, FALSE,
-	                             5, FALSE);
+	                             5, TRUE);
 	gtk_container_add(GTK_CONTAINER(vbox), heat2);
 	gtk_widget_show(heat2);
 
