@@ -950,6 +950,7 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
                               GraphInfo *info)  /* IN */
 {
 	UberGraphPrivate *priv;
+	GdkColor color;
 	gfloat fraction;
 	gint n_lines;
 	gint i;
@@ -960,6 +961,7 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 
 	ENTRY;
 	priv = graph->priv;
+	color = gtk_widget_get_style(GTK_WIDGET(graph))->fg[GTK_STATE_NORMAL];
 
 	#define DRAW_TICK_LABEL(v, o)                                            \
 	    G_STMT_START {                                                       \
@@ -983,9 +985,12 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 	        g_free(_v_str);                                                  \
 		} G_STMT_END
 
+	cairo_save(info->bg_cairo);
 	n_lines = priv->stride / 10;
+	gdk_cairo_set_source_color(info->bg_cairo, &color);
 	DRAW_TICK_LABEL(0, 0);
 	for (i = 1; i < n_lines; i++) {
+		cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
 		cairo_move_to(info->bg_cairo,
 		              priv->content_rect.x + (int)(i * (priv->x_tick_rect.width / (gfloat)n_lines)) + .5,
 		              priv->content_rect.y);
@@ -994,9 +999,11 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 		              priv->x_tick_rect.y + priv->tick_len);
 		cairo_stroke(info->bg_cairo);
 		fraction = (1. / (gfloat)n_lines) * priv->stride;
+		gdk_cairo_set_source_color(info->bg_cairo, &color);
 		DRAW_TICK_LABEL(fraction * i, i);
 	}
 	DRAW_TICK_LABEL(priv->stride, n_lines);
+	cairo_restore(info->bg_cairo);
 	EXIT;
 	#undef DRAW_TICK_LABEL
 }
@@ -1079,6 +1086,7 @@ uber_graph_render_bg_y_ticks_basic (UberGraph *graph, /* IN */
                                     GraphInfo *info)  /* IN */
 {
 	UberGraphPrivate *priv;
+	GdkColor color;
 	UberRange range;
 	gfloat y;
 	gint n_lines;
@@ -1088,11 +1096,14 @@ uber_graph_render_bg_y_ticks_basic (UberGraph *graph, /* IN */
 
 	ENTRY;
 	priv = graph->priv;
+	color = gtk_widget_get_style(GTK_WIDGET(graph))->fg[GTK_STATE_NORMAL];
+	gdk_cairo_set_source_color(info->bg_cairo, &color);
 	GET_PIXEL_RANGE(range, priv->content_rect);
 	n_lines = MIN(priv->content_rect.height / 20, 5);
 	DRAW_Y_LABEL_FRACTION(range.begin, 0, n_lines);
 	for (i = 1; i < n_lines; i++) {
 		y = priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i);
+		cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
 		cairo_move_to(info->bg_cairo,
 		              priv->content_rect.x - priv->tick_len,
 		              y + .5);
@@ -1100,6 +1111,7 @@ uber_graph_render_bg_y_ticks_basic (UberGraph *graph, /* IN */
 		              priv->content_rect.x + priv->content_rect.width,
 		              y + .5);
 		cairo_stroke(info->bg_cairo);
+		gdk_cairo_set_source_color(info->bg_cairo, &color);
 		DRAW_Y_LABEL_FRACTION(y, i, n_lines);
 	}
 	DRAW_Y_LABEL_FRACTION(range.end, n_lines, n_lines);
