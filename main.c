@@ -601,6 +601,7 @@ create_main_window (void)
 	GtkWidget *hbox;
 	GtkWidget *label;
 	GtkWidget *heat;
+	GtkWidget *heat2;
 	UberRange cpu_range = { 0., 100., 100. };
 	gint i;
 
@@ -721,6 +722,13 @@ create_main_window (void)
 	heat = uber_heat_map_new();
 	gtk_container_add(GTK_CONTAINER(vbox), heat);
 	gtk_widget_show(heat);
+
+	heat2 = uber_heat_map_new();
+	uber_heat_map_set_block_size(UBER_HEAT_MAP(heat2),
+	                             5, FALSE,
+	                             5, FALSE);
+	gtk_container_add(GTK_CONTAINER(vbox), heat2);
+	gtk_widget_show(heat2);
 
 	next_load();
 	next_cpu();
