@@ -353,6 +353,13 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	area.width -= 2;
 	area.height -= 2;
 	/*
+	 * Set clipping regions.
+	 */
+	gdk_cairo_rectangle(priv->fg_cairo, &area);
+	gdk_cairo_rectangle(priv->hl_cairo, &area);
+	cairo_clip(priv->fg_cairo);
+	cairo_clip(priv->hl_cairo);
+	/*
 	 * Calculate the number of x-axis blocks.
 	 */
 	if (priv->width_is_count) {
