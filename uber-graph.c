@@ -224,6 +224,7 @@ static const gchar *default_colors[] = {
 	"#73d216",
 	"#75507b",
 	"#a40000",
+	NULL
 };
 
 static void gdk_cairo_rectangle_clean         (cairo_t      *cr,
