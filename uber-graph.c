@@ -986,11 +986,10 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 		} G_STMT_END
 
 	cairo_save(info->bg_cairo);
-	n_lines = priv->stride / 10;
 	gdk_cairo_set_source_color(info->bg_cairo, &color);
+	n_lines = priv->stride / 10;
 	DRAW_TICK_LABEL(0, 0);
 	for (i = 1; i < n_lines; i++) {
-		cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
 		cairo_move_to(info->bg_cairo,
 		              priv->content_rect.x + (int)(i * (priv->x_tick_rect.width / (gfloat)n_lines)) + .5,
 		              priv->content_rect.y);
@@ -999,7 +998,6 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 		              priv->x_tick_rect.y + priv->tick_len);
 		cairo_stroke(info->bg_cairo);
 		fraction = (1. / (gfloat)n_lines) * priv->stride;
-		gdk_cairo_set_source_color(info->bg_cairo, &color);
 		DRAW_TICK_LABEL(fraction * i, i);
 	}
 	DRAW_TICK_LABEL(priv->stride, n_lines);
@@ -1103,7 +1101,6 @@ uber_graph_render_bg_y_ticks_basic (UberGraph *graph, /* IN */
 	DRAW_Y_LABEL_FRACTION(range.begin, 0, n_lines);
 	for (i = 1; i < n_lines; i++) {
 		y = priv->y_tick_rect.y + (priv->y_tick_rect.height / n_lines * i);
-		cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
 		cairo_move_to(info->bg_cairo,
 		              priv->content_rect.x - priv->tick_len,
 		              y + .5);
@@ -1111,7 +1108,6 @@ uber_graph_render_bg_y_ticks_basic (UberGraph *graph, /* IN */
 		              priv->content_rect.x + priv->content_rect.width,
 		              y + .5);
 		cairo_stroke(info->bg_cairo);
-		gdk_cairo_set_source_color(info->bg_cairo, &color);
 		DRAW_Y_LABEL_FRACTION(y, i, n_lines);
 	}
 	DRAW_Y_LABEL_FRACTION(range.end, n_lines, n_lines);
@@ -1209,6 +1205,7 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	UberGraphPrivate *priv;
 	GtkAllocation alloc;
 	GdkColor bg_color;
+	GdkColor fg_color;
 	GdkColor white;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
@@ -1222,7 +1219,8 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	 */
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	bg_color = gtk_widget_get_style(GTK_WIDGET(graph))->bg[GTK_STATE_NORMAL];
-	gdk_color_parse("#fff", &white);
+	fg_color = gtk_widget_get_style(GTK_WIDGET(graph))->fg[GTK_STATE_NORMAL];
+	white = gtk_widget_get_style(GTK_WIDGET(graph))->light[GTK_STATE_NORMAL];
 	/*
 	 * Clear the background to default widget background color.
 	 */
@@ -1233,23 +1231,20 @@ uber_graph_render_bg_task (UberGraph *graph, /* IN */
 	 * Fill in the content rectangle and stroke edge.
 	 */
 	gdk_cairo_rectangle_clean(info->bg_cairo, &priv->content_rect);
-	cairo_set_source_rgb(info->bg_cairo, 1, 1, 1);
+	gdk_cairo_set_source_color(info->bg_cairo, &white);
 	cairo_fill_preserve(info->bg_cairo);
 	cairo_set_dash(info->bg_cairo, dashes, G_N_ELEMENTS(dashes), .5);
 	cairo_set_line_width(info->bg_cairo, 1.0);
-	cairo_set_source_rgb(info->bg_cairo, 0, 0, 0);
+	gdk_cairo_set_source_color(info->bg_cairo, &fg_color);
 	cairo_stroke(info->bg_cairo);
 	/*
 	 * Ticks expect 0 offset for dashes.
 	 */
 	cairo_set_dash(info->bg_cairo, dashes, G_N_ELEMENTS(dashes), 0);
 	/*
-	 * Render the X-Axis ticks.
+	 * Render the ticks.
 	 */
 	uber_graph_render_bg_x_ticks(graph, info);
-	/*
-	 * Render the Y-Axis ticks.
-	 */
 	uber_graph_render_bg_y_ticks(graph, info);
 	/*
 	 * Cleanup.
@@ -1323,6 +1318,7 @@ uber_graph_stylize_line (UberGraph *graph, /* IN */
 {
 	UberGraphPrivate *priv;
 	GdkColor color;
+	GdkColor white;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(line != NULL);
@@ -1332,9 +1328,10 @@ uber_graph_stylize_line (UberGraph *graph, /* IN */
 	cairo_set_line_width(cr, priv->line_width);
 	color = line->color;
 	if (!priv->have_rgba) {
-		color.red ^= 0xFFFF;
-		color.green ^= 0xFFFF;
-		color.blue ^= 0xFFFF;
+		white = gtk_widget_get_style(GTK_WIDGET(graph))->light[GTK_STATE_NORMAL];
+		color.red ^= white.red;
+		color.green ^= white.green;
+		color.blue ^= white.blue;
 	}
 	gdk_cairo_set_source_color(cr, &color);
 	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
