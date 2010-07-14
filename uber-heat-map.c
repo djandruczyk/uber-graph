@@ -194,6 +194,10 @@ uber_heat_map_destroy_drawables (UberHeatMap *map) /* IN */
 		g_object_unref(priv->fg_pixmap);
 		priv->fg_pixmap = NULL;
 	}
+	if (priv->hl_pixmap) {
+		g_object_unref(priv->hl_pixmap);
+		priv->hl_pixmap = NULL;
+	}
 	if (priv->bg_cairo) {
 		cairo_destroy(priv->bg_cairo);
 		priv->bg_cairo = NULL;
@@ -201,6 +205,10 @@ uber_heat_map_destroy_drawables (UberHeatMap *map) /* IN */
 	if (priv->fg_cairo) {
 		cairo_destroy(priv->fg_cairo);
 		priv->fg_cairo = NULL;
+	}
+	if (priv->hl_cairo) {
+		cairo_destroy(priv->hl_cairo);
+		priv->hl_cairo = NULL;
 	}
 }
 
@@ -869,6 +877,9 @@ uber_heat_map_motion_notify_event (GtkWidget      *widget, /* IN */
 	g_return_val_if_fail(UBER_IS_HEAT_MAP(widget), FALSE);
 
 	priv = UBER_HEAT_MAP(widget)->priv;
+	/*
+	 * Check if we are hovering a box in the view.
+	 */
 	if (GDK_RECTANGLE_CONTAINS(priv->content_rect, motion->x, motion->y)) {
 		/*
 		 * Get relative coordinate within the content area.
@@ -881,6 +892,9 @@ uber_heat_map_motion_notify_event (GtkWidget      *widget, /* IN */
 		active_column = x_offset / priv->cur_block_width;
 		active_row = y_offset / priv->cur_block_height;
 	}
+	/*
+	 * Update the highlight box if necessary.
+	 */
 	if ((active_column != priv->active_column) ||
 	    (active_row != priv->active_row)) {
 	    if (active_column > -1 && active_row > -1) {
