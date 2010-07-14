@@ -534,12 +534,12 @@ uber_heat_map_render_bg (UberHeatMap *map) /* IN */
 	                priv->content_rect.y + .5,
 	                priv->content_rect.width - 1.,
 	                priv->content_rect.height - 1.);
-	cairo_set_source_rgb(priv->bg_cairo, 1, 1, 1);
+	gdk_cairo_set_source_color(priv->bg_cairo, &style->light[GTK_STATE_NORMAL]);
 	cairo_fill_preserve(priv->bg_cairo);
 	/*
 	 * Render the content border.
 	 */
-	cairo_set_source_rgb(priv->bg_cairo, 0, 0, 0);
+	gdk_cairo_set_source_color(priv->bg_cairo, &style->fg[GTK_STATE_NORMAL]);
 	cairo_set_dash(priv->bg_cairo, dashes, G_N_ELEMENTS(dashes), .5);
 	cairo_set_line_width(priv->bg_cairo, 1.0);
 	cairo_stroke(priv->bg_cairo);
