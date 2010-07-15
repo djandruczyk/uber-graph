@@ -1,0 +1,29 @@
+Some of this code is good. Some of this code is very bad. It is a prototype,
+nothing more, nothing less.
+
+Particularly bad/nasty/unreadable code is in main.c. It is also Linux specific.
+
+UberGraph - A realtime graph similar to that found in Gnome System Monitor.
+            However, it is much faster and smoother. It runs at a higher
+            framerate with less X bandwidth.
+
+            It uses multiple pixmaps on the server-side and shifts data between
+            them to lower the X bandwidth.  New data is rendered and clipped so
+            that the transfer is small.  If frame movement is < 1 pixel, the
+            framerate is dynamically reduced.
+
+UberHeatMap - This is going to eventually be similar to UberGraph but as a
+              heat map.  It's not very far yet, however.
+
+GRing - A small circular buffer meant for values in the realtime graphs.  This
+        is most definitely not meant to be used as a byte buffer, so don't use
+        it as such.
+
+        Example:
+
+           GRing *ring = g_ring_sized_new(sizeof(gdouble), 60, NULL);
+
+           or
+
+           GRing *ring = g_ring_sized_new(sizeof(GArray*), 60, (GDestroyNotify)g_array_unref);
+
