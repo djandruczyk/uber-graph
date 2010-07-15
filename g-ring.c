@@ -106,6 +106,7 @@ g_ring_append_vals (GRing         *ring, /* IN */
 			real_ring->looped = TRUE;
 		}
 		ring->pos %= ring->len;
+		data += real_ring->elt_size;
 	}
 }
 
