@@ -56,7 +56,7 @@
         pango_layout_set_markup(info->tick_layout, v, -1);           \
         pango_layout_get_pixel_size(info->tick_layout, &w, &h);      \
         cairo_move_to(info->bg_cairo,                                \
-                      priv->content_rect.x - priv->tick_len - w,     \
+                      priv->content_rect.x - priv->tick_len - w - 3, \
 		              ((gint)y) - (h / 2) + .5);                     \
 		pango_cairo_show_layout(info->bg_cairo, info->tick_layout);  \
 		g_free(v);                                                   \
@@ -86,7 +86,7 @@
 			cairo_stroke(info->bg_cairo);                                  \
 		}                                                                  \
         cairo_move_to(info->bg_cairo,                                      \
-                      priv->content_rect.x - priv->tick_len - w,           \
+                      priv->content_rect.x - priv->tick_len - w - 3,       \
 		              ((gint)ry) - (h / 2) + .5);                          \
 		pango_cairo_show_layout(info->bg_cairo, info->tick_layout);        \
 		g_free(v);                                                         \
@@ -910,7 +910,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 * Calculate the X-Axis tick area.
 	 */
 	priv->x_tick_rect.height = priv->tick_len + tick_h;
-	priv->x_tick_rect.x = priv->tick_len + tick_w;
+	priv->x_tick_rect.x = priv->tick_len + tick_w + 3;
 	priv->x_tick_rect.width = alloc.width - priv->x_tick_rect.x;
 	priv->x_tick_rect.y = alloc.height - priv->x_tick_rect.height;
 	/*
@@ -923,7 +923,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	/*
 	 * Calculate the content region.
 	 */
-	priv->content_rect.x = priv->y_tick_rect.x + priv->y_tick_rect.width + 1;
+	priv->content_rect.x = priv->y_tick_rect.x + priv->y_tick_rect.width + 3;
 	priv->content_rect.y = tick_h / 2 + 1;
 	priv->content_rect.width = alloc.width - priv->content_rect.x - 2;
 	priv->content_rect.height = priv->x_tick_rect.y - priv->content_rect.y - 2;
