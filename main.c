@@ -616,9 +616,10 @@ create_main_window (void)
 	gtk_widget_show(vbox);
 
 	cpu_label = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(cpu_label), "<b>CPU History</b>");
+	gtk_label_set_markup(GTK_LABEL(cpu_label), "<b>CPU</b>");
 	gtk_box_pack_start(GTK_BOX(vbox), cpu_label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(cpu_label), .0, .5);
+	g_object_set(cpu_label, "xpad", 70, NULL);
 	gtk_widget_show(cpu_label);
 
 	#define SET_LINE_COLOR(g, n, c) \
@@ -651,7 +652,8 @@ create_main_window (void)
 	gtk_widget_show(hbox);
 
 	load_label = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(load_label), "<b>Load History</b>");
+	gtk_label_set_markup(GTK_LABEL(load_label), "<b>Load</b>");
+	g_object_set(load_label, "xpad", 70, NULL);
 	gtk_box_pack_start(GTK_BOX(vbox), load_label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(load_label), .0, .5);
 	gtk_widget_show(load_label);
@@ -676,7 +678,8 @@ create_main_window (void)
 	gtk_widget_show(hbox);
 
 	net_label = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(net_label), "<b>Network History</b>");
+	gtk_label_set_markup(GTK_LABEL(net_label), "<b>Network</b>");
+	g_object_set(net_label, "xpad", 70, NULL);
 	gtk_box_pack_start(GTK_BOX(vbox), net_label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(net_label), .0, .5);
 	gtk_widget_show(net_label);
@@ -698,7 +701,8 @@ create_main_window (void)
 	gtk_widget_show(hbox);
 
 	mem_label = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(mem_label), "<b>Memory History</b>");
+	gtk_label_set_markup(GTK_LABEL(mem_label), "<b>Memory</b>");
+	g_object_set(mem_label, "xpad", 70, NULL);
 	gtk_box_pack_start(GTK_BOX(vbox), mem_label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(mem_label), .0, .5);
 	gtk_widget_show(mem_label);
@@ -794,7 +798,7 @@ create_pid_graphs (GPid pid)
 	GtkWidget *label;
 
 	label = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(label), "<b>Process Memory History</b>");
+	gtk_label_set_markup(GTK_LABEL(label), "<b>Process Memory</b>");
 	gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(label), .0, .5);
 	gtk_widget_show(label);
@@ -806,7 +810,7 @@ create_pid_graphs (GPid pid)
 	uber_graph_set_value_func(UBER_GRAPH(pmem_graph), get_pmem, NULL, NULL);
 
 	label = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(label), "<b>Scheduler Time History</b>");
+	gtk_label_set_markup(GTK_LABEL(label), "<b>Scheduler Time</b>");
 	gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(label), .0, .5);
 	gtk_widget_show(label);
@@ -817,7 +821,7 @@ create_pid_graphs (GPid pid)
 	uber_graph_set_value_func(UBER_GRAPH(sched_graph), get_sched, NULL, NULL);
 
 	label = gtk_label_new(NULL);
-	gtk_label_set_markup(GTK_LABEL(label), "<b>Thread Count History</b>");
+	gtk_label_set_markup(GTK_LABEL(label), "<b>Thread Count</b>");
 	gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(label), .0, .5);
 	gtk_widget_show(label);
