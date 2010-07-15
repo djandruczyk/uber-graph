@@ -37,6 +37,21 @@ typedef struct _UberHeatMap        UberHeatMap;
 typedef struct _UberHeatMapClass   UberHeatMapClass;
 typedef struct _UberHeatMapPrivate UberHeatMapPrivate;
 
+/**
+ * UberHeatMapFunc:
+ * @map: A #UberHeatMap.
+ * @values: A location to store an array of #gdouble<!-- -->'s.
+ * @user_data: User data supplied to uber_heat_map_set_value_func().
+ *
+ * A callback to retrieve the next set of data for the graph.
+ *
+ * Returns: %TRUE if successful; otherwise %FALSE.
+ * Side effects: None.
+ */
+typedef gboolean (*UberHeatMapFunc) (UberHeatMap  *map,
+                                     GArray      **values,
+                                     gpointer      user_data);
+
 struct _UberHeatMap
 {
 	GtkDrawingArea parent;
@@ -52,6 +67,8 @@ struct _UberHeatMapClass
 
 GType      uber_heat_map_get_type       (void) G_GNUC_CONST;
 GtkWidget* uber_heat_map_new            (void);
+void       uber_heat_map_set_stride     (UberHeatMap     *map,
+                                         gint             stride);
 void       uber_heat_map_set_x_range    (UberHeatMap     *map,
                                          const UberRange *x_range);
 void       uber_heat_map_set_y_range    (UberHeatMap     *map,
@@ -61,6 +78,10 @@ void       uber_heat_map_set_block_size (UberHeatMap     *map,
                                          gboolean         width_is_count,
                                          gint             height,
                                          gboolean         height_is_count);
+void       uber_heat_map_set_value_func (UberHeatMap     *map,
+                                         UberHeatMapFunc  func,
+                                         gpointer         user_data,
+                                         GDestroyNotify   notify);
 
 G_END_DECLS
 

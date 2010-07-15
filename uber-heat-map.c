@@ -20,6 +20,8 @@
 #include "config.h"
 #endif
 
+#include <math.h>
+
 #include "uber-heat-map.h"
 
 #define WIDGET ((GtkWidgetClass *)uber_heat_map_parent_class)
@@ -45,32 +47,42 @@ G_DEFINE_TYPE(UberHeatMap, uber_heat_map, GTK_TYPE_DRAWING_AREA)
 
 struct _UberHeatMapPrivate
 {
-	GdkPixmap    *bg_pixmap;
-	GdkPixmap    *fg_pixmap;
-	GdkPixmap    *hl_pixmap;
-	cairo_t      *bg_cairo;
-	cairo_t      *fg_cairo;
-	cairo_t      *hl_cairo;
-	gboolean      bg_dirty;
-	gboolean      fg_dirty;
-	gboolean      have_rgba;
-	gboolean      in_hover;
-	gint          x_stride;
-	gint          y_stride;
-	gint          active_column;
-	gint          active_row;
-	GdkRectangle  content_rect;
-	GdkRectangle  x_tick_rect;
-	GdkRectangle  y_tick_rect;
-	gint          tick_len;
-	UberRange     x_range;
-	UberRange     y_range;
-	gint          width_block_size;
-	gboolean      width_is_count;
-	gint          height_block_size;
-	gboolean      height_is_count;
-	gdouble       cur_block_width;
-	gdouble       cur_block_height;
+	GdkPixmap       *bg_pixmap;
+	GdkPixmap       *fg_pixmap;
+	GdkPixmap       *hl_pixmap;
+	cairo_t         *bg_cairo;
+	cairo_t         *fg_cairo;
+	cairo_t         *hl_cairo;
+	gboolean         bg_dirty;
+	gboolean         fg_dirty;
+	gboolean         have_rgba;
+	gboolean         in_hover;
+	gint             fps;
+	gint             fps_calc;
+	gdouble          fps_each;
+	gint             fps_to;
+	guint            fps_handler;
+	gint             fps_off;
+	gint             stride;
+	gint             col_count;
+	gint             row_count;
+	gint             active_column;
+	gint             active_row;
+	GdkRectangle     content_rect;
+	GdkRectangle     x_tick_rect;
+	GdkRectangle     y_tick_rect;
+	gint             tick_len;
+	UberRange        x_range;
+	UberRange        y_range;
+	gint             width_block_size;
+	gboolean         width_is_count;
+	gint             height_block_size;
+	gboolean         height_is_count;
+	gdouble          cur_block_width;
+	gdouble          cur_block_height;
+	UberHeatMapFunc  value_func;
+	gpointer         value_user_data;
+	GDestroyNotify   value_notify;
 };
 
 /**
@@ -115,6 +127,31 @@ uber_heat_map_clear_cairo (UberHeatMap *map,    /* IN */
 	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
 	cairo_fill(cr);
 	cairo_restore(cr);
+}
+
+/**
+ * uber_heat_map_get_next_values:
+ * @map: A #UberHeatMap.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static gboolean
+uber_heat_map_get_next_values (UberHeatMap  *map,    /* IN */
+                               GArray      **values) /* OUT */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_val_if_fail(UBER_IS_HEAT_MAP(map), FALSE);
+	g_return_val_if_fail(values != NULL, FALSE);
+
+	priv = map->priv;
+	if (!priv->value_func) {
+		return FALSE;
+	}
+	return priv->value_func(map, values, priv->value_user_data);
 }
 
 /**
@@ -365,7 +402,7 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	if (priv->width_is_count) {
 		xcount = priv->width_block_size;
 	} else {
-		xcount = priv->content_rect.width / (gdouble)priv->x_stride;
+		xcount = priv->content_rect.width / (gdouble)priv->col_count;
 	}
 	block_width = priv->cur_block_width;
 	/*
@@ -374,7 +411,7 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	if (priv->height_is_count) {
 		ycount = priv->height_block_size;
 	} else {
-		ycount = priv->content_rect.height / (gdouble)priv->y_stride;
+		ycount = priv->content_rect.height / (gdouble)priv->row_count;
 	}
 	block_height = priv->cur_block_height;
 	/*
@@ -737,13 +774,13 @@ uber_heat_map_set_block_size (UberHeatMap *map,             /* IN */
 		priv->cur_block_width = (priv->content_rect.width - 2) / (gdouble)width;
 	} else {
 		priv->cur_block_width = width;
-		priv->x_stride = width;
+		priv->col_count = width;
 	}
 	if (height_is_count) {
 		priv->cur_block_height = (priv->content_rect.height - 2) / (gdouble)height;
 	} else {
 		priv->cur_block_height = height;
-		priv->y_stride = height;
+		priv->row_count = height;
 	}
 	/*
 	 * TODO: Recalculate buckets.
@@ -754,6 +791,101 @@ uber_heat_map_set_block_size (UberHeatMap *map,             /* IN */
 	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
 	gtk_widget_queue_draw(GTK_WIDGET(map));
+}
+
+/**
+ * uber_heat_map_append:
+ * @map: A #UberHeatMap.
+ * @values: (element-type double): A #GAarray.
+ *
+ * Adds the set of values to the circular buffer.  The values are
+ * calculated and inserted into the proper buckets.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_heat_map_append (UberHeatMap *map,    /* IN */
+                      GArray      *values) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+
+	priv = map->priv;
+}
+
+/**
+ * uber_heat_map_fps_timeout:
+ * @map: A #UberHeatMap.
+ *
+ * Timeout to tick the graph to the next frame.
+ *
+ * Returns: %TRUE always.
+ * Side effects: None.
+ */
+static gboolean
+uber_heat_map_fps_timeout (UberHeatMap *map) /* IN */
+{
+	UberHeatMapPrivate *priv;
+	GArray *values = NULL;
+
+	g_return_val_if_fail(UBER_IS_HEAT_MAP(map), FALSE);
+
+	priv = map->priv;
+	priv->fps_off++;
+	if (G_UNLIKELY(priv->fps_off >= priv->fps_calc)) {
+		if (!uber_heat_map_get_next_values(map, &values)) {
+			values = NULL;
+		}
+		uber_heat_map_append(map, values);
+		priv->fps_off = 0;
+	}
+	return TRUE;
+}
+
+/**
+ * uber_heat_map_set_fps:
+ * @map: A #UberHeatMap.
+ * @fps: The frames-per-second to achieve.
+ *
+ * Sets the target number of Frames Per Second that the graph should try to
+ * achieve.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_heat_map_set_fps (UberHeatMap *map, /* IN */
+                       gint         fps) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(fps > 0);
+
+	priv = map->priv;
+	priv->fps = fps;
+	priv->fps_calc = fps;
+	priv->fps_to = 1000. / fps;
+	priv->fps_each = (gfloat)priv->content_rect.width /
+	                 (gfloat)priv->stride /
+	                 (gfloat)priv->fps;
+	if (priv->fps_handler) {
+		g_source_remove(priv->fps_handler);
+	}
+	/*
+	 * If we are moving less than one pixel per frame, then go ahead and lower
+	 * the actual framerate and move 1 pixel at a time.
+	 */
+	if (priv->fps_each < 1.) {
+		priv->fps_each = 1.;
+		priv->fps_calc = (gfloat)priv->content_rect.width / (gfloat)priv->stride;
+		priv->fps_to = 1000. / priv->fps_calc;
+	}
+	priv->fps_handler = g_timeout_add(priv->fps_to,
+	                                  (GSourceFunc)uber_heat_map_fps_timeout,
+	                                  map);
 }
 
 /**
@@ -803,6 +935,7 @@ uber_heat_map_size_allocate (GtkWidget     *widget, /* IN */
 	                             priv->width_is_count,
 	                             priv->height_block_size,
 	                             priv->height_is_count);
+	uber_heat_map_set_fps(UBER_HEAT_MAP(widget), priv->fps);
 	priv->bg_dirty = TRUE;
 	priv->fg_dirty = TRUE;
 }
@@ -940,8 +1073,8 @@ uber_heat_map_size_request (GtkWidget      *widget, /* IN */
 	g_return_if_fail(UBER_IS_HEAT_MAP(widget));
 
 	priv = UBER_HEAT_MAP(widget)->priv;
-	req->width = priv->y_tick_rect.width + priv->x_stride;
-	req->height = priv->x_tick_rect.height + priv->y_stride;
+	req->width = priv->y_tick_rect.width + priv->col_count;
+	req->height = priv->x_tick_rect.height + priv->row_count;
 }
 
 /**
@@ -957,7 +1090,15 @@ uber_heat_map_size_request (GtkWidget      *widget, /* IN */
 static void
 uber_heat_map_finalize (GObject *object) /* IN */
 {
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(object));
+
+	priv = UBER_HEAT_MAP(object)->priv;
 	uber_heat_map_destroy_drawables(UBER_HEAT_MAP(object));
+	if (priv->fps_handler) {
+		g_source_remove(priv->fps_handler);
+	}
 	G_OBJECT_CLASS(uber_heat_map_parent_class)->finalize(object);
 }
 
@@ -1009,15 +1150,14 @@ uber_heat_map_init (UberHeatMap *map) /* IN */
 	                                        UBER_TYPE_HEAT_MAP,
 	                                        UberHeatMapPrivate);
 	priv = map->priv;
-
 	/*
 	 * Setup defaults.
 	 */
 	priv->tick_len = 10;
 	priv->active_column = -1;
 	priv->active_row = -1;
+	priv->stride = 60;
 	uber_heat_map_set_block_size(map, 20, TRUE, 10, TRUE);
-
 	/*
 	 * Enable required GdkEvents.
 	 */
@@ -1025,4 +1165,8 @@ uber_heat_map_init (UberHeatMap *map) /* IN */
 	mask |= GDK_LEAVE_NOTIFY_MASK;
 	mask |= GDK_POINTER_MOTION_MASK;
 	gtk_widget_set_events(GTK_WIDGET(map), mask);
+	/*
+	 * Setup callback to retrieve next set of values.
+	 */
+	uber_heat_map_set_fps(map, 20);
 }
