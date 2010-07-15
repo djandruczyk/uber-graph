@@ -1091,6 +1091,18 @@ uber_heat_map_size_request (GtkWidget      *widget, /* IN */
 	req->height = 50;
 }
 
+static void
+uber_heat_map_destroy_array (gpointer data)
+{
+	GArray **ar = data;
+
+	g_return_if_fail(data != NULL);
+
+	if (*ar) {
+		g_array_unref(*ar);
+	}
+}
+
 /**
  * uber_heat_map_finalize:
  * @object: A #UberHeatMap.
@@ -1172,7 +1184,7 @@ uber_heat_map_init (UberHeatMap *map) /* IN */
 	priv->active_row = -1;
 	priv->stride = 60; /* TODO: Allow to be changed */
 	priv->ring = g_ring_sized_new(sizeof(GArray*), priv->stride,
-	                              (GDestroyNotify)g_array_unref);
+	                              uber_heat_map_destroy_array);
 	uber_heat_map_set_block_size(map, 20, TRUE, 10, TRUE);
 	/*
 	 * Enable required GdkEvents.
