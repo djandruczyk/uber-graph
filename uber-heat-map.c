@@ -384,8 +384,6 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
-	g_debug("Render FG");
-
 	priv = map->priv;
 	gdk_color_parse("#204a87", &color);
 	gdk_color_parse("#fce94f", &hl_color);
@@ -1089,8 +1087,8 @@ uber_heat_map_size_request (GtkWidget      *widget, /* IN */
 	g_return_if_fail(UBER_IS_HEAT_MAP(widget));
 
 	priv = UBER_HEAT_MAP(widget)->priv;
-	req->width = priv->y_tick_rect.width + priv->col_count;
-	req->height = priv->x_tick_rect.height + priv->row_count;
+	req->width = 150;
+	req->height = 50;
 }
 
 /**
