@@ -23,7 +23,37 @@
 
 G_BEGIN_DECLS
 
+/**
+ * g_ring_append_val:
+ * @ring: A #GRing.
+ * @val: A value to append to the #GRing.
+ *
+ * Appends a value to the ring buffer.  @val must be a variable as it is
+ * referenced to.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
 #define g_ring_append_val(ring, val) g_ring_append_vals(ring, &(val), 1)
+
+/**
+ * g_ring_get_index:
+ * @ring: A #GRing.
+ * @type: The type to extract.
+ * @i: The index within the #GRing relative to the current position.
+ *
+ * Retrieves the value at the given index from the #GRing.  The value
+ * is cast to @type.  You may retrieve a pointer to the value within the
+ * array by using &.
+ *
+ * [[
+ * gdouble *v = &g_ring_get_index(ring, gdouble, 0);
+ * gdouble v = g_ring_get_index(ring, gdouble, 0);
+ * ]]
+ *
+ * Returns: The value at the given index.
+ * Side effects: None.
+ */
 #define g_ring_get_index(ring, type, i)                               \
     (((type*)(ring)->data)[(((gint)(ring)->pos - 1 - (i)) >= 0) ?     \
                             ((ring)->pos - 1 - (i)) :                 \
