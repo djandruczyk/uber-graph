@@ -67,8 +67,6 @@ struct _UberHeatMapClass
 
 GType      uber_heat_map_get_type       (void) G_GNUC_CONST;
 GtkWidget* uber_heat_map_new            (void);
-void       uber_heat_map_set_stride     (UberHeatMap     *map,
-                                         gint             stride);
 void       uber_heat_map_set_x_range    (UberHeatMap     *map,
                                          const UberRange *x_range);
 void       uber_heat_map_set_y_range    (UberHeatMap     *map,

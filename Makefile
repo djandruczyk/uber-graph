@@ -46,6 +46,7 @@ OBJECTS =								\
 	uber-buffer.o							\
 	uber-label.o							\
 	uber-heat-map.o							\
+	g-ring.o							\
 	main.o								\
 	$(NULL)
 

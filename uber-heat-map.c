@@ -22,6 +22,7 @@
 
 #include <math.h>
 
+#include "g-ring.h"
 #include "uber-heat-map.h"
 
 #define WIDGET ((GtkWidgetClass *)uber_heat_map_parent_class)
@@ -72,17 +73,22 @@ struct _UberHeatMapPrivate
 	GdkRectangle     x_tick_rect;
 	GdkRectangle     y_tick_rect;
 	gint             tick_len;
+
 	UberRange        x_range;
 	UberRange        y_range;
+
 	gint             width_block_size;
 	gboolean         width_is_count;
 	gint             height_block_size;
 	gboolean         height_is_count;
 	gdouble          cur_block_width;
 	gdouble          cur_block_height;
+
 	UberHeatMapFunc  value_func;
 	gpointer         value_user_data;
 	GDestroyNotify   value_notify;
+
+	GRing           *ring;
 };
 
 /**
@@ -366,15 +372,19 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	GdkRectangle area;
 	gint xcount;
 	gint ycount;
+#if 0
 	gint ix;
 	gint iy;
+	gdouble alpha;
+#endif
 	gdouble block_width;
 	gdouble block_height;
-	gdouble alpha;
 	GdkColor color;
 	GdkColor hl_color;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+
+	g_debug("Render FG");
 
 	priv = map->priv;
 	gdk_color_parse("#204a87", &color);
@@ -417,9 +427,11 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	/*
 	 * Render the contents for the various blocks.
 	 */
+#if 0
 	for (ix = 0; ix < xcount; ix++) {
 		for (iy = 0; iy < ycount; iy++) {
-			alpha = g_random_double_range(0., 1.);
+			//alpha = g_random_double_range(0., 1.);
+			alpha = ix / (gfloat)xcount;
 			/*
 			 * Render the foreground.
 			 */
@@ -450,6 +462,7 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 			cairo_fill(priv->hl_cairo);
 		}
 	}
+#endif
 	/*
 	 * Cleanup after resources.
 	 */
@@ -564,7 +577,7 @@ uber_heat_map_render_bg (UberHeatMap *map) /* IN */
 	gdk_cairo_set_source_color(priv->bg_cairo, &style->bg[GTK_STATE_NORMAL]);
 	cairo_fill(priv->bg_cairo);
 	/*
-	 * Render the content background.
+	 * Clear the background.
 	 */
 	cairo_rectangle(priv->bg_cairo,
 	                priv->content_rect.x + .5,
@@ -813,6 +826,9 @@ uber_heat_map_append (UberHeatMap *map,    /* IN */
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
 	priv = map->priv;
+	g_ring_append_val(priv->ring, values);
+	priv->fg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(map));
 }
 
 /**
@@ -1156,7 +1172,9 @@ uber_heat_map_init (UberHeatMap *map) /* IN */
 	priv->tick_len = 10;
 	priv->active_column = -1;
 	priv->active_row = -1;
-	priv->stride = 60;
+	priv->stride = 60; /* TODO: Allow to be changed */
+	priv->ring = g_ring_sized_new(sizeof(GArray*), priv->stride,
+	                              (GDestroyNotify)g_array_unref);
 	uber_heat_map_set_block_size(map, 20, TRUE, 10, TRUE);
 	/*
 	 * Enable required GdkEvents.
