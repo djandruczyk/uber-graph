@@ -25,5 +25,9 @@ GRing - A small circular buffer meant for values in the realtime graphs.  This
 
            or
 
-           GRing *ring = g_ring_sized_new(sizeof(GArray*), 60, (GDestroyNotify)g_array_unref);
+           static void free_array_func (gpointer data) {
+           	GArray **ar = data;
+           	g_array_unref(*ar);
+           }
+           GRing *ring = g_ring_sized_new(sizeof(GArray*), 60, free_array_func);
 
