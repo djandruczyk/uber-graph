@@ -373,7 +373,7 @@ next_net (void)
 	int fd;
 	int i;
 	int l = 0;
-	gulong dummy1, dummy2, dummy3, dummy4, dummy5, dummy6, dummy7;
+	gulong dummy;
 	gulong bytesIn = 0;
 	gulong bytesOut = 0;
 	gdouble totalIn = 0;
@@ -395,8 +395,8 @@ next_net (void)
 			buf[i] = '\0';
 			if (++l > 2) { // ignore first two lines
 				if (sscanf(line, "%s %lu %lu %lu %lu %lu %lu %lu %lu %lu",
-				           iface, &bytesIn, &dummy1, &dummy2, &dummy3, &dummy4,
-				           &dummy5, &dummy6, &dummy7, &bytesOut) != 10) {
+				           iface, &bytesIn, &dummy, &dummy, &dummy, &dummy,
+					   &dummy, &dummy, &dummy, &bytesOut) != 10) {
 					g_warning("Skipping invalid line: %s", line);
 				} else if (g_strcmp0(iface, "lo") != 0) {
 					totalIn += bytesIn;
