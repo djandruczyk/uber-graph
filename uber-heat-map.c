@@ -56,6 +56,7 @@ struct _UberHeatMapPrivate
 	cairo_t         *hl_cairo;
 	gboolean         bg_dirty;
 	gboolean         fg_dirty;
+	gboolean         full_draw;
 	gboolean         have_rgba;
 	gboolean         in_hover;
 	gint             fps;
@@ -359,24 +360,27 @@ uber_heat_map_calculate_rects (UberHeatMap *map) /* IN */
 /**
  * uber_heat_map_render_fg:
  * @map: A #UberHeatMap.
+ * @full_draw: Redraw the entire contents.
  *
- * XXX
+ * Renders the foreground.  If @full_draw is %TRUE, then we will draw the
+ * entire contents rather than shift the current data and draw just the new
+ * content.
  *
  * Returns: None.
  * Side effects: None.
  */
 static void
-uber_heat_map_render_fg (UberHeatMap *map) /* IN */
+uber_heat_map_render_fg (UberHeatMap *map,       /* IN */
+                         gboolean     full_draw) /* IN */
 {
 	UberHeatMapPrivate *priv;
+	GtkAllocation alloc;
 	GdkRectangle area;
 	gint xcount;
 	gint ycount;
-#if 0
 	gint ix;
 	gint iy;
 	gdouble alpha;
-#endif
 	gdouble block_width;
 	gdouble block_height;
 	GdkColor color;
@@ -385,6 +389,7 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
 
 	priv = map->priv;
+	gtk_widget_get_allocation(GTK_WIDGET(map), &alloc);
 	gdk_color_parse("#204a87", &color);
 	gdk_color_parse("#fce94f", &hl_color);
 	cairo_save(priv->fg_cairo);
@@ -422,20 +427,40 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 		ycount = priv->content_rect.height / (gdouble)priv->row_count;
 	}
 	block_height = priv->cur_block_height;
+	cairo_set_antialias(priv->fg_cairo, CAIRO_ANTIALIAS_NONE);
+	cairo_set_antialias(priv->hl_cairo, CAIRO_ANTIALIAS_NONE);
 	/*
 	 * Render the contents for the various blocks.
 	 */
-#if 0
 	for (ix = 0; ix < xcount; ix++) {
 		for (iy = 0; iy < ycount; iy++) {
-			//alpha = g_random_double_range(0., 1.);
-			alpha = ix / (gfloat)xcount;
+			alpha = g_random_double_range(0., 1.);
+			//alpha = ix / (gfloat)xcount;
+			/*
+			 * Clear existing content.
+			 */
+			cairo_rectangle(priv->fg_cairo,
+			                GDK_RECTANGLE_RIGHT(area) - (ix * block_width) - block_width,
+			                GDK_RECTANGLE_BOTTOM(area) - (iy * block_height) - block_height,
+			                block_width,
+			                block_height);
+			cairo_set_operator(priv->fg_cairo, CAIRO_OPERATOR_CLEAR);
+			cairo_fill(priv->fg_cairo);
+			cairo_rectangle(priv->hl_cairo,
+			                GDK_RECTANGLE_RIGHT(area) - (ix * block_width) - block_width,
+			                GDK_RECTANGLE_BOTTOM(area) - (iy * block_height) - block_height,
+			                block_width,
+			                block_height);
+			cairo_set_operator(priv->hl_cairo, CAIRO_OPERATOR_CLEAR);
+			cairo_fill(priv->hl_cairo);
+			cairo_set_operator(priv->fg_cairo, CAIRO_OPERATOR_OVER);
+			cairo_set_operator(priv->hl_cairo, CAIRO_OPERATOR_OVER);
 			/*
 			 * Render the foreground.
 			 */
 			cairo_rectangle(priv->fg_cairo,
-			                area.x + (ix * block_width),
-			                area.y + (iy * block_height),
+			                GDK_RECTANGLE_RIGHT(area) - (ix * block_width) - block_width,
+			                GDK_RECTANGLE_BOTTOM(area) - (iy * block_height) - block_height,
 			                block_width,
 			                block_height);
 			cairo_set_source_rgba(priv->fg_cairo,
@@ -448,8 +473,8 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 			 * Render the highlight.
 			 */
 			cairo_rectangle(priv->hl_cairo,
-			                area.x + (ix * block_width),
-			                area.y + (iy * block_height),
+			                GDK_RECTANGLE_RIGHT(area) - (ix * block_width) - block_width,
+			                GDK_RECTANGLE_BOTTOM(area) - (iy * block_height) - block_height,
 			                block_width,
 			                block_height);
 			cairo_set_source_rgba(priv->hl_cairo,
@@ -459,8 +484,10 @@ uber_heat_map_render_fg (UberHeatMap *map) /* IN */
 			                      alpha);
 			cairo_fill(priv->hl_cairo);
 		}
+		if (!full_draw) {
+			break;
+		}
 	}
-#endif
 	/*
 	 * Cleanup after resources.
 	 */
@@ -633,8 +660,9 @@ uber_heat_map_expose_event (GtkWidget      *widget, /* IN */
 		priv->bg_dirty = FALSE;
 	}
 	if (priv->fg_dirty) {
-		uber_heat_map_render_fg(UBER_HEAT_MAP(widget));
+		uber_heat_map_render_fg(UBER_HEAT_MAP(widget), priv->full_draw);
 		priv->fg_dirty = FALSE;
+		priv->full_draw = FALSE;
 	}
 	/*
 	 * Draw contents to widget surface using cairo.
@@ -952,6 +980,7 @@ uber_heat_map_size_allocate (GtkWidget     *widget, /* IN */
 	uber_heat_map_set_fps(UBER_HEAT_MAP(widget), priv->fps);
 	priv->bg_dirty = TRUE;
 	priv->fg_dirty = TRUE;
+	priv->full_draw = TRUE;
 }
 
 /**
@@ -1091,8 +1120,17 @@ uber_heat_map_size_request (GtkWidget      *widget, /* IN */
 	req->height = 50;
 }
 
+/**
+ * uber_heat_map_destroy_array:
+ * @data: A pointer to a #GArray.
+ *
+ * Frees a GArray after it has been released from the #GRing.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
 static void
-uber_heat_map_destroy_array (gpointer data)
+uber_heat_map_destroy_array (gpointer data) /* IN */
 {
 	GArray **ar = data;
 
