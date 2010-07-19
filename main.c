@@ -228,14 +228,14 @@ static inline GtkWidget*
 create_graph (void)
 {
 	GtkWidget *graph;
-	GtkWidget *align;
+	//GtkWidget *align;
 
 	graph = uber_graph_new();
-	align = gtk_alignment_new(.5, .5, 1., 1.);
-	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 6, 0);
-	gtk_container_add(GTK_CONTAINER(align), graph);
-	gtk_box_pack_start(GTK_BOX(vbox), align, TRUE, TRUE, 0);
-	gtk_widget_show(align);
+	//align = gtk_alignment_new(.5, .5, 1., 1.);
+	//gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 6, 0);
+	//gtk_container_add(GTK_CONTAINER(align), graph);
+	//gtk_box_pack_start(GTK_BOX(vbox), align, TRUE, TRUE, 0);
+	//gtk_widget_show(align);
 	gtk_widget_show(graph);
 	return graph;
 }
@@ -615,11 +615,15 @@ create_main_window (void)
 	gtk_container_add(GTK_CONTAINER(window), vbox);
 	gtk_widget_show(vbox);
 
+	hbox = gtk_hbox_new(FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_widget_show(hbox);
+
 	cpu_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(cpu_label), "<b>CPU</b>");
-	gtk_box_pack_start(GTK_BOX(vbox), cpu_label, FALSE, TRUE, 0);
-	gtk_misc_set_alignment(GTK_MISC(cpu_label), .0, .5);
-	g_object_set(cpu_label, "xpad", 70, NULL);
+	gtk_box_pack_start(GTK_BOX(hbox), cpu_label, FALSE, FALSE, 0);
+	gtk_misc_set_alignment(GTK_MISC(cpu_label), .5, .5);
+	g_object_set(cpu_label, "angle", 90., NULL);
 	gtk_widget_show(cpu_label);
 
 	#define SET_LINE_COLOR(g, n, c) \
@@ -630,6 +634,7 @@ create_main_window (void)
 		} G_STMT_END
 
 	cpu_graph = create_graph();
+	gtk_box_pack_start(GTK_BOX(hbox), cpu_graph, TRUE, TRUE, 0);
 	uber_graph_set_format(UBER_GRAPH(cpu_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), FALSE);
 	uber_graph_set_yrange(UBER_GRAPH(cpu_graph), &cpu_range);
@@ -651,14 +656,19 @@ create_main_window (void)
 	}
 	gtk_widget_show(hbox);
 
+	hbox = gtk_hbox_new(FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_widget_show(hbox);
+
 	load_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(load_label), "<b>Load</b>");
-	g_object_set(load_label, "xpad", 70, NULL);
-	gtk_box_pack_start(GTK_BOX(vbox), load_label, FALSE, TRUE, 0);
+	g_object_set(load_label, "angle", 90., NULL);
+	gtk_box_pack_start(GTK_BOX(hbox), load_label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(load_label), .0, .5);
 	gtk_widget_show(load_label);
 
 	load_graph = create_graph();
+	gtk_box_pack_start(GTK_BOX(hbox), load_graph, TRUE, TRUE, 0);
 	uber_graph_set_yautoscale(UBER_GRAPH(load_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(load_graph));
 	uber_graph_add_line(UBER_GRAPH(load_graph));
@@ -677,14 +687,19 @@ create_main_window (void)
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(load_graph), 3);
 	gtk_widget_show(hbox);
 
+	hbox = gtk_hbox_new(FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_widget_show(hbox);
+
 	net_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(net_label), "<b>Network</b>");
-	g_object_set(net_label, "xpad", 70, NULL);
-	gtk_box_pack_start(GTK_BOX(vbox), net_label, FALSE, TRUE, 0);
+	g_object_set(net_label, "angle", 90., NULL);
+	gtk_box_pack_start(GTK_BOX(hbox), net_label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(net_label), .0, .5);
 	gtk_widget_show(net_label);
 
 	net_graph = create_graph();
+	gtk_box_pack_start(GTK_BOX(hbox), net_graph, TRUE, TRUE, 0);
 	uber_graph_set_format(UBER_GRAPH(net_graph), UBER_GRAPH_DIRECT1024);
 	uber_graph_set_yautoscale(UBER_GRAPH(net_graph), TRUE);
 	uber_graph_add_line(UBER_GRAPH(net_graph));
@@ -700,14 +715,19 @@ create_main_window (void)
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(net_graph), 2);
 	gtk_widget_show(hbox);
 
+	hbox = gtk_hbox_new(FALSE, 3);
+	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_widget_show(hbox);
+
 	mem_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(mem_label), "<b>Memory</b>");
-	g_object_set(mem_label, "xpad", 70, NULL);
-	gtk_box_pack_start(GTK_BOX(vbox), mem_label, FALSE, TRUE, 0);
+	g_object_set(mem_label, "angle", 90., NULL);
+	gtk_box_pack_start(GTK_BOX(hbox), mem_label, FALSE, TRUE, 0);
 	gtk_misc_set_alignment(GTK_MISC(mem_label), .0, .5);
 	gtk_widget_show(mem_label);
 
 	mem_graph = create_graph();
+	gtk_box_pack_start(GTK_BOX(hbox), mem_graph, TRUE, TRUE, 0);
 	uber_graph_set_format(UBER_GRAPH(mem_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), FALSE);
 	uber_graph_add_line(UBER_GRAPH(mem_graph));
