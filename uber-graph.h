@@ -122,6 +122,8 @@ void            uber_graph_set_line_color (UberGraph       *graph,
                                            const GdkColor  *color);
 void            uber_graph_set_scale      (UberGraph       *graph,
                                            UberScale        scale);
+void            uber_graph_set_show_xlabel(UberGraph       *graph,
+                                           gboolean         xlabel);
 void            uber_graph_set_stride     (UberGraph       *graph,
                                            gint             stride);
 void            uber_graph_set_value_func (UberGraph       *graph,

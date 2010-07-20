@@ -246,12 +246,15 @@ button_pressed (GtkWidget      *graph,
 	}
 	if (graph == cpu_graph) {
 		show_cpu = !gtk_widget_get_visible(cpu_label_hbox);
+		uber_graph_set_show_xlabel(UBER_GRAPH(cpu_graph), show_cpu);
 	} else if (graph == net_graph) {
 		show_net = !gtk_widget_get_visible(net_label_hbox);
+		uber_graph_set_show_xlabel(UBER_GRAPH(net_graph), show_net);
 	} else if (graph == mem_graph) {
 		show_mem = !gtk_widget_get_visible(mem_label_hbox);
 	} else if (graph == load_graph) {
 		show_load = !gtk_widget_get_visible(load_label_hbox);
+		uber_graph_set_show_xlabel(UBER_GRAPH(load_graph), show_load);
 	}
 	gtk_widget_set_visible(cpu_label_hbox, show_cpu);
 	gtk_widget_set_visible(mem_label_hbox, show_mem);
@@ -770,6 +773,7 @@ create_main_window (void)
 	gtk_widget_show(mem_label);
 
 	mem_graph = create_graph();
+	uber_graph_set_show_xlabel(UBER_GRAPH(mem_graph), TRUE);
 	gtk_box_pack_start(GTK_BOX(hbox), mem_graph, TRUE, TRUE, 0);
 	uber_graph_set_format(UBER_GRAPH(mem_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(mem_graph), FALSE);

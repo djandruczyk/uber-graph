@@ -180,6 +180,7 @@ struct _UberGraphPrivate
 	gboolean          fg_dirty;        /* Do we need to update the foreground. */
 	gboolean          yautoscale;      /* Should the graph autoscale to handle values
 	                                    * outside the current range. */
+	gboolean          show_xlabel;     /* Should the xlabels be shown. */
 	gboolean          have_rgba;       /* Do we have RGBA colormaps. */
 	GdkGC            *bg_gc;           /* Drawing context for blitting background */
 	GdkGC            *fg_gc;           /* Drawing context for blitting foreground */
@@ -909,10 +910,17 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	/*
 	 * Calculate the X-Axis tick area.
 	 */
-	priv->x_tick_rect.height = priv->tick_len + tick_h;
-	priv->x_tick_rect.x = priv->tick_len + tick_w + 3;
-	priv->x_tick_rect.width = alloc.width - priv->x_tick_rect.x;
-	priv->x_tick_rect.y = alloc.height - priv->x_tick_rect.height;
+	if (priv->show_xlabel) {
+		priv->x_tick_rect.height = priv->tick_len + tick_h;
+		priv->x_tick_rect.x = priv->tick_len + tick_w + 3;
+		priv->x_tick_rect.width = alloc.width - priv->x_tick_rect.x;
+		priv->x_tick_rect.y = alloc.height - priv->x_tick_rect.height;
+	} else {
+		priv->x_tick_rect.height = priv->tick_len;
+		priv->x_tick_rect.x = priv->tick_len + tick_w + 3;
+		priv->x_tick_rect.width = alloc.width - priv->x_tick_rect.x;
+		priv->x_tick_rect.y = alloc.height - priv->x_tick_rect.height;
+	}
 	/*
 	 * Calculate the Y-Axis tick area.
 	 */
@@ -982,7 +990,9 @@ uber_graph_render_bg_x_ticks (UberGraph *graph, /* IN */
 		                       priv->content_rect.x + priv->content_rect.width - (int)(o * (priv->x_tick_rect.width / (gfloat)n_lines)) + .5 - (w / 2), \
 	                           priv->content_rect.y + priv->content_rect.height + priv->tick_len + 5); \
 	        } \
-	        pango_cairo_show_layout(info->bg_cairo, info->tick_layout);      \
+	        if (priv->show_xlabel) { \
+	            pango_cairo_show_layout(info->bg_cairo, info->tick_layout);      \
+			} \
 	        g_free(_v_str);                                                  \
 		} G_STMT_END
 
@@ -2051,6 +2061,32 @@ uber_graph_size_request (GtkWidget      *widget, /* IN */
 
 	req->width = 150;
 	req->height = 50;
+}
+
+/**
+ * uber_graph_set_show_xlabel:
+ * @graph: A #UberGraph.
+ * @xlabel: Should the xlabel be shown.
+ *
+ * Sets if the xlabel should be shown.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_show_xlabel (UberGraph *graph,  /* IN */
+                            gboolean   xlabel) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->show_xlabel = xlabel;
+	priv->fg_dirty = TRUE;
+	priv->bg_dirty = TRUE;
+	uber_graph_calculate_rects(graph);
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
 
 /**
