@@ -101,6 +101,10 @@ static SchedInfo  sched_info = { 0 };
 static ThreadInfo thread_info= { 0 };
 static GtkWidget *load_graph = NULL;
 static GtkWidget *cpu_graph  = NULL;
+static GtkWidget *cpu_label_hbox = NULL;
+static GtkWidget *net_label_hbox = NULL;
+static GtkWidget *mem_label_hbox = NULL;
+static GtkWidget *load_label_hbox = NULL;
 static GtkWidget *net_graph  = NULL;
 static GtkWidget *mem_graph  = NULL;
 static gboolean   reaped     = FALSE;
@@ -224,6 +228,38 @@ get_threads (UberGraph *graph,
 	return TRUE;
 }
 
+static gboolean
+button_pressed (GtkWidget      *graph,
+                GdkEventButton *button,
+                gpointer        user_data)
+{
+	gboolean show_cpu = FALSE;
+	gboolean show_mem = FALSE;
+	gboolean show_load = FALSE;
+	gboolean show_net = FALSE;
+
+	if (button->button != 1) {
+		return FALSE;
+	}
+	if (button->type != GDK_BUTTON_PRESS) {
+		return FALSE;
+	}
+	if (graph == cpu_graph) {
+		show_cpu = !gtk_widget_get_visible(cpu_label_hbox);
+	} else if (graph == net_graph) {
+		show_net = !gtk_widget_get_visible(net_label_hbox);
+	} else if (graph == mem_graph) {
+		show_mem = !gtk_widget_get_visible(mem_label_hbox);
+	} else if (graph == load_graph) {
+		show_load = !gtk_widget_get_visible(load_label_hbox);
+	}
+	gtk_widget_set_visible(cpu_label_hbox, show_cpu);
+	gtk_widget_set_visible(mem_label_hbox, show_mem);
+	gtk_widget_set_visible(net_label_hbox, show_net);
+	gtk_widget_set_visible(load_label_hbox, show_load);
+	return FALSE;
+}
+
 static inline GtkWidget*
 create_graph (void)
 {
@@ -236,6 +272,11 @@ create_graph (void)
 	//gtk_container_add(GTK_CONTAINER(align), graph);
 	//gtk_box_pack_start(GTK_BOX(vbox), align, TRUE, TRUE, 0);
 	//gtk_widget_show(align);
+	gtk_widget_set_events(graph, GDK_BUTTON_PRESS_MASK);
+	g_signal_connect(graph,
+	                 "button-press-event",
+	                 G_CALLBACK(button_pressed),
+	                 NULL);
 	gtk_widget_show(graph);
 	return graph;
 }
@@ -581,12 +622,11 @@ new_label_container (void)
 	GtkWidget *hbox;
 
 	align = gtk_alignment_new(.5, .5, 1., 1.);
-	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 6, 12, 70, 0);
+	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 70, 0);
 	hbox = gtk_hbox_new(TRUE, 6);
 	gtk_container_add(GTK_CONTAINER(align), hbox);
 	gtk_box_pack_start(GTK_BOX(vbox), align, FALSE, TRUE, 0);
 	gtk_widget_show(align);
-	gtk_widget_show(hbox);
 	return hbox;
 }
 
@@ -600,8 +640,10 @@ create_main_window (void)
 	GtkWidget *mem_label;
 	GtkWidget *hbox;
 	GtkWidget *label;
+#if 0
 	GtkWidget *heat;
 	GtkWidget *heat2;
+#endif
 	UberRange cpu_range = { 0., 100., 100. };
 	gint i;
 
@@ -655,6 +697,7 @@ create_main_window (void)
 		g_free(text);
 	}
 	gtk_widget_show(hbox);
+	cpu_label_hbox = hbox;
 
 	hbox = gtk_hbox_new(FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
@@ -685,7 +728,7 @@ create_main_window (void)
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(load_graph), 2);
 	label = add_label(hbox, "15 Minute Average", "#cc0000");
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(load_graph), 3);
-	gtk_widget_show(hbox);
+	load_label_hbox = hbox;
 
 	hbox = gtk_hbox_new(FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
@@ -713,7 +756,7 @@ create_main_window (void)
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(net_graph), 1);
 	label = add_label(hbox, "Bytes Out", "#4e9a06");
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(net_graph), 2);
-	gtk_widget_show(hbox);
+	net_label_hbox = hbox;
 
 	hbox = gtk_hbox_new(FALSE, 3);
 	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
@@ -741,8 +784,9 @@ create_main_window (void)
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(mem_graph), 1);
 	label = add_label(hbox, "Swap Free", "#8ae234");
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(mem_graph), 2);
-	gtk_widget_show(hbox);
+	mem_label_hbox = hbox;
 
+#if 0
 	heat = uber_heat_map_new();
 	uber_heat_map_set_block_size(UBER_HEAT_MAP(heat),
 	                             60, TRUE,
@@ -756,6 +800,7 @@ create_main_window (void)
 	                             5, TRUE);
 	gtk_container_add(GTK_CONTAINER(vbox), heat2);
 	gtk_widget_show(heat2);
+#endif
 
 	next_load();
 	next_cpu();
