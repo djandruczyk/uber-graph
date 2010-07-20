@@ -246,20 +246,20 @@ button_pressed (GtkWidget      *graph,
 	}
 	if (graph == cpu_graph) {
 		show_cpu = !gtk_widget_get_visible(cpu_label_hbox);
-		uber_graph_set_show_xlabel(UBER_GRAPH(cpu_graph), show_cpu);
 	} else if (graph == net_graph) {
 		show_net = !gtk_widget_get_visible(net_label_hbox);
-		uber_graph_set_show_xlabel(UBER_GRAPH(net_graph), show_net);
 	} else if (graph == mem_graph) {
 		show_mem = !gtk_widget_get_visible(mem_label_hbox);
 	} else if (graph == load_graph) {
 		show_load = !gtk_widget_get_visible(load_label_hbox);
-		uber_graph_set_show_xlabel(UBER_GRAPH(load_graph), show_load);
 	}
 	gtk_widget_set_visible(cpu_label_hbox, show_cpu);
 	gtk_widget_set_visible(mem_label_hbox, show_mem);
 	gtk_widget_set_visible(net_label_hbox, show_net);
 	gtk_widget_set_visible(load_label_hbox, show_load);
+	uber_graph_set_show_xlabel(UBER_GRAPH(load_graph), show_load);
+	uber_graph_set_show_xlabel(UBER_GRAPH(net_graph), show_net);
+	uber_graph_set_show_xlabel(UBER_GRAPH(cpu_graph), show_cpu);
 	return FALSE;
 }
 
