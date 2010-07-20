@@ -625,8 +625,8 @@ new_label_container (void)
 	GtkWidget *hbox;
 
 	align = gtk_alignment_new(.5, .5, 1., 1.);
-	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 70, 0);
-	hbox = gtk_hbox_new(TRUE, 6);
+	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 83, 0);
+	hbox = gtk_hbox_new(TRUE, 0);
 	gtk_container_add(GTK_CONTAINER(align), hbox);
 	gtk_box_pack_start(GTK_BOX(vbox), align, FALSE, TRUE, 0);
 	gtk_widget_show(align);
