@@ -628,7 +628,7 @@ new_label_container (void)
 	gtk_alignment_set_padding(GTK_ALIGNMENT(align), 0, 0, 83, 0);
 	hbox = gtk_hbox_new(TRUE, 0);
 	gtk_container_add(GTK_CONTAINER(align), hbox);
-	gtk_box_pack_start(GTK_BOX(vbox), align, FALSE, TRUE, 0);
+	//gtk_box_pack_start(GTK_BOX(vbox), align, FALSE, TRUE, 0);
 	gtk_widget_show(align);
 	return hbox;
 }
@@ -643,6 +643,7 @@ create_main_window (void)
 	GtkWidget *mem_label;
 	GtkWidget *hbox;
 	GtkWidget *label;
+	GtkWidget *group;
 #if 0
 	GtkWidget *heat;
 	GtkWidget *heat2;
@@ -656,13 +657,16 @@ create_main_window (void)
 	gtk_window_set_default_size(GTK_WINDOW(window), 640, 480);
 	gtk_widget_show(window);
 
-	vbox = gtk_vbox_new(FALSE, 6);
+	vbox = gtk_vbox_new(TRUE, 6);
 	gtk_container_add(GTK_CONTAINER(window), vbox);
 	gtk_widget_show(vbox);
 
+	group = gtk_vbox_new(FALSE, 3);
 	hbox = gtk_hbox_new(FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), group, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(group), hbox, TRUE, TRUE, 0);
 	gtk_widget_show(hbox);
+	gtk_widget_show(group);
 
 	cpu_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(cpu_label), "<b>CPU</b>");
@@ -680,6 +684,7 @@ create_main_window (void)
 
 	cpu_graph = create_graph();
 	gtk_box_pack_start(GTK_BOX(hbox), cpu_graph, TRUE, TRUE, 0);
+	uber_graph_set_show_xlabel(UBER_GRAPH(cpu_graph), TRUE);
 	uber_graph_set_format(UBER_GRAPH(cpu_graph), UBER_GRAPH_PERCENT);
 	uber_graph_set_yautoscale(UBER_GRAPH(cpu_graph), FALSE);
 	uber_graph_set_yrange(UBER_GRAPH(cpu_graph), &cpu_range);
@@ -688,6 +693,7 @@ create_main_window (void)
 	uber_graph_set_value_func(UBER_GRAPH(cpu_graph), get_cpu, NULL, NULL);
 
 	hbox = new_label_container();
+	gtk_box_pack_start(GTK_BOX(group), gtk_widget_get_parent(hbox), FALSE, TRUE, 0);
 	//add_label(hbox, "Total CPU", "#2e3436");
 	for (i = 1; i <= get_nprocs(); i++) {
 		char *text = g_strdup_printf("CPU%d", i);
@@ -702,9 +708,12 @@ create_main_window (void)
 	gtk_widget_show(hbox);
 	cpu_label_hbox = hbox;
 
+	group = gtk_vbox_new(FALSE, 3);
 	hbox = gtk_hbox_new(FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(group), hbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), group, TRUE, TRUE, 0);
 	gtk_widget_show(hbox);
+	gtk_widget_show(group);
 
 	load_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(load_label), "<b>Load</b>");
@@ -725,6 +734,7 @@ create_main_window (void)
 	uber_graph_set_value_func(UBER_GRAPH(load_graph), get_load, NULL, NULL);
 
 	hbox = new_label_container();
+	gtk_box_pack_start(GTK_BOX(group), gtk_widget_get_parent(hbox), FALSE, TRUE, 0);
 	label = add_label(hbox, "5 Minute Average", "#4e9a06");
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(load_graph), 1);
 	label = add_label(hbox, "10 Minute Average", "#f57900");
@@ -733,9 +743,12 @@ create_main_window (void)
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(load_graph), 3);
 	load_label_hbox = hbox;
 
+	group = gtk_vbox_new(FALSE, 3);
 	hbox = gtk_hbox_new(FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(group), hbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), group, TRUE, TRUE, 0);
 	gtk_widget_show(hbox);
+	gtk_widget_show(group);
 
 	net_label = gtk_label_new(NULL);
 	gtk_label_set_markup(GTK_LABEL(net_label), "<b>Network</b>");
@@ -755,14 +768,18 @@ create_main_window (void)
 	uber_graph_set_value_func(UBER_GRAPH(net_graph), get_net, NULL, NULL);
 
 	hbox = new_label_container();
+	gtk_box_pack_start(GTK_BOX(group), gtk_widget_get_parent(hbox), FALSE, TRUE, 0);
 	label = add_label(hbox, "Bytes In", "#a40000");
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(net_graph), 1);
 	label = add_label(hbox, "Bytes Out", "#4e9a06");
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(net_graph), 2);
 	net_label_hbox = hbox;
 
+	group = gtk_vbox_new(FALSE, 3);
 	hbox = gtk_hbox_new(FALSE, 3);
-	gtk_box_pack_start(GTK_BOX(vbox), hbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(group), hbox, TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), group, TRUE, TRUE, 0);
+	gtk_widget_show(group);
 	gtk_widget_show(hbox);
 
 	mem_label = gtk_label_new(NULL);
@@ -784,6 +801,7 @@ create_main_window (void)
 	uber_graph_set_value_func(UBER_GRAPH(mem_graph), get_mem, NULL, NULL);
 
 	hbox = new_label_container();
+	gtk_box_pack_start(GTK_BOX(group), gtk_widget_get_parent(hbox), FALSE, TRUE, 0);
 	label = add_label(hbox, "Memory Free", "#3465a4");
 	uber_label_bind_graph(UBER_LABEL(label), UBER_GRAPH(mem_graph), 1);
 	label = add_label(hbox, "Swap Free", "#8ae234");
