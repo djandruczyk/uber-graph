@@ -46,7 +46,7 @@
 
 G_DEFINE_TYPE(UberHeatMap, uber_heat_map, GTK_TYPE_DRAWING_AREA)
 
-struct _UberHeatMapPrivate
+typedef struct
 {
 	GdkPixmap       *bg_pixmap;
 	GdkPixmap       *fg_pixmap;
@@ -54,6 +54,12 @@ struct _UberHeatMapPrivate
 	cairo_t         *bg_cairo;
 	cairo_t         *fg_cairo;
 	cairo_t         *hl_cairo;
+} FlipTexture;
+
+struct _UberHeatMapPrivate
+{
+	FlipTexture      textures[2];
+	gboolean         flipped;
 	gboolean         bg_dirty;
 	gboolean         fg_dirty;
 	gboolean         full_draw;
@@ -74,21 +80,17 @@ struct _UberHeatMapPrivate
 	GdkRectangle     x_tick_rect;
 	GdkRectangle     y_tick_rect;
 	gint             tick_len;
-
 	UberRange        x_range;
 	UberRange        y_range;
-
 	gint             width_block_size;
 	gboolean         width_is_count;
 	gint             height_block_size;
 	gboolean         height_is_count;
 	gdouble          cur_block_width;
 	gdouble          cur_block_height;
-
 	UberHeatMapFunc  value_func;
 	gpointer         value_user_data;
 	GDestroyNotify   value_notify;
-
 	GRing           *ring;
 };
 
@@ -171,7 +173,8 @@ uber_heat_map_get_next_values (UberHeatMap  *map,    /* IN */
  * Side effects: None.
  */
 static void
-uber_heat_map_init_drawables (UberHeatMap *map) /* IN */
+uber_heat_map_init_texture (UberHeatMap *map,     /* IN */
+                            FlipTexture *texture) /* IN */
 {
 	UberHeatMapPrivate *priv;
 	GdkDrawable *drawable;
@@ -179,6 +182,7 @@ uber_heat_map_init_drawables (UberHeatMap *map) /* IN */
 	GdkColormap *colormap;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(texture != NULL);
 
 	priv = map->priv;
 	drawable = gtk_widget_get_window(GTK_WIDGET(map));
@@ -188,34 +192,38 @@ uber_heat_map_init_drawables (UberHeatMap *map) /* IN */
 	/*
 	 * Create server-side pixmaps.
 	 */
-	priv->bg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
+	texture->bg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
 	/*
 	 * If we have RGBA colormaps, we can draw cleanly with cairo.  Otherwise, we
 	 * will need to do more calculation by hand and XOR our content onto the
 	 * surface.
 	 */
 	if (priv->have_rgba) {
-		priv->fg_pixmap = gdk_pixmap_new(NULL, alloc.width, alloc.height, 32);
-		priv->hl_pixmap = gdk_pixmap_new(NULL, alloc.width, alloc.height, 32);
-		gdk_drawable_set_colormap(priv->fg_pixmap, colormap);
-		gdk_drawable_set_colormap(priv->hl_pixmap, colormap);
+		texture->fg_pixmap = gdk_pixmap_new(NULL, alloc.width, alloc.height, 32);
+		texture->hl_pixmap = gdk_pixmap_new(NULL, alloc.width, alloc.height, 32);
+		gdk_drawable_set_colormap(texture->fg_pixmap, colormap);
+		gdk_drawable_set_colormap(texture->hl_pixmap, colormap);
 	} else {
-		priv->fg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
-		priv->hl_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
+		texture->fg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
+		texture->hl_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
 	}
 	/*
 	 * Setup cairo.
 	 */
-	priv->bg_cairo = gdk_cairo_create(priv->bg_pixmap);
-	priv->fg_cairo = gdk_cairo_create(priv->fg_pixmap);
-	priv->hl_cairo = gdk_cairo_create(priv->hl_pixmap);
-	uber_heat_map_clear_cairo(map, priv->fg_cairo, alloc.width, alloc.height);
-	uber_heat_map_clear_cairo(map, priv->hl_cairo, alloc.width, alloc.height);
+	texture->bg_cairo = gdk_cairo_create(texture->bg_pixmap);
+	texture->fg_cairo = gdk_cairo_create(texture->fg_pixmap);
+	texture->hl_cairo = gdk_cairo_create(texture->hl_pixmap);
+	/*
+	 * Clear the content area.
+	 */
+	uber_heat_map_clear_cairo(map, texture->fg_cairo, alloc.width, alloc.height);
+	uber_heat_map_clear_cairo(map, texture->hl_cairo, alloc.width, alloc.height);
 }
 
 /**
- * uber_heat_map_destroy_drawables:
+ * uber_heat_map_destroy_texture:
  * @map: A #UberHeatMap.
+ * @texture: A FlipTexture.
  *
  * Destroys the server-side textures.
  *
@@ -223,37 +231,41 @@ uber_heat_map_init_drawables (UberHeatMap *map) /* IN */
  * Side effects: None.
  */
 static void
-uber_heat_map_destroy_drawables (UberHeatMap *map) /* IN */
+uber_heat_map_destroy_texture (UberHeatMap *map,     /* IN */
+                               FlipTexture *texture) /* IN */
 {
 	UberHeatMapPrivate *priv;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+	g_return_if_fail(texture != NULL);
 
 	priv = map->priv;
-	if (priv->bg_pixmap) {
-		g_object_unref(priv->bg_pixmap);
-		priv->bg_pixmap = NULL;
-	}
-	if (priv->fg_pixmap) {
-		g_object_unref(priv->fg_pixmap);
-		priv->fg_pixmap = NULL;
-	}
-	if (priv->hl_pixmap) {
-		g_object_unref(priv->hl_pixmap);
-		priv->hl_pixmap = NULL;
-	}
-	if (priv->bg_cairo) {
-		cairo_destroy(priv->bg_cairo);
-		priv->bg_cairo = NULL;
-	}
-	if (priv->fg_cairo) {
-		cairo_destroy(priv->fg_cairo);
-		priv->fg_cairo = NULL;
-	}
-	if (priv->hl_cairo) {
-		cairo_destroy(priv->hl_cairo);
-		priv->hl_cairo = NULL;
-	}
+
+	#define UNSET_PIXMAP(p)          \
+	    G_STMT_START {               \
+	        if (p) {                 \
+	            g_object_unref((p)); \
+	            p = NULL;            \
+	        }                        \
+	    } G_STMT_END
+
+	#define UNSET_CAIRO(c)           \
+	    G_STMT_START {               \
+	        if ((c)) {               \
+	            cairo_destroy((c));  \
+	            (c) = NULL;          \
+	        }                        \
+	    } G_STMT_END
+
+	UNSET_PIXMAP(texture->bg_pixmap);
+	UNSET_PIXMAP(texture->fg_pixmap);
+	UNSET_PIXMAP(texture->hl_pixmap);
+	UNSET_CAIRO(texture->bg_cairo);
+	UNSET_CAIRO(texture->fg_cairo);
+	UNSET_CAIRO(texture->hl_cairo);
+
+	#undef UNSET_PIXMAP
+	#undef UNSET_CAIRO
 }
 
 /**
@@ -374,6 +386,8 @@ uber_heat_map_render_fg (UberHeatMap *map,       /* IN */
                          gboolean     full_draw) /* IN */
 {
 	UberHeatMapPrivate *priv;
+	FlipTexture *src;
+	FlipTexture *dst;
 	GtkAllocation alloc;
 	GdkRectangle area;
 	gint xcount;
@@ -392,23 +406,29 @@ uber_heat_map_render_fg (UberHeatMap *map,       /* IN */
 	gtk_widget_get_allocation(GTK_WIDGET(map), &alloc);
 	gdk_color_parse("#204a87", &color);
 	gdk_color_parse("#fce94f", &hl_color);
-	cairo_save(priv->fg_cairo);
-	cairo_save(priv->hl_cairo);
+
+	src = &priv->textures[priv->flipped];
+	dst = &priv->textures[!priv->flipped];
+	priv->flipped = !priv->flipped;
+
+	cairo_save(dst->fg_cairo);
+	cairo_save(dst->hl_cairo);
+
 	/*
-	 * Calculate rendering area.
+	 * Calculate content area (without borders).
 	 */
 	area = priv->content_rect;
 	area.x += 1;
 	area.y += 1;
 	area.width -= 2;
 	area.height -= 2;
+
 	/*
-	 * Set clipping regions.
+	 * Setup context settings.
 	 */
-	gdk_cairo_rectangle(priv->fg_cairo, &area);
-	gdk_cairo_rectangle(priv->hl_cairo, &area);
-	cairo_clip(priv->fg_cairo);
-	cairo_clip(priv->hl_cairo);
+	cairo_set_antialias(dst->fg_cairo, CAIRO_ANTIALIAS_NONE);
+	cairo_set_antialias(dst->hl_cairo, CAIRO_ANTIALIAS_NONE);
+
 	/*
 	 * Calculate the number of x-axis blocks.
 	 */
@@ -418,6 +438,7 @@ uber_heat_map_render_fg (UberHeatMap *map,       /* IN */
 		xcount = priv->content_rect.width / (gdouble)priv->col_count;
 	}
 	block_width = priv->cur_block_width;
+
 	/*
 	 * Calculate the number of y-axis blocks.
 	 */
@@ -427,72 +448,91 @@ uber_heat_map_render_fg (UberHeatMap *map,       /* IN */
 		ycount = priv->content_rect.height / (gdouble)priv->row_count;
 	}
 	block_height = priv->cur_block_height;
-	cairo_set_antialias(priv->fg_cairo, CAIRO_ANTIALIAS_NONE);
-	cairo_set_antialias(priv->hl_cairo, CAIRO_ANTIALIAS_NONE);
+
+	/*
+	 * Clear the destination foreground.
+	 */
+	cairo_save(dst->fg_cairo);
+	cairo_rectangle(dst->fg_cairo, 0, 0, alloc.width, alloc.height);
+	cairo_set_source_rgb(dst->fg_cairo, 0, 0, 0);
+	cairo_set_operator(dst->fg_cairo, CAIRO_OPERATOR_CLEAR);
+	cairo_fill(dst->fg_cairo);
+	cairo_restore(dst->fg_cairo);
+	/*
+	 * Clear the destination highlight.
+	 */
+	cairo_save(dst->hl_cairo);
+	cairo_rectangle(dst->hl_cairo, 0, 0, alloc.width, alloc.height);
+	cairo_set_source_rgb(dst->hl_cairo, 0, 0, 0);
+	cairo_set_operator(dst->hl_cairo, CAIRO_OPERATOR_CLEAR);
+	cairo_fill(dst->hl_cairo);
+	cairo_restore(dst->hl_cairo);
+
+	/*
+	 * Set clip region.
+	 */
+	//gdk_cairo_rectangle(dst->fg_cairo, &area);
+	//cairo_clip(dst->fg_cairo);
+
+	/*
+	 * Draw data shifted if necessary.
+	 */
+	if (!full_draw) {
+		cairo_rectangle(dst->fg_cairo, 0, 0, alloc.width, alloc.height);
+		gdk_cairo_set_source_pixmap(dst->fg_cairo, src->fg_pixmap, -block_width, 0);
+		cairo_paint(dst->fg_cairo);
+	}
 	/*
 	 * Render the contents for the various blocks.
 	 */
 	for (ix = 0; ix < xcount; ix++) {
+		/*
+		 * Draw the column content.
+		 */
 		for (iy = 0; iy < ycount; iy++) {
 			alpha = g_random_double_range(0., 1.);
-			//alpha = ix / (gfloat)xcount;
 			/*
-			 * Clear existing content.
+			 * Set content rectangle path.
 			 */
-			cairo_rectangle(priv->fg_cairo,
+			cairo_rectangle(dst->fg_cairo,
 			                GDK_RECTANGLE_RIGHT(area) - (ix * block_width) - block_width,
 			                GDK_RECTANGLE_BOTTOM(area) - (iy * block_height) - block_height,
 			                block_width,
 			                block_height);
-			cairo_set_operator(priv->fg_cairo, CAIRO_OPERATOR_CLEAR);
-			cairo_fill(priv->fg_cairo);
-			cairo_rectangle(priv->hl_cairo,
+			cairo_rectangle(dst->hl_cairo,
 			                GDK_RECTANGLE_RIGHT(area) - (ix * block_width) - block_width,
 			                GDK_RECTANGLE_BOTTOM(area) - (iy * block_height) - block_height,
 			                block_width,
 			                block_height);
-			cairo_set_operator(priv->hl_cairo, CAIRO_OPERATOR_CLEAR);
-			cairo_fill(priv->hl_cairo);
-			cairo_set_operator(priv->fg_cairo, CAIRO_OPERATOR_OVER);
-			cairo_set_operator(priv->hl_cairo, CAIRO_OPERATOR_OVER);
 			/*
-			 * Render the foreground.
+			 * Set the foreground and highlight color.
 			 */
-			cairo_rectangle(priv->fg_cairo,
-			                GDK_RECTANGLE_RIGHT(area) - (ix * block_width) - block_width,
-			                GDK_RECTANGLE_BOTTOM(area) - (iy * block_height) - block_height,
-			                block_width,
-			                block_height);
-			cairo_set_source_rgba(priv->fg_cairo,
+			cairo_set_source_rgba(dst->fg_cairo,
 			                      color.red / 65535.,
 			                      color.green / 65535.,
 			                      color.blue / 65535.,
 			                      alpha);
-			cairo_fill(priv->fg_cairo);
-			/*
-			 * Render the highlight.
-			 */
-			cairo_rectangle(priv->hl_cairo,
-			                GDK_RECTANGLE_RIGHT(area) - (ix * block_width) - block_width,
-			                GDK_RECTANGLE_BOTTOM(area) - (iy * block_height) - block_height,
-			                block_width,
-			                block_height);
-			cairo_set_source_rgba(priv->hl_cairo,
+			cairo_set_source_rgba(dst->hl_cairo,
 			                      hl_color.red / 65535.,
 			                      hl_color.green / 65535.,
 			                      hl_color.blue / 65535.,
 			                      alpha);
-			cairo_fill(priv->hl_cairo);
+			/*
+			 * Render the rectangle.
+			 */
+			cairo_fill(dst->fg_cairo);
+			cairo_fill(dst->hl_cairo);
 		}
 		if (!full_draw) {
+			//g_debug("Most recent column drawn.  No more columns to draw.");
 			break;
 		}
 	}
 	/*
 	 * Cleanup after resources.
 	 */
-	cairo_restore(priv->fg_cairo);
-	cairo_restore(priv->hl_cairo);
+	cairo_restore(dst->fg_cairo);
+	cairo_restore(dst->hl_cairo);
 }
 
 /**
@@ -586,6 +626,8 @@ uber_heat_map_render_bg (UberHeatMap *map) /* IN */
 {
 	static const gdouble dashes[] = { 1., 2. };
 	UberHeatMapPrivate *priv;
+	FlipTexture *first;
+	FlipTexture *other;
 	GtkAllocation alloc;
 	GtkStyle *style;
 
@@ -594,30 +636,35 @@ uber_heat_map_render_bg (UberHeatMap *map) /* IN */
 	priv = map->priv;
 	style = gtk_widget_get_style(GTK_WIDGET(map));
 	gtk_widget_get_allocation(GTK_WIDGET(map), &alloc);
-	cairo_save(priv->bg_cairo);
+	first = &priv->textures[0];
+	other = &priv->textures[1];
+	/*
+	 * Draw the background onto the first pixmap.
+	 */
+	cairo_save(first->bg_cairo);
 	/*
 	 * Set the background to the default widget bg color.
 	 */
-	cairo_rectangle(priv->bg_cairo, 0, 0, alloc.width, alloc.height);
-	gdk_cairo_set_source_color(priv->bg_cairo, &style->bg[GTK_STATE_NORMAL]);
-	cairo_fill(priv->bg_cairo);
+	cairo_rectangle(first->bg_cairo, 0, 0, alloc.width, alloc.height);
+	gdk_cairo_set_source_color(first->bg_cairo, &style->bg[GTK_STATE_NORMAL]);
+	cairo_fill(first->bg_cairo);
 	/*
 	 * Clear the background.
 	 */
-	cairo_rectangle(priv->bg_cairo,
+	cairo_rectangle(first->bg_cairo,
 	                priv->content_rect.x + .5,
 	                priv->content_rect.y + .5,
 	                priv->content_rect.width - 1.,
 	                priv->content_rect.height - 1.);
-	gdk_cairo_set_source_color(priv->bg_cairo, &style->light[GTK_STATE_NORMAL]);
-	cairo_fill_preserve(priv->bg_cairo);
+	gdk_cairo_set_source_color(first->bg_cairo, &style->light[GTK_STATE_NORMAL]);
+	cairo_fill_preserve(first->bg_cairo);
 	/*
 	 * Render the content border.
 	 */
-	gdk_cairo_set_source_color(priv->bg_cairo, &style->fg[GTK_STATE_NORMAL]);
-	cairo_set_dash(priv->bg_cairo, dashes, G_N_ELEMENTS(dashes), .5);
-	cairo_set_line_width(priv->bg_cairo, 1.0);
-	cairo_stroke(priv->bg_cairo);
+	gdk_cairo_set_source_color(first->bg_cairo, &style->fg[GTK_STATE_NORMAL]);
+	cairo_set_dash(first->bg_cairo, dashes, G_N_ELEMENTS(dashes), .5);
+	cairo_set_line_width(first->bg_cairo, 1.0);
+	cairo_stroke(first->bg_cairo);
 	/*
 	 * Render the axis labels.
 	 */
@@ -626,7 +673,15 @@ uber_heat_map_render_bg (UberHeatMap *map) /* IN */
 	/*
 	 * Cleanup after drawing.
 	 */
-	cairo_restore(priv->bg_cairo);
+	cairo_restore(first->bg_cairo);
+	/*
+	 * Copy the background to the other texture.
+	 */
+	cairo_save(other->bg_cairo);
+	gdk_cairo_set_source_pixmap(other->bg_cairo, first->bg_pixmap, 0, 0);
+	cairo_rectangle(other->bg_cairo, 0, 0, alloc.width, alloc.height);
+	cairo_paint(other->bg_cairo);
+	cairo_restore(other->bg_cairo);
 }
 
 /**
@@ -644,6 +699,7 @@ uber_heat_map_expose_event (GtkWidget      *widget, /* IN */
                             GdkEventExpose *expose) /* IN */
 {
 	UberHeatMapPrivate *priv;
+	FlipTexture *texture;
 	GtkAllocation alloc;
 	GdkRectangle area;
 	cairo_t *cr;
@@ -665,24 +721,26 @@ uber_heat_map_expose_event (GtkWidget      *widget, /* IN */
 		priv->full_draw = FALSE;
 	}
 	/*
+	 * Get the current texture.  Make sure we draw first as priv->flipped
+	 * may have changed.
+	 */
+	texture = &priv->textures[priv->flipped];
+	/*
 	 * Draw contents to widget surface using cairo.
 	 */
 	cr = gdk_cairo_create(expose->window);
-	/*
-	 * Clip to exposure area.
-	 */
 	gdk_cairo_rectangle(cr, &expose->area);
 	cairo_clip(cr);
 	/*
 	 * Draw the background.
 	 */
-	gdk_cairo_set_source_pixmap(cr, priv->bg_pixmap, 0, 0);
+	gdk_cairo_set_source_pixmap(cr, texture->bg_pixmap, 0, 0);
 	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
 	cairo_paint(cr);
 	/*
 	 * Draw the foreground.
 	 */
-	gdk_cairo_set_source_pixmap(cr, priv->fg_pixmap, 0, 0);
+	gdk_cairo_set_source_pixmap(cr, texture->fg_pixmap, 0, 0);
 	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
 	cairo_paint(cr);
 	/*
@@ -691,12 +749,10 @@ uber_heat_map_expose_event (GtkWidget      *widget, /* IN */
 	if (priv->in_hover) {
 		if (priv->active_column > -1 && priv->active_row > -1) {
 			uber_heat_map_get_active_rect(UBER_HEAT_MAP(widget), &area);
-			gdk_cairo_reset_clip(cr, gtk_widget_get_window(widget));
+			DEBUG_RECT(area);
+			gdk_cairo_set_source_pixmap(cr, texture->hl_pixmap, 0, 0);
 			gdk_cairo_rectangle(cr, &area);
-			cairo_clip(cr);
-			gdk_cairo_set_source_pixmap(cr, priv->hl_pixmap, 0, 0);
-			cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
-			cairo_fill(cr);
+			cairo_paint(cr);
 		}
 	}
 	/*
@@ -854,7 +910,11 @@ uber_heat_map_append (UberHeatMap *map,    /* IN */
 	priv = map->priv;
 	g_ring_append_val(priv->ring, values);
 	priv->fg_dirty = TRUE;
-	gtk_widget_queue_draw(GTK_WIDGET(map));
+	gtk_widget_queue_draw_area(GTK_WIDGET(map),
+	                           priv->content_rect.x,
+	                           priv->content_rect.y,
+	                           priv->content_rect.width,
+	                           priv->content_rect.height);
 }
 
 /**
@@ -969,15 +1029,39 @@ uber_heat_map_size_allocate (GtkWidget     *widget, /* IN */
 
 	priv = UBER_HEAT_MAP(widget)->priv;
 	WIDGET->size_allocate(widget, alloc);
+	/*
+	 * Calculate new regions.
+	 */
 	uber_heat_map_calculate_rects(UBER_HEAT_MAP(widget));
-	uber_heat_map_destroy_drawables(UBER_HEAT_MAP(widget));
-	uber_heat_map_init_drawables(UBER_HEAT_MAP(widget));
+	/*
+	 * Destroy existing textures.
+	 */
+	uber_heat_map_destroy_texture(UBER_HEAT_MAP(widget),
+	                              &priv->textures[0]);
+	uber_heat_map_destroy_texture(UBER_HEAT_MAP(widget),
+	                              &priv->textures[1]);
+	/*
+	 * Initialize new textures.
+	 */
+	uber_heat_map_init_texture(UBER_HEAT_MAP(widget),
+	                           &priv->textures[0]);
+	uber_heat_map_init_texture(UBER_HEAT_MAP(widget),
+	                           &priv->textures[1]);
+	/*
+	 * Update how we draw blocks based on the configured settings.
+	 */
 	uber_heat_map_set_block_size(UBER_HEAT_MAP(widget),
 	                             priv->width_block_size,
 	                             priv->width_is_count,
 	                             priv->height_block_size,
 	                             priv->height_is_count);
+	/*
+	 * Update FPS as it may change based on the size of the graph.
+	 */
 	uber_heat_map_set_fps(UBER_HEAT_MAP(widget), priv->fps);
+	/*
+	 * Force a full draw of everything.
+	 */
 	priv->bg_dirty = TRUE;
 	priv->fg_dirty = TRUE;
 	priv->full_draw = TRUE;
@@ -1159,7 +1243,10 @@ uber_heat_map_finalize (GObject *object) /* IN */
 	g_return_if_fail(UBER_IS_HEAT_MAP(object));
 
 	priv = UBER_HEAT_MAP(object)->priv;
-	uber_heat_map_destroy_drawables(UBER_HEAT_MAP(object));
+	uber_heat_map_destroy_texture(UBER_HEAT_MAP(object),
+	                              &priv->textures[priv->flipped]);
+	uber_heat_map_destroy_texture(UBER_HEAT_MAP(object),
+	                              &priv->textures[!priv->flipped]);
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
 	}
