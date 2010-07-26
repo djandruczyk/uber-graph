@@ -51,6 +51,7 @@ struct _UberGraphPrivate
 	gint         x_slots;       /* Number of data points on x axis. */
 	gint         fps;           /* Desired frames per second. */
 	gfloat       dps;           /* Desired data points per second. */
+	guint        fps_off;       /* Offset in FPS handler. */
 	guint        fps_handler;   /* Timeout for moving the content. */
 	guint        dps_handler;   /* Timeout for getting new data. */
 	gboolean     fg_dirty;      /* Does the foreground need to be redrawn. */
@@ -273,6 +274,7 @@ uber_graph_dps_timeout (UberGraph *graph) /* IN */
 	 * Make sure the content is re-rendered.
 	 */
 	priv->fg_dirty = TRUE;
+	priv->fps_off = 0;
 	gtk_widget_queue_draw_area(GTK_WIDGET(graph),
 	                           priv->content_rect.x,
 	                           priv->content_rect.y,
@@ -341,8 +343,11 @@ uber_graph_set_dps (UberGraph *graph, /* IN */
 
 	priv = graph->priv;
 	priv->dps = dps;
-	if (UBER_GRAPH_GET_CLASS(graph)->set_dps) {
-		UBER_GRAPH_GET_CLASS(graph)->set_dps(graph, dps);
+	/*
+	 * TODO: Does this belong somewhere else?
+	 */
+	if (UBER_GRAPH_GET_CLASS(graph)->set_stride) {
+		UBER_GRAPH_GET_CLASS(graph)->set_stride(graph, priv->x_slots);
 	}
 	uber_graph_register_dps_handler(graph);
 }
@@ -364,6 +369,14 @@ uber_graph_fps_timeout (UberGraph *graph) /* IN */
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
 
 	priv = graph->priv;
+	if (priv->fps_off) {
+		gtk_widget_queue_draw_area(GTK_WIDGET(graph),
+		                           priv->content_rect.x,
+		                           priv->content_rect.y,
+		                           priv->content_rect.width,
+		                           priv->content_rect.height);
+	}
+	priv->fps_off++;
 	return TRUE;
 }
 
@@ -447,8 +460,9 @@ uber_graph_realize (GtkWidget *widget) /* IN */
 	uber_graph_destroy_texture(graph, &priv->texture[1]);
 	uber_graph_init_texture(graph, &priv->texture[0]);
 	uber_graph_init_texture(graph, &priv->texture[1]);
-	if (UBER_GRAPH_GET_CLASS(widget)->set_dps) {
-		UBER_GRAPH_GET_CLASS(widget)->set_dps(UBER_GRAPH(widget), priv->dps);
+	if (UBER_GRAPH_GET_CLASS(widget)->set_stride) {
+		UBER_GRAPH_GET_CLASS(widget)->set_stride(UBER_GRAPH(widget),
+		                                         priv->x_slots);
 	}
 	uber_graph_register_dps_handler(graph);
 }
@@ -736,7 +750,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	 */
 	if (priv->have_rgba) {
 		cairo_save(cr);
-		gdk_cairo_set_source_pixmap(cr, texture->fg_pixmap, 0, 0);
+		gdk_cairo_set_source_pixmap(cr, texture->fg_pixmap, -priv->fps_off, 0);
 		cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
 		cairo_paint(cr);
 		cairo_restore(cr);
@@ -919,6 +933,7 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->tick_len = 10;
 	priv->fps = 20;
 	priv->dps = 1.;
+	priv->x_slots = 60;
 	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
 }

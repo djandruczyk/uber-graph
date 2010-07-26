@@ -57,8 +57,8 @@ struct _UberGraphClass
 	                           GdkRectangle *area,
 	                           guint         range_start,
 	                           guint         range_end);
-	void     (*set_dps)       (UberGraph    *graph,
-	                           guint         dps);
+	void     (*set_stride)    (UberGraph    *graph,
+	                           guint         stride);
 };
 
 GType uber_graph_get_type (void) G_GNUC_CONST;

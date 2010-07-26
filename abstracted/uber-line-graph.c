@@ -147,17 +147,30 @@ uber_line_graph_render (UberGraph    *graph, /* IN */
                         GdkRectangle *area)  /* IN */
 {
 	UberLineGraphPrivate *priv;
+	gdouble value;
+	gdouble each;
+	gint i;
 
 	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
 
 	priv = UBER_LINE_GRAPH(graph)->priv;
-	gdk_cairo_rectangle(cr, area);
-	cairo_set_source_rgba(cr, 0, 0, 1., .4);
-	cairo_fill(cr);
+	each = area->width / ((gfloat)priv->raw_data->len - 1);
+	cairo_new_path(cr);
+	for (i = 0; i < priv->raw_data->len; i++) {
+		value = g_ring_get_index(priv->raw_data, gdouble, i);
+		if (value == -INFINITY) {
+			break;
+		}
+		cairo_line_to(cr,
+		              area->x + area->width - (each * i),
+		              area->y + area->height - value);
+	}
+	cairo_set_source_rgb(cr, 0, 0, 1.);
+	cairo_stroke(cr);
 }
 
 /**
- * uber_line_graph_set_dps:
+ * uber_line_graph_set_stride:
  * @graph: A #UberGraph.
  *
  * XXX
@@ -166,8 +179,8 @@ uber_line_graph_render (UberGraph    *graph, /* IN */
  * Side effects: None.
  */
 static void
-uber_line_graph_set_dps (UberGraph *graph, /* IN */
-                         guint      dps)   /* IN */
+uber_line_graph_set_stride (UberGraph *graph, /* IN */
+                            guint      dps)   /* IN */
 {
 	UberLineGraphPrivate *priv;
 	gdouble val = -INFINITY;
@@ -243,7 +256,7 @@ uber_line_graph_class_init (UberLineGraphClass *klass) /* IN */
 	graph_class = UBER_GRAPH_CLASS(klass);
 	graph_class->get_next_data = uber_line_graph_get_next_data;
 	graph_class->render = uber_line_graph_render;
-	graph_class->set_dps = uber_line_graph_set_dps;
+	graph_class->set_stride = uber_line_graph_set_stride;
 }
 
 /**
