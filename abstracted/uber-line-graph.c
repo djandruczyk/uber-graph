@@ -20,7 +20,10 @@
 #include "config.h"
 #endif
 
+#include <math.h>
+
 #include "uber-line-graph.h"
+#include "g-ring.h"
 
 /**
  * SECTION:uber-line-graph.h
@@ -34,7 +37,11 @@ G_DEFINE_TYPE(UberLineGraph, uber_line_graph, UBER_TYPE_GRAPH)
 
 struct _UberLineGraphPrivate
 {
-	gpointer dummy;
+	GRing             *raw_data;
+	GRing             *scaled_data;
+	UberLineGraphFunc  func;
+	gpointer           func_data;
+	GDestroyNotify     func_notify;
 };
 
 /**
@@ -55,6 +62,144 @@ uber_line_graph_new (void)
 }
 
 /**
+ * uber_line_graph_get_next_data:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static gboolean
+uber_line_graph_get_next_data (UberGraph *graph) /* IN */
+{
+	UberLineGraphPrivate *priv;
+	gdouble value = 0.;
+	gboolean ret = FALSE;
+
+	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), FALSE);
+
+	priv = UBER_LINE_GRAPH(graph)->priv;
+	g_assert(priv->raw_data);
+	g_assert(priv->scaled_data);
+	/*
+	 * Retrieve the next data point.
+	 */
+	if (priv->func) {
+		if (!(ret = priv->func(UBER_LINE_GRAPH(graph), &value, priv->func_data))) {
+			value = -INFINITY;
+		}
+	}
+	g_ring_append_val(priv->raw_data, value);
+	/*
+	 * TODO: Scale value.
+	 */
+	g_ring_append_val(priv->scaled_data, value);
+	return ret;
+}
+
+/**
+ * uber_line_graph_set_data_func:
+ * @graph: A #UberLineGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_line_graph_set_data_func (UberLineGraph     *graph,     /* IN */
+                               UberLineGraphFunc  func,      /* IN */
+                               gpointer           user_data, /* IN */
+                               GDestroyNotify     notify)    /* IN */
+{
+	UberLineGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+
+	priv = graph->priv;
+	/*
+	 * Free existing data func if neccessary.
+	 */
+	if (priv->func_notify) {
+		priv->func_notify(priv->func_data);
+	}
+	/*
+	 * Store data func.
+	 */
+	priv->func = func;
+	priv->func_data = user_data;
+	priv->func_notify = notify;
+}
+
+/**
+ * uber_line_graph_render:
+ * @graph: A #UberGraph.
+ *
+ * Renders the entire data contents of the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_line_graph_render (UberGraph    *graph, /* IN */
+                        cairo_t      *cr,    /* IN */
+                        GdkRectangle *area)  /* IN */
+{
+	UberLineGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+
+	priv = UBER_LINE_GRAPH(graph)->priv;
+	gdk_cairo_rectangle(cr, area);
+	cairo_set_source_rgba(cr, 0, 0, 1., .4);
+	cairo_fill(cr);
+}
+
+/**
+ * uber_line_graph_set_dps:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_line_graph_set_dps (UberGraph *graph, /* IN */
+                         guint      dps)   /* IN */
+{
+	UberLineGraphPrivate *priv;
+	gdouble val = -INFINITY;
+	gint i;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+
+	priv = UBER_LINE_GRAPH(graph)->priv;
+	/*
+	 * Cleanup existing resources.
+	 */
+	if (priv->raw_data) {
+		g_ring_unref(priv->raw_data);
+	}
+	if (priv->scaled_data) {
+		g_ring_unref(priv->scaled_data);
+	}
+	/*
+	 * Create new ring buffers.
+	 */
+	priv->raw_data = g_ring_sized_new(sizeof(gdouble), dps, NULL);
+	priv->scaled_data = g_ring_sized_new(sizeof(gdouble), dps, NULL);
+	/*
+	 * Set default data to -INFINITY.
+	 */
+	for (i = 0; i < dps; i++) {
+		g_ring_append_val(priv->raw_data, val);
+		g_ring_append_val(priv->scaled_data, val);
+	}
+}
+
+/**
  * uber_line_graph_finalize:
  * @object: A #UberLineGraph.
  *
@@ -67,6 +212,12 @@ uber_line_graph_new (void)
 static void
 uber_line_graph_finalize (GObject *object) /* IN */
 {
+	UberLineGraphPrivate *priv;
+
+	priv = UBER_LINE_GRAPH(object)->priv;
+	g_ring_unref(priv->raw_data);
+	g_ring_unref(priv->scaled_data);
+
 	G_OBJECT_CLASS(uber_line_graph_parent_class)->finalize(object);
 }
 
@@ -83,10 +234,16 @@ static void
 uber_line_graph_class_init (UberLineGraphClass *klass) /* IN */
 {
 	GObjectClass *object_class;
+	UberGraphClass *graph_class;
 
 	object_class = G_OBJECT_CLASS(klass);
 	object_class->finalize = uber_line_graph_finalize;
 	g_type_class_add_private(object_class, sizeof(UberLineGraphPrivate));
+
+	graph_class = UBER_GRAPH_CLASS(klass);
+	graph_class->get_next_data = uber_line_graph_get_next_data;
+	graph_class->render = uber_line_graph_render;
+	graph_class->set_dps = uber_line_graph_set_dps;
 }
 
 /**
@@ -103,6 +260,9 @@ uber_line_graph_init (UberLineGraph *graph) /* IN */
 {
 	UberLineGraphPrivate *priv;
 
+	/*
+	 * Keep pointer to private data.
+	 */
 	graph->priv = G_TYPE_INSTANCE_GET_PRIVATE(graph,
 	                                          UBER_TYPE_LINE_GRAPH,
 	                                          UberLineGraphPrivate);

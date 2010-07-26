@@ -39,12 +39,14 @@ TRACE_INCLUDES =							\
 
 INCLUDES =								\
 	-DHAVE_CONFIG_H=0						\
+	-I../								\
 	$(NULL)
 
 OBJECTS =								\
 	uber-graph.o							\
 	uber-line-graph.o						\
 	main.o								\
+	g-ring.o							\
 	$(NULL)
 
 ifeq ($(DISABLE_DEBUG),1)
@@ -54,6 +56,9 @@ endif
 ifeq ($(DISABLE_TRACE),0)
 	INCLUDES += $(TRACE_INCLUDES)
 endif
+
+g-ring.o: ../g-ring.c ../g-ring.h Makefile
+	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) ../g-ring.c $(shell pkg-config --cflags glib-2.0 gthread-2.0)
 
 main.o: main.c Makefile
 	$(CC) -g -c -o $@ $(WARNINGS) $(INCLUDES) main.c $(shell pkg-config --cflags gtk+-2.0 gthread-2.0)

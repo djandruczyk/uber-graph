@@ -35,6 +35,21 @@ typedef struct _UberLineGraph        UberLineGraph;
 typedef struct _UberLineGraphClass   UberLineGraphClass;
 typedef struct _UberLineGraphPrivate UberLineGraphPrivate;
 
+/**
+ * UberLineGraphFunc:
+ * @graph: A #UberLineGraph.
+ * @value: A location for the next #gdouble value.
+ * @user_data: User data supplied to uber_line_graph_set_data_func().
+ *
+ * Callback prototype for retrieving the next data point in the graph.
+ *
+ * Returns: %TRUE if successful; otherwise %FALSE.
+ * Side effects: Implementation dependent.
+ */
+typedef gboolean (*UberLineGraphFunc) (UberLineGraph *graph,
+                                       gdouble       *value,
+                                       gpointer       user_data);
+
 struct _UberLineGraph
 {
 	UberGraph parent;
@@ -48,8 +63,12 @@ struct _UberLineGraphClass
 	UberGraphClass parent_class;
 };
 
-GType      uber_line_graph_get_type (void) G_GNUC_CONST;
-GtkWidget* uber_line_graph_new      (void);
+GType      uber_line_graph_get_type      (void) G_GNUC_CONST;
+GtkWidget* uber_line_graph_new           (void);
+void       uber_line_graph_set_data_func (UberLineGraph     *graph,
+                                          UberLineGraphFunc  func,
+                                          gpointer           user_data,
+                                          GDestroyNotify     notify);
 
 G_END_DECLS
 

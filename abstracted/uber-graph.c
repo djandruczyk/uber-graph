@@ -50,8 +50,9 @@ struct _UberGraphPrivate
 	gboolean     have_rgba;     /* Do we support 32-bit RGBA colormaps. */
 	gint         x_slots;       /* Number of data points on x axis. */
 	gint         fps;           /* Desired frames per second. */
-	guint        data_handler;  /* Timeout for getting new data. */
+	gfloat       dps;           /* Desired data points per second. */
 	guint        fps_handler;   /* Timeout for moving the content. */
+	guint        dps_handler;   /* Timeout for getting new data. */
 	gboolean     fg_dirty;      /* Does the foreground need to be redrawn. */
 	gboolean     bg_dirty;      /* Does the background need to be redrawn. */
 	guint        tick_len;      /* How long should axis-ticks be. */
@@ -72,6 +73,27 @@ uber_graph_new (void)
 
 	graph = g_object_new(UBER_TYPE_GRAPH, NULL);
 	return GTK_WIDGET(graph);
+}
+
+/**
+ * uber_graph_get_next_data:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static inline gboolean
+uber_graph_get_next_data (UberGraph *graph) /* IN */
+{
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
+
+	g_debug("%s()", G_STRFUNC);
+	if (UBER_GRAPH_GET_CLASS(graph)->get_next_data) {
+		return UBER_GRAPH_GET_CLASS(graph)->get_next_data(graph);
+	}
+	return FALSE;
 }
 
 /**
@@ -226,7 +248,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 }
 
 /**
- * uber_graph_data_timeout:
+ * uber_graph_dps_timeout:
  * @graph: A #UberGraph.
  *
  * XXX
@@ -235,19 +257,32 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
  * Side effects: None.
  */
 static gboolean
-uber_graph_data_timeout (UberGraph *graph) /* IN */
+uber_graph_dps_timeout (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
 
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
 
 	priv = graph->priv;
-	g_debug("Get next data");
+	if (!uber_graph_get_next_data(graph)) {
+		/*
+		 * XXX: How should we handle failed data retrieval.
+		 */
+	}
+	/*
+	 * Make sure the content is re-rendered.
+	 */
+	priv->fg_dirty = TRUE;
+	gtk_widget_queue_draw_area(GTK_WIDGET(graph),
+	                           priv->content_rect.x,
+	                           priv->content_rect.y,
+	                           priv->content_rect.width,
+	                           priv->content_rect.height);
 	return TRUE;
 }
 
 /**
- * uber_graph_register_data_handler:
+ * uber_graph_register_dps_handler:
  * @graph: A #UberGraph.
  *
  * XXX
@@ -256,27 +291,135 @@ uber_graph_data_timeout (UberGraph *graph) /* IN */
  * Side effects: None.
  */
 static void
-uber_graph_register_data_handler (UberGraph *graph) /* IN */
+uber_graph_register_dps_handler (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
-	guint data_freq;
+	guint dps_freq;
+	gboolean do_now = TRUE;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
-	if (priv->data_handler) {
-		g_source_remove(priv->data_handler);
+	if (priv->dps_handler) {
+		g_source_remove(priv->dps_handler);
+		do_now = FALSE;
 	}
 	/*
-	 * TODO: Calculate the update frequency.
+	 * Calculate the update frequency.
 	 */
-	data_freq = 1000;
+	dps_freq = 1000 / priv->dps;
 	/*
 	 * Install the data handler.
 	 */
-	priv->data_handler = g_timeout_add(data_freq,
-	                                   (GSourceFunc)uber_graph_data_timeout,
-	                                   graph);
+	priv->dps_handler = g_timeout_add(dps_freq,
+	                                  (GSourceFunc)uber_graph_dps_timeout,
+	                                  graph);
+	/*
+	 * Call immediately.
+	 */
+	if (do_now) {
+		uber_graph_dps_timeout(graph);
+	}
+}
+
+/**
+ * uber_graph_set_dps:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_dps (UberGraph *graph, /* IN */
+                    gfloat     dps)   /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->dps = dps;
+	if (UBER_GRAPH_GET_CLASS(graph)->set_dps) {
+		UBER_GRAPH_GET_CLASS(graph)->set_dps(graph, dps);
+	}
+	uber_graph_register_dps_handler(graph);
+}
+
+/**
+ * uber_graph_fps_timeout:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: %TRUE always.
+ * Side effects: None.
+ */
+static gboolean
+uber_graph_fps_timeout (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
+
+	priv = graph->priv;
+	return TRUE;
+}
+
+/**
+ * uber_graph_register_fps_handler:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_register_fps_handler (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+	gfloat fps_freq;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	/*
+	 * Remove any existing FPS handler.
+	 */
+	if (priv->fps_handler) {
+		g_source_remove(priv->fps_handler);
+	}
+	/*
+	 * Install the FPS timeout.
+	 */
+	fps_freq = priv->dps * 1000.0 / (gfloat)priv->fps;
+	g_timeout_add(fps_freq,
+	              (GSourceFunc)uber_graph_fps_timeout,
+	              graph);
+}
+
+/**
+ * uber_graph_set_fps:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_fps (UberGraph *graph, /* IN */
+                    guint      fps)   /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->fps = fps;
+	uber_graph_register_fps_handler(graph);
 }
 
 /**
@@ -304,7 +447,10 @@ uber_graph_realize (GtkWidget *widget) /* IN */
 	uber_graph_destroy_texture(graph, &priv->texture[1]);
 	uber_graph_init_texture(graph, &priv->texture[0]);
 	uber_graph_init_texture(graph, &priv->texture[1]);
-	uber_graph_register_data_handler(graph);
+	if (UBER_GRAPH_GET_CLASS(widget)->set_dps) {
+		UBER_GRAPH_GET_CLASS(widget)->set_dps(UBER_GRAPH(widget), priv->dps);
+	}
+	uber_graph_register_dps_handler(graph);
 }
 
 /**
@@ -329,9 +475,9 @@ uber_graph_unrealize (GtkWidget *widget) /* IN */
 	/*
 	 * Unregister any data acquisition handlers.
 	 */
-	if (priv->data_handler) {
-		g_source_remove(priv->data_handler);
-		priv->data_handler = 0;
+	if (priv->dps_handler) {
+		g_source_remove(priv->dps_handler);
+		priv->dps_handler = 0;
 	}
 	/*
 	 * Destroy textures.
@@ -369,6 +515,56 @@ uber_graph_screen_changed (GtkWidget *widget,     /* IN */
 }
 
 /**
+ * uber_graph_show:
+ * @widget: A #GtkWidget.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_show (GtkWidget *widget) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(widget));
+
+	priv = UBER_GRAPH(widget)->priv;
+	WIDGET_CLASS->show(widget);
+	/*
+	 * Only run the FPS timeout when we are visible.
+	 */
+	uber_graph_register_fps_handler(UBER_GRAPH(widget));
+}
+
+/**
+ * uber_graph_hide:
+ * @widget: A #GtkWIdget.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_hide (GtkWidget *widget) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(widget));
+
+	priv = UBER_GRAPH(widget)->priv;
+	/*
+	 * Disable the FPS timeout when we are not visible.
+	 */
+	if (priv->fps_handler) {
+		g_source_remove(priv->fps_handler);
+		priv->fps_handler = 0;
+	}
+}
+
+/**
  * uber_graph_render_fg:
  * @graph: A #UberGraph.
  *
@@ -381,12 +577,37 @@ static void
 uber_graph_render_fg (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
+	GtkAllocation alloc;
+	GraphTexture *texture;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
-	g_debug("%s()", G_STRFUNC);
-
 	priv = graph->priv;
+	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
+	texture = &priv->texture[priv->flipped];
+	/*
+	 * Render to texture if needed.
+	 */
+	if (priv->fg_dirty) {
+		/*
+		 * Clear content area.
+		 */
+		cairo_save(texture->fg_cairo);
+		cairo_set_operator(texture->fg_cairo, CAIRO_OPERATOR_CLEAR);
+		cairo_rectangle(texture->fg_cairo, 0, 0, alloc.width, alloc.height);
+		cairo_fill(texture->fg_cairo);
+		cairo_restore(texture->fg_cairo);
+		/*
+		 * Render the new content.
+		 */
+		if (UBER_GRAPH_GET_CLASS(graph)->render) {
+			cairo_save(texture->fg_cairo);
+			UBER_GRAPH_GET_CLASS(graph)->render(graph,
+			                                    texture->fg_cairo,
+			                                    &priv->content_rect);
+			cairo_restore(texture->fg_cairo);
+		}
+	}
 	/*
 	 * Foreground is no longer dirty.
 	 */
@@ -510,6 +731,21 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
 	cairo_paint(cr);
 	cairo_restore(cr);
+	/*
+	 * Draw the foreground.
+	 */
+	if (priv->have_rgba) {
+		cairo_save(cr);
+		gdk_cairo_set_source_pixmap(cr, texture->fg_pixmap, 0, 0);
+		cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
+		cairo_paint(cr);
+		cairo_restore(cr);
+	} else {
+		/*
+		 * TODO: Use XOR command for fallback.
+		 */
+		g_warn_if_reached();
+	}
 	/*
 	 * Cleanup resources.
 	 */
@@ -647,8 +883,10 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 
 	widget_class = GTK_WIDGET_CLASS(klass);
 	widget_class->expose_event = uber_graph_expose_event;
+	widget_class->hide = uber_graph_hide;
 	widget_class->realize = uber_graph_realize;
 	widget_class->screen_changed = uber_graph_screen_changed;
+	widget_class->show = uber_graph_show;
 	widget_class->size_allocate = uber_graph_size_allocate;
 	widget_class->style_set = uber_graph_style_set;
 	widget_class->unrealize = uber_graph_unrealize;
@@ -680,6 +918,7 @@ uber_graph_init (UberGraph *graph) /* IN */
 	 */
 	priv->tick_len = 10;
 	priv->fps = 20;
+	priv->dps = 1.;
 	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
 }

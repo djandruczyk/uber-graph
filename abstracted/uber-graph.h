@@ -46,9 +46,26 @@ struct _UberGraph
 struct _UberGraphClass
 {
 	GtkDrawingAreaClass parent_class;
+
+	gboolean (*get_next_data) (UberGraph    *graph);
+	void     (*render)        (UberGraph    *graph,
+	                           cairo_t      *cairo,
+	                           GdkRectangle *content_area);
+	void     (*render_area)   (UberGraph    *graph,
+	                           cairo_t      *cairo,
+	                           GdkRectangle *content_area,
+	                           GdkRectangle *area,
+	                           guint         range_start,
+	                           guint         range_end);
+	void     (*set_dps)       (UberGraph    *graph,
+	                           guint         dps);
 };
 
 GType uber_graph_get_type (void) G_GNUC_CONST;
+void  uber_graph_set_dps  (UberGraph *graph,
+                           gfloat     dps);
+void  uber_graph_set_fps  (UberGraph *graph,
+                           guint      fps);
 
 G_END_DECLS
 
