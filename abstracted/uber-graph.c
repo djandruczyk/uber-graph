@@ -300,7 +300,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 * Calculate FPS/DPS adjustments.
 	 */
 	priv->dps_each = (gfloat)priv->content_rect.width / (gfloat)(priv->x_slots - 1);
-	priv->fps_each = priv->dps_each / (gfloat)priv->fps;
+	priv->fps_each = priv->dps_each / ((gfloat)priv->fps / (gfloat)priv->dps);
 	if (priv->fps_each < 1.) {
 		priv->fps_each = 1;
 		priv->fps_real = 1000. / priv->dps_each;
@@ -400,34 +400,6 @@ uber_graph_register_dps_handler (UberGraph *graph) /* IN */
 }
 
 /**
- * uber_graph_set_dps:
- * @graph: A #UberGraph.
- *
- * XXX
- *
- * Returns: None.
- * Side effects: None.
- */
-void
-uber_graph_set_dps (UberGraph *graph, /* IN */
-                    gfloat     dps)   /* IN */
-{
-	UberGraphPrivate *priv;
-
-	g_return_if_fail(UBER_IS_GRAPH(graph));
-
-	priv = graph->priv;
-	priv->dps = dps;
-	/*
-	 * TODO: Does this belong somewhere else?
-	 */
-	if (UBER_GRAPH_GET_CLASS(graph)->set_stride) {
-		UBER_GRAPH_GET_CLASS(graph)->set_stride(graph, priv->x_slots);
-	}
-	uber_graph_register_dps_handler(graph);
-}
-
-/**
  * uber_graph_register_fps_handler:
  * @graph: A #UberGraph.
  *
@@ -456,6 +428,39 @@ uber_graph_register_fps_handler (UberGraph *graph) /* IN */
 	priv->fps_handler = g_timeout_add(priv->fps_real,
 	                                  (GSourceFunc)uber_graph_fps_timeout,
 	                                  graph);
+}
+
+/**
+ * uber_graph_set_dps:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_dps (UberGraph *graph, /* IN */
+                    gfloat     dps)   /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->dps = dps;
+	/*
+	 * TODO: Does this belong somewhere else?
+	 */
+	if (UBER_GRAPH_GET_CLASS(graph)->set_stride) {
+		UBER_GRAPH_GET_CLASS(graph)->set_stride(graph, priv->x_slots);
+	}
+	/*
+	 * Recalculate frame rates and timeouts.
+	 */
+	uber_graph_calculate_rects(graph);
+	uber_graph_register_dps_handler(graph);
+	uber_graph_register_fps_handler(graph);
 }
 
 /**
