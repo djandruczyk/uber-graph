@@ -4,21 +4,27 @@
 static guint gdk_event_count = 0;
 
 static void
-my_gdk_event_func (GdkEvent *event, /* IN */
-                   gpointer  data)  /* IN */
+gdk_event_hook (GdkEvent *event, /* IN */
+                gpointer  data)  /* IN */
 {
 	gdk_event_count++;
 	gtk_main_do_event(event);
 }
 
 static gboolean
-next_data_func (UberLineGraph *graph,     /* IN */
-                guint          line,      /* IN */
-                gdouble       *value,     /* OUT */
-                gpointer       user_data) /* IN */
+get_xevent_info (UberLineGraph *graph,     /* IN */
+                 guint          line,      /* IN */
+                 gdouble       *value,     /* OUT */
+                 gpointer       user_data) /* IN */
 {
-	*value = gdk_event_count;
-	gdk_event_count = 0;
+	switch (line) {
+	case 1:
+		*value = gdk_event_count;
+		gdk_event_count = 0;
+		break;
+	default:
+		g_assert_not_reached();
+	}
 	return TRUE;
 }
 
@@ -35,7 +41,7 @@ main (gint   argc,   /* IN */
 	/*
 	 * Install event hook to track how many X events we are doing.
 	 */
-	gdk_event_handler_set(my_gdk_event_func, NULL, NULL);
+	gdk_event_handler_set(gdk_event_hook, NULL, NULL);
 	/*
 	 * Create window.
 	 */
@@ -45,7 +51,7 @@ main (gint   argc,   /* IN */
 	map = g_object_new(UBER_TYPE_HEAT_MAP, NULL);
 	uber_line_graph_add_line(UBER_LINE_GRAPH(line), NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
-	                              next_data_func, NULL, NULL);
+	                              get_xevent_info, NULL, NULL);
 	gtk_container_add(GTK_CONTAINER(window), vbox);
 	gtk_box_pack_start(GTK_BOX(vbox), line, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), map, TRUE, TRUE, 0);
