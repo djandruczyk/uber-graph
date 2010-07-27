@@ -35,14 +35,44 @@
 
 G_DEFINE_TYPE(UberLineGraph, uber_line_graph, UBER_TYPE_GRAPH)
 
+typedef struct
+{
+	GdkColor  color;
+	GRing    *raw_data;
+	GRing    *scaled_data;
+} LineInfo;
+
 struct _UberLineGraphPrivate
 {
-	GRing             *raw_data;
-	GRing             *scaled_data;
+	GArray            *lines;
+	cairo_antialias_t  antialias;
+	guint              stride;
 	UberLineGraphFunc  func;
 	gpointer           func_data;
 	GDestroyNotify     func_notify;
 };
+
+/**
+ * uber_line_graph_init_ring:
+ * @ring: A #GRing.
+ *
+ * Initialize the #GRing to default values (-INFINITY).
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static inline void
+uber_line_graph_init_ring (GRing *ring) /* IN */
+{
+	gdouble val = -INFINITY;
+	gint i;
+
+	g_return_if_fail(ring != NULL);
+
+	for (i = 0; i < ring->len; i++) {
+		g_ring_append_val(ring, val);
+	}
+}
 
 /**
  * uber_line_graph_new:
@@ -62,6 +92,91 @@ uber_line_graph_new (void)
 }
 
 /**
+ * uber_line_graph_add_line:
+ * @graph: A #UberLineGraph.
+ * @color: A #GdkColor for the line or %NULL.
+ *
+ * Adds a new line to the graph.  If color is %NULL, the next value
+ * in the default color list will be used.
+ *
+ * See uber_line_graph_remove_line().
+ *
+ * Returns: The line identifier.
+ * Side effects: None.
+ */
+guint
+uber_line_graph_add_line (UberLineGraph  *graph, /* IN */
+                          const GdkColor *color) /* IN */
+{
+	UberLineGraphPrivate *priv;
+	LineInfo info = { { 0 } };
+
+	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), 0);
+
+	priv = graph->priv;
+	/*
+	 * Retrieve the lines color.
+	 */
+	if (color) {
+		info.color = *color;
+	} else {
+		gdk_color_parse("#729fcf", &info.color);
+	}
+	/*
+	 * Allocate buffers for data points.
+	 */
+	info.raw_data = g_ring_sized_new(sizeof(gdouble), priv->stride, NULL);
+	info.scaled_data = g_ring_sized_new(sizeof(gdouble), priv->stride, NULL);
+	uber_line_graph_init_ring(info.raw_data);
+	uber_line_graph_init_ring(info.scaled_data);
+	/*
+	 * Store the newly crated line.
+	 */
+	g_array_append_val(priv->lines, info);
+	return priv->lines->len;
+}
+
+/**
+ * uber_line_graph_set_antialias:
+ * @graph: A #UberLineGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_line_graph_set_antialias (UberLineGraph     *graph,     /* IN */
+                               cairo_antialias_t  antialias) /* IN */
+{
+	UberLineGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->antialias = antialias;
+	/*
+	 * TODO: Queue redraw of all data points.
+	 */
+}
+
+/**
+ * uber_line_graph_get_antialias:
+ * @graph: A #UberLineGraph.
+ *
+ * Retrieves the antialias mode for the graph.
+ *
+ * Returns: A cairo_antialias_t.
+ * Side effects: None.
+ */
+cairo_antialias_t
+uber_line_graph_get_antialias (UberLineGraph *graph) /* IN */
+{
+	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), 0);
+	return graph->priv->antialias;
+}
+
+/**
  * uber_line_graph_get_next_data:
  * @graph: A #UberGraph.
  *
@@ -74,27 +189,32 @@ static gboolean
 uber_line_graph_get_next_data (UberGraph *graph) /* IN */
 {
 	UberLineGraphPrivate *priv;
-	gdouble value = 0.;
+	LineInfo *line;
+	gdouble val;
 	gboolean ret = FALSE;
+	gint i;
 
 	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), FALSE);
 
 	priv = UBER_LINE_GRAPH(graph)->priv;
-	g_assert(priv->raw_data);
-	g_assert(priv->scaled_data);
 	/*
 	 * Retrieve the next data point.
 	 */
 	if (priv->func) {
-		if (!(ret = priv->func(UBER_LINE_GRAPH(graph), &value, priv->func_data))) {
-			value = -INFINITY;
+		for (i = 0; i < priv->lines->len; i++) {
+			val = 0.;
+			line = &g_array_index(priv->lines, LineInfo, i);
+			if (!(ret = priv->func(UBER_LINE_GRAPH(graph),
+			                       i + 1, &val,
+			                       priv->func_data))) {
+				val = -INFINITY;
+			}
+			/*
+			 * TODO: Scale value.
+			 */
+			g_ring_append_val(line->raw_data, val);
 		}
 	}
-	g_ring_append_val(priv->raw_data, value);
-	/*
-	 * TODO: Scale value.
-	 */
-	g_ring_append_val(priv->scaled_data, value);
 	return ret;
 }
 
@@ -135,16 +255,20 @@ uber_line_graph_set_data_func (UberLineGraph     *graph,     /* IN */
 /**
  * uber_line_graph_render:
  * @graph: A #UberGraph.
+ * @cr: A #cairo_t context.
+ * @area: Full area to render contents within.
+ * @line: The line to render.
  *
- * Renders the entire data contents of the graph.
+ * Render a particular line to the graph.
  *
  * Returns: None.
  * Side effects: None.
  */
 static void
-uber_line_graph_render (UberGraph    *graph, /* IN */
-                        cairo_t      *cr,    /* IN */
-                        GdkRectangle *area)  /* IN */
+uber_line_graph_render_line (UberLineGraph *graph, /* IN */
+                             cairo_t       *cr,    /* IN */
+                             GdkRectangle  *area,  /* IN */
+                             LineInfo      *line)  /* IN */
 {
 	UberLineGraphPrivate *priv;
 	guint x_epoch;
@@ -152,27 +276,62 @@ uber_line_graph_render (UberGraph    *graph, /* IN */
 	guint y;
 	guint last_x;
 	guint last_y;
-	gdouble value;
+	gdouble val;
 	gdouble each;
 	gint i;
 
 	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
 
-	priv = UBER_LINE_GRAPH(graph)->priv;
-	each = area->width / ((gfloat)priv->raw_data->len - 1);
+	priv = graph->priv;
+	/*
+	 * Calculate number of pixels per data point.
+	 */
+	each = area->width / ((gfloat)priv->stride - 1.);
+	/*
+	 * Determine the end of our drawing area for relative coordinates.
+	 */
 	x_epoch = area->x + area->width;
+	/*
+	 * Prepare cairo settings.
+	 */
 	cairo_set_line_width(cr, 1.0);
-	for (i = 0; i < priv->raw_data->len; i++) {
-		value = g_ring_get_index(priv->raw_data, gdouble, i);
-		if (value == -INFINITY) {
+	cairo_set_antialias(cr, priv->antialias);
+	gdk_cairo_set_source_color(cr, &line->color);
+	/*
+	 * Force a new path.
+	 */
+	cairo_new_path(cr);
+	/*
+	 * Draw the line contents as bezier curves.
+	 */
+	for (i = 0; i < line->raw_data->len; i++) {
+		/*
+		 * Retrieve data point.
+		 */
+		val = g_ring_get_index(line->raw_data, gdouble, i);
+		/*
+		 * Once we get to -INFINITY, we must be at the end of the data
+		 * sequence.  This may not always be true in the future.
+		 */
+		if (val == -INFINITY) {
 			break;
 		}
-		y = area->y + area->height - value;
+		/*
+		 * Calculate X/Y coordinate.
+		 */
+		y = area->y + area->height - val;
 		x = x_epoch - (each * i);
 		if (i == 0) {
+			/*
+			 * Just move to the right position on first entry.
+			 */
 			cairo_move_to(cr, x, y);
 			goto next;
 		} else {
+			/*
+			 * Draw curve to data point using the last X/Y positions as
+			 * control points.
+			 */
 			cairo_curve_to(cr,
 			               last_x - (each / 2.),
 			               last_y,
@@ -183,13 +342,46 @@ uber_line_graph_render (UberGraph    *graph, /* IN */
 		last_y = y;
 		last_x = x;
 	}
-	cairo_set_source_rgba(cr, 1, 0, 0, 1);
+	/*
+	 * Stroke the line content.
+	 */
 	cairo_stroke(cr);
+}
+
+/**
+ * uber_line_graph_render:
+ * @graph: A #UberGraph.
+ *
+ * Render the entire contents of the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_line_graph_render (UberGraph    *graph, /* IN */
+                        cairo_t      *cr,    /* IN */
+                        GdkRectangle *rect)  /* IN */
+{
+	UberLineGraphPrivate *priv;
+	LineInfo *line;
+	gint i;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+
+	priv = UBER_LINE_GRAPH(graph)->priv;
+	/*
+	 * Render each line to the graph.
+	 */
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		uber_line_graph_render_line(UBER_LINE_GRAPH(graph), cr, rect, line);
+	}
 }
 
 /**
  * uber_line_graph_set_stride:
  * @graph: A #UberGraph.
+ * @stride: The number of data points within the graph.
  *
  * XXX
  *
@@ -197,36 +389,33 @@ uber_line_graph_render (UberGraph    *graph, /* IN */
  * Side effects: None.
  */
 static void
-uber_line_graph_set_stride (UberGraph *graph, /* IN */
-                            guint      dps)   /* IN */
+uber_line_graph_set_stride (UberGraph *graph,  /* IN */
+                            guint      stride) /* IN */
 {
 	UberLineGraphPrivate *priv;
-	gdouble val = -INFINITY;
+	LineInfo *line;
 	gint i;
 
 	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
 
 	priv = UBER_LINE_GRAPH(graph)->priv;
+	priv->stride = stride;
 	/*
-	 * Cleanup existing resources.
+	 * TODO: Support changing stride after lines have been added.
 	 */
-	if (priv->raw_data) {
-		g_ring_unref(priv->raw_data);
-	}
-	if (priv->scaled_data) {
-		g_ring_unref(priv->scaled_data);
-	}
-	/*
-	 * Create new ring buffers.
-	 */
-	priv->raw_data = g_ring_sized_new(sizeof(gdouble), dps, NULL);
-	priv->scaled_data = g_ring_sized_new(sizeof(gdouble), dps, NULL);
-	/*
-	 * Set default data to -INFINITY.
-	 */
-	for (i = 0; i < dps; i++) {
-		g_ring_append_val(priv->raw_data, val);
-		g_ring_append_val(priv->scaled_data, val);
+	if (priv->lines->len) {
+		for (i = 0; i < priv->lines->len; i++) {
+			line = &g_array_index(priv->lines, LineInfo, i);
+			g_ring_unref(line->raw_data);
+			g_ring_unref(line->scaled_data);
+			line->raw_data = g_ring_sized_new(sizeof(gdouble),
+			                                  priv->stride, NULL);
+			line->scaled_data = g_ring_sized_new(sizeof(gdouble),
+			                                     priv->stride, NULL);
+			uber_line_graph_init_ring(line->raw_data);
+			uber_line_graph_init_ring(line->scaled_data);
+		}
+		return;
 	}
 }
 
@@ -244,11 +433,18 @@ static void
 uber_line_graph_finalize (GObject *object) /* IN */
 {
 	UberLineGraphPrivate *priv;
+	LineInfo *line;
+	gint i;
 
 	priv = UBER_LINE_GRAPH(object)->priv;
-	g_ring_unref(priv->raw_data);
-	g_ring_unref(priv->scaled_data);
-
+	/*
+	 * Clean up after cached values.
+	 */
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		g_ring_unref(line->raw_data);
+		g_ring_unref(line->scaled_data);
+	}
 	G_OBJECT_CLASS(uber_line_graph_parent_class)->finalize(object);
 }
 
@@ -298,4 +494,10 @@ uber_line_graph_init (UberLineGraph *graph) /* IN */
 	                                          UBER_TYPE_LINE_GRAPH,
 	                                          UberLineGraphPrivate);
 	priv = graph->priv;
+	/*
+	 * Initialize defaults.
+	 */
+	priv->stride = 60;
+	priv->antialias = CAIRO_ANTIALIAS_DEFAULT;
+	priv->lines = g_array_sized_new(FALSE, FALSE, sizeof(LineInfo), 2);
 }

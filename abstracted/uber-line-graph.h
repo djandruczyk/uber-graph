@@ -47,6 +47,7 @@ typedef struct _UberLineGraphPrivate UberLineGraphPrivate;
  * Side effects: Implementation dependent.
  */
 typedef gboolean (*UberLineGraphFunc) (UberLineGraph *graph,
+                                       guint          line,
                                        gdouble       *value,
                                        gpointer       user_data);
 
@@ -63,12 +64,17 @@ struct _UberLineGraphClass
 	UberGraphClass parent_class;
 };
 
-GType      uber_line_graph_get_type      (void) G_GNUC_CONST;
-GtkWidget* uber_line_graph_new           (void);
-void       uber_line_graph_set_data_func (UberLineGraph     *graph,
-                                          UberLineGraphFunc  func,
-                                          gpointer           user_data,
-                                          GDestroyNotify     notify);
+guint             uber_line_graph_add_line      (UberLineGraph     *graph,
+                                                 const GdkColor    *color);
+cairo_antialias_t uber_line_graph_get_antialias (UberLineGraph     *graph);
+GType             uber_line_graph_get_type      (void) G_GNUC_CONST;
+GtkWidget*        uber_line_graph_new           (void);
+void              uber_line_graph_set_antialias (UberLineGraph     *graph,
+                                                 cairo_antialias_t  antialias);
+void              uber_line_graph_set_data_func (UberLineGraph     *graph,
+                                                 UberLineGraphFunc  func,
+                                                 gpointer           user_data,
+                                                 GDestroyNotify     notify);
 
 G_END_DECLS
 

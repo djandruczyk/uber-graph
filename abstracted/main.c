@@ -13,6 +13,7 @@ my_gdk_event_func (GdkEvent *event, /* IN */
 
 static gboolean
 next_data_func (UberLineGraph *graph,     /* IN */
+                guint          line,      /* IN */
                 gdouble       *value,     /* OUT */
                 gpointer       user_data) /* IN */
 {
@@ -42,6 +43,7 @@ main (gint   argc,   /* IN */
 	vbox = gtk_vbox_new(TRUE, 3);
 	line = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
 	map = g_object_new(UBER_TYPE_HEAT_MAP, NULL);
+	uber_line_graph_add_line(UBER_LINE_GRAPH(line), NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
 	                              next_data_func, NULL, NULL);
 	gtk_container_add(GTK_CONTAINER(window), vbox);
