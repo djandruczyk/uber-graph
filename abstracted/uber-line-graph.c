@@ -155,9 +155,7 @@ uber_line_graph_set_antialias (UberLineGraph     *graph,     /* IN */
 
 	priv = graph->priv;
 	priv->antialias = antialias;
-	/*
-	 * TODO: Queue redraw of all data points.
-	 */
+	uber_graph_redraw(UBER_GRAPH(graph));
 }
 
 /**
@@ -173,6 +171,7 @@ cairo_antialias_t
 uber_line_graph_get_antialias (UberLineGraph *graph) /* IN */
 {
 	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), 0);
+
 	return graph->priv->antialias;
 }
 

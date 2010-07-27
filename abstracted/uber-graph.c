@@ -712,6 +712,28 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 }
 
 /**
+ * uber_graph_redraw:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_redraw (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->fg_dirty = TRUE;
+	priv->bg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
+}
+
+/**
  * uber_graph_render_bg:
  * @graph: A #UberGraph.
  *

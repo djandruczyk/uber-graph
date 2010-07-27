@@ -66,6 +66,7 @@ void  uber_graph_set_dps  (UberGraph *graph,
                            gfloat     dps);
 void  uber_graph_set_fps  (UberGraph *graph,
                            guint      fps);
+void  uber_graph_redraw   (UberGraph *graph);
 
 G_END_DECLS
 
