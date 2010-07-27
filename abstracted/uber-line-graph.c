@@ -133,6 +133,13 @@ uber_line_graph_add_line (UberLineGraph  *graph, /* IN */
 	 * Store the newly crated line.
 	 */
 	g_array_append_val(priv->lines, info);
+	/*
+	 * Mark the graph for full redraw.
+	 */
+	uber_graph_redraw(UBER_GRAPH(graph));
+	/*
+	 * Line indexes start from 1.
+	 */
 	return priv->lines->len;
 }
 
