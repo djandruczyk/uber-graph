@@ -796,16 +796,16 @@ uber_graph_render_bg (UberGraph *graph) /* IN */
 }
 
 static inline void
-time_val_diff_msec (GTimeVal *a, /* IN */
-                    GTimeVal *b, /* IN */
-                    GTimeVal *c) /* OUT */
+g_time_val_subtract (GTimeVal *a, /* IN */
+                     GTimeVal *b, /* IN */
+                     GTimeVal *c) /* OUT */
 {
 	g_return_if_fail(a != NULL);
 	g_return_if_fail(b != NULL);
 	g_return_if_fail(c != NULL);
 
-	c->tv_sec = b->tv_sec - a->tv_sec;
-	c->tv_usec = b->tv_usec - a->tv_usec;
+	c->tv_sec = a->tv_sec - b->tv_sec;
+	c->tv_usec = a->tv_usec - b->tv_usec;
 	if (c->tv_usec < 0) {
 		c->tv_usec += G_USEC_PER_SEC;
 		c->tv_sec -= 1;
@@ -837,7 +837,7 @@ uber_graph_get_fps_offset (UberGraph *graph) /* IN */
 	 * Get the time difference between now and last sample in milliseconds.
 	 */
 	g_get_current_time(&tv);
-	time_val_diff_msec(&priv->dps_tv, &tv, &rel);
+	g_time_val_subtract(&tv, &priv->dps_tv, &rel);
 	f = (rel.tv_sec * 1000) + (rel.tv_usec / 1000.);
 	/*
 	 * Determine the number of frames we should be off from the origin
