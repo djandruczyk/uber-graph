@@ -45,6 +45,7 @@ INCLUDES =								\
 OBJECTS =								\
 	uber-graph.o							\
 	uber-line-graph.o						\
+	uber-heat-map.o							\
 	main.o								\
 	g-ring.o							\
 	$(NULL)

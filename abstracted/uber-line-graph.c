@@ -147,6 +147,11 @@ uber_line_graph_render (UberGraph    *graph, /* IN */
                         GdkRectangle *area)  /* IN */
 {
 	UberLineGraphPrivate *priv;
+	guint x_epoch;
+	guint x;
+	guint y;
+	guint last_x;
+	guint last_y;
 	gdouble value;
 	gdouble each;
 	gint i;
@@ -155,17 +160,30 @@ uber_line_graph_render (UberGraph    *graph, /* IN */
 
 	priv = UBER_LINE_GRAPH(graph)->priv;
 	each = area->width / ((gfloat)priv->raw_data->len - 1);
-	cairo_new_path(cr);
+	x_epoch = area->x + area->width;
+	cairo_set_line_width(cr, 1.0);
 	for (i = 0; i < priv->raw_data->len; i++) {
 		value = g_ring_get_index(priv->raw_data, gdouble, i);
 		if (value == -INFINITY) {
 			break;
 		}
-		cairo_line_to(cr,
-		              area->x + area->width - (each * i),
-		              area->y + area->height - value);
+		y = area->y + area->height - value;
+		x = x_epoch - (each * i);
+		if (i == 0) {
+			cairo_move_to(cr, x, y);
+			goto next;
+		} else {
+			cairo_curve_to(cr,
+			               last_x - (each / 2.),
+			               last_y,
+			               last_x - (each / 2.),
+			               y, x, y);
+		}
+	  next:
+		last_y = y;
+		last_x = x;
 	}
-	cairo_set_source_rgb(cr, 0, 0, 1.);
+	cairo_set_source_rgba(cr, 1, 0, 0, 1);
 	cairo_stroke(cr);
 }
 
