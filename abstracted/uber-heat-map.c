@@ -161,7 +161,7 @@ uber_heat_map_render_fast (UberGraph    *graph, /* IN */
 	/*
 	 * XXX: Temporarily draw nice little squares.
 	 */
-#define COUNT 40
+#define COUNT 10
 	height = area->height / (gfloat)COUNT;
 	for (i = 0; i < COUNT; i++) {
 		cairo_rectangle(cr,
