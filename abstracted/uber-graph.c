@@ -170,7 +170,7 @@ uber_graph_init_texture (UberGraph    *graph,   /* IN */
 	GdkDrawable *drawable;
 	GdkColormap *colormap;
 	GdkVisual *visual;
-	gint depth = 32;
+	gint depth = -1;
 	gint width;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
@@ -185,11 +185,11 @@ uber_graph_init_texture (UberGraph    *graph,   /* IN */
 		return;
 	}
 	/*
-	 * If we do not have 32-bit RGBA colormaps, we need to fallback to XOR
-	 * rendering.
+	 * Check if we can do 32-bit RGBA colormaps.
 	 */
-	if (!priv->have_rgba) {
-		depth = -1;
+	if (priv->have_rgba) {
+		drawable = NULL;
+		depth = 32;
 	}
 	/*
 	 * Initialize foreground and background pixmaps.
