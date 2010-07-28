@@ -50,6 +50,7 @@ struct _UberLineGraphPrivate
 	GArray            *lines;
 	cairo_antialias_t  antialias;
 	guint              stride;
+	gboolean           autoscale;
 	UberLineGraphFunc  func;
 	gpointer           func_data;
 	GDestroyNotify     func_notify;
@@ -92,6 +93,45 @@ uber_line_graph_new (void)
 
 	graph = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
 	return GTK_WIDGET(graph);
+}
+
+/**
+ * uber_line_graph_set_autoscale:
+ * @graph: A #UberLineGraph.
+ * @autoscale: Should we autoscale.
+ *
+ * Sets if we should autoscale the range of the graph when a new input
+ * value is outside the visible range.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_line_graph_set_autoscale (UberLineGraph *graph,     /* IN */
+                               gboolean       autoscale) /* IN */
+{
+	UberLineGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->autoscale = autoscale;
+}
+
+/**
+ * uber_line_graph_get_autoscale:
+ * @graph: A #UberLineGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+gboolean
+uber_line_graph_get_autoscale (UberLineGraph *graph) /* IN */
+{
+	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), FALSE);
+	return graph->priv->autoscale;
 }
 
 /**
