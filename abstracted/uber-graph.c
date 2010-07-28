@@ -937,21 +937,12 @@ uber_graph_get_fps_offset (UberGraph *graph) /* IN */
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), 0.);
 
 	priv = graph->priv;
-	/*
-	 * Get the time difference between now and last sample in milliseconds.
-	 */
 	g_get_current_time(&tv);
 	g_time_val_subtract(&tv, &priv->dps_tv, &rel);
-	f = (rel.tv_sec * 1000) + (rel.tv_usec / 1000.);
-	/*
-	 * Determine the number of frames we should be off from the origin
-	 * by dividing the msec offset by the msec between callbacks.
-	 */
-	f /= (gfloat)priv->fps_real;
-	/*
-	 * f is now the number of frames we should be from the origin.
-	 */
-	return MIN(f * priv->fps_each, priv->dps_each);
+	f = ((rel.tv_sec * 1000) + (rel.tv_usec / 1000))
+	  / (1000. / priv->dps) /* MSec Per Data Point */
+	  * priv->dps_each;     /* Pixels Per Data Point */
+	return MIN(f, (priv->dps_each - priv->fps_each));
 }
 
 /**
