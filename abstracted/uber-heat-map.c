@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if HAVE_CONFIG_H
+#ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
@@ -136,6 +136,47 @@ uber_heat_map_render (UberGraph    *graph, /* IN */
 }
 
 /**
+ * uber_heat_map_render_fast:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_heat_map_render_fast (UberGraph    *graph, /* IN */
+                           cairo_t      *cr,    /* IN */
+                           GdkRectangle *area,  /* IN */
+                           guint         epoch, /* IN */
+                           gfloat        each)  /* IN */
+{
+	UberGraphPrivate *priv;
+	gfloat height;
+	gint i;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(graph));
+
+	priv = graph->priv;
+	/*
+	 * XXX: Temporarily draw nice little squares.
+	 */
+#define COUNT 40
+	height = area->height / (gfloat)COUNT;
+	for (i = 0; i < COUNT; i++) {
+		cairo_rectangle(cr,
+		                area->x + area->width - each,
+		                area->y + (i * height),
+		                each,
+		                height);
+		cairo_set_source_rgba(cr, .1, .1, .8,
+		                      g_random_double_range(0., 1.));
+		cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+		cairo_fill(cr);
+	}
+}
+
+/**
  * uber_heat_map_get_next_data:
  * @graph: A #UberGraph.
  *
@@ -192,6 +233,7 @@ uber_heat_map_class_init (UberHeatMapClass *klass) /* IN */
 
 	graph_class = UBER_GRAPH_CLASS(klass);
 	graph_class->render = uber_heat_map_render;
+	graph_class->render_fast = uber_heat_map_render_fast;
 	graph_class->set_stride = uber_heat_map_set_stride;
 	graph_class->get_next_data = uber_heat_map_get_next_data;
 }

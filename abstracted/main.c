@@ -52,6 +52,9 @@ main (gint   argc,   /* IN */
 	uber_line_graph_add_line(UBER_LINE_GRAPH(line), NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
 	                              get_xevent_info, NULL, NULL);
+#if 0
+	uber_graph_set_dps(UBER_GRAPH(map), 2.);
+#endif
 	gtk_container_add(GTK_CONTAINER(window), vbox);
 	gtk_box_pack_start(GTK_BOX(vbox), line, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), map, TRUE, TRUE, 0);

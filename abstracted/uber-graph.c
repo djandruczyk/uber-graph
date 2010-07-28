@@ -16,13 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if HAVE_CONFIG_H
+#ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+
+#include <math.h>
 
 #include "uber-graph.h"
 
 #define WIDGET_CLASS (GTK_WIDGET_CLASS(uber_graph_parent_class))
+#define RECT_RIGHT(r)  ((r).x + (r).width)
+#define RECT_BOTTOM(r) ((r).y + (r).height)
 
 /**
  * SECTION:uber-graph.h
@@ -130,10 +134,10 @@ static inline gboolean
 uber_graph_get_next_data (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
+	gboolean ret = FALSE;
 
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
 
-	g_debug("%s()", G_STRFUNC);
 	/*
 	 * Get the current time for this data point.  This is used to calculate
 	 * the proper offset in the FPS callback.
@@ -144,9 +148,12 @@ uber_graph_get_next_data (UberGraph *graph) /* IN */
 	 * Notify the subclass to retrieve the data point.
 	 */
 	if (UBER_GRAPH_GET_CLASS(graph)->get_next_data) {
-		return UBER_GRAPH_GET_CLASS(graph)->get_next_data(graph);
+		if ((ret = UBER_GRAPH_GET_CLASS(graph)->get_next_data(graph))) {
+			priv->fg_dirty = TRUE;
+			gtk_widget_queue_draw(GTK_WIDGET(graph));
+		}
 	}
-	return FALSE;
+	return ret;
 }
 
 /**
@@ -719,14 +726,20 @@ static void
 uber_graph_render_fg (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
+	GtkAllocation alloc;
 	GraphTexture *dst;
 	GraphTexture *src;
 	GdkRectangle rect;
+	gfloat each;
+	gfloat x_epoch;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
-	g_debug("%s()", G_STRFUNC);
+	/*
+	 * Acquire resources.
+	 */
 	priv = graph->priv;
+	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	uber_graph_get_pixmap_rect(graph, &rect);
 	src = &priv->texture[priv->flipped];
 	dst = &priv->texture[!priv->flipped];
@@ -746,19 +759,51 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 		 * If we are in a fast draw, lets copy the content from the other
 		 * buffer at the next offset.
 		 */
-		if (!priv->full_draw) {
-		}
-		/*
-		 * Render the new content.
-		 */
-		if (UBER_GRAPH_GET_CLASS(graph)->render) {
+		if (!priv->full_draw && UBER_GRAPH_GET_CLASS(graph)->render_fast) {
+			/*
+			 * Render previous data shifted.
+			 */
 			cairo_save(dst->fg_cairo);
-			gdk_cairo_rectangle(dst->fg_cairo, &priv->nonvis_rect);
-			cairo_clip(dst->fg_cairo);
-			UBER_GRAPH_GET_CLASS(graph)->render(graph,
-			                                    dst->fg_cairo,
-			                                    &priv->nonvis_rect);
+			cairo_set_antialias(dst->fg_cairo, CAIRO_ANTIALIAS_NONE);
+			cairo_set_operator(dst->fg_cairo, CAIRO_OPERATOR_SOURCE);
+			gdk_cairo_set_source_pixmap(dst->fg_cairo, src->fg_pixmap,
+			                            -(gint)priv->dps_each, 0);
+			cairo_rectangle(dst->fg_cairo, 0, 0, alloc.width, alloc.height);
+			cairo_paint(dst->fg_cairo);
 			cairo_restore(dst->fg_cairo);
+
+			/*
+			 * Render new content clipped.
+			 */
+			cairo_save(dst->fg_cairo);
+			gdk_cairo_reset_clip(dst->fg_cairo, dst->fg_pixmap);
+			cairo_rectangle(dst->fg_cairo,
+			                RECT_RIGHT(priv->content_rect),
+			                0,
+			                RECT_RIGHT(priv->nonvis_rect) - RECT_RIGHT(priv->content_rect),
+			                alloc.height);
+			cairo_clip(dst->fg_cairo);
+			each = priv->content_rect.width / (gfloat)priv->x_slots;
+			x_epoch = RECT_RIGHT(priv->content_rect) + each;
+			UBER_GRAPH_GET_CLASS(graph)->render_fast(graph,
+			                                         dst->fg_cairo,
+			                                         &priv->nonvis_rect,
+			                                         x_epoch,
+			                                         each);
+			cairo_restore(dst->fg_cairo);
+		} else {
+			/*
+			 * Draw the entire foreground.
+			 */
+			if (UBER_GRAPH_GET_CLASS(graph)->render) {
+				cairo_save(dst->fg_cairo);
+				gdk_cairo_rectangle(dst->fg_cairo, &priv->nonvis_rect);
+				cairo_clip(dst->fg_cairo);
+				UBER_GRAPH_GET_CLASS(graph)->render(graph,
+				                                    dst->fg_cairo,
+				                                    &priv->nonvis_rect);
+				cairo_restore(dst->fg_cairo);
+			}
 		}
 	}
 	/*
@@ -810,7 +855,6 @@ uber_graph_render_bg (UberGraph *graph) /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
-	g_debug("%s()", G_STRFUNC);
 	/*
 	 * Acquire resources.
 	 */
@@ -1075,6 +1119,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	 */
 	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
+	priv->full_draw = TRUE;
 	gtk_widget_queue_draw(widget);
 }
 

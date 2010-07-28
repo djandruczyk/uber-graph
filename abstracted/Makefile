@@ -38,7 +38,6 @@ TRACE_INCLUDES =							\
 	$(NULL)
 
 INCLUDES =								\
-	-DHAVE_CONFIG_H=0						\
 	-I../								\
 	$(NULL)
 
