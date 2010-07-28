@@ -113,6 +113,7 @@ uber_heat_map_render (UberGraph    *graph, /* IN */
                       cairo_t      *cr,    /* IN */
                       GdkRectangle *area)  /* IN */
 {
+#if 0
 	UberGraphPrivate *priv;
 	cairo_pattern_t *cp;
 
@@ -133,6 +134,7 @@ uber_heat_map_render (UberGraph    *graph, /* IN */
 	cairo_set_source(cr, cp);
 	cairo_fill(cr);
 	cairo_pattern_destroy(cp);
+#endif
 }
 
 /**
