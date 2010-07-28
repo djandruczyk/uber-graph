@@ -189,7 +189,6 @@ uber_graph_init_texture (UberGraph    *graph,   /* IN */
 	 * rendering.
 	 */
 	if (!priv->have_rgba) {
-		drawable = NULL;
 		depth = -1;
 	}
 	/*
@@ -254,13 +253,43 @@ uber_graph_init_bg (UberGraph *graph) /* IN */
 	UberGraphPrivate *priv;
 	GdkDrawable *drawable;
 	GtkAllocation alloc;
+	GdkVisual *visual;
+	GdkColormap *colormap;
+	gint depth = 32;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
-	drawable = gtk_widget_get_window(GTK_WIDGET(graph));
-	priv->bg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, -1);
+	/*
+	 * Get drawable for pixmap.
+	 */
+	if (!(drawable = gtk_widget_get_window(GTK_WIDGET(graph)))) {
+		g_critical("%s() called before GdkWindow is allocated.", G_STRFUNC);
+		return;
+	}
+	/*
+	 * Fallback if we don't have 32-bit RGBA rendering.
+	 */
+	if (!priv->have_rgba) {
+		depth = -1;
+	}
+	/*
+	 * Create the server-side pixmap.
+	 */
+	priv->bg_pixmap = gdk_pixmap_new(drawable, alloc.width, alloc.height, depth);
+	/*
+	 * Setup 32-bit colormap if needed.
+	 */
+	if (priv->have_rgba) {
+		visual = gdk_visual_get_best_with_depth(depth);
+		colormap = gdk_colormap_new(visual, FALSE);
+		gdk_drawable_set_colormap(GDK_DRAWABLE(priv->bg_pixmap), colormap);
+		g_object_unref(colormap);
+	}
+	/*
+	 * Create cairo texture for drawing.
+	 */
 	priv->bg_cairo = gdk_cairo_create(priv->bg_pixmap);
 }
 
@@ -349,9 +378,12 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 */
 	priv->dps_each = (gfloat)priv->content_rect.width / (gfloat)(priv->x_slots - 1);
 	priv->fps_each = priv->dps_each / ((gfloat)priv->fps / (gfloat)priv->dps);
-	if (priv->fps_each < 1.) {
+	/*
+	 * XXX: Small hack to make things a bit smoother at small scales.
+	 */
+	if (priv->fps_each < .5) {
 		priv->fps_each = 1;
-		priv->fps_real = 1000. / priv->dps_each;
+		priv->fps_real = (1000. / priv->dps_each) / 2.;
 	} else {
 		priv->fps_real = 1000. / priv->fps;
 	}
@@ -863,10 +895,11 @@ uber_graph_render_bg (UberGraph *graph) /* IN */
 	g_assert(priv->bg_cairo);
 	g_assert(priv->bg_pixmap);
 	/*
-	 * Paint the background.
+	 * Clear entire background.  Hopefully this looks okay for RGBA themes
+	 * that are translucent.
 	 */
 	cairo_save(priv->bg_cairo);
-	gdk_cairo_set_source_color(priv->bg_cairo, &style->bg[GTK_STATE_NORMAL]);
+	cairo_set_operator(priv->bg_cairo, CAIRO_OPERATOR_CLEAR);
 	cairo_rectangle(priv->bg_cairo, 0, 0, alloc.width, alloc.height);
 	cairo_fill(priv->bg_cairo);
 	cairo_restore(priv->bg_cairo);
@@ -975,6 +1008,14 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	g_assert(src->fg_pixmap);
 	g_assert(priv->bg_pixmap);
 	/*
+	 * Clear window background.
+	 */
+	gdk_window_clear_area(expose->window,
+	                      expose->area.x,
+	                      expose->area.y,
+	                      expose->area.width,
+	                      expose->area.height);
+	/*
 	 * Allocate resources.
 	 */
 	cr = gdk_cairo_create(expose->window);
@@ -1020,7 +1061,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		/*
 		 * Draw the foreground to the widget.
 		 */
-		gdk_cairo_set_source_pixmap(cr, src->fg_pixmap, -offset, 0);
+		gdk_cairo_set_source_pixmap(cr, src->fg_pixmap, -(gint)offset, 0);
 		cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
 		cairo_paint(cr);
 		cairo_restore(cr);
@@ -1055,6 +1096,7 @@ uber_graph_style_set (GtkWidget *widget,    /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(widget));
 
 	priv = UBER_GRAPH(widget)->priv;
+	WIDGET_CLASS->style_set(widget, old_style);
 	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
 	gtk_widget_queue_draw(widget);
