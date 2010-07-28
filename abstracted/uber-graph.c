@@ -60,7 +60,6 @@ struct _UberGraphPrivate
 	gint          x_slots;       /* Number of data points on x axis. */
 	gint          fps;           /* Desired frames per second. */
 	gint          fps_real;      /* Milleseconds between FPS callbacks. */
-	gint          fps_off;       /* Frame offset since last data point. */
 	gfloat        fps_each;      /* How far to move in each FPS tick. */
 	guint         fps_handler;   /* Timeout for moving the content. */
 	gfloat        dps;           /* Desired data points per second. */
@@ -110,14 +109,11 @@ uber_graph_fps_timeout (UberGraph *graph) /* IN */
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
 
 	priv = graph->priv;
-	if (priv->fps_off) {
-		gtk_widget_queue_draw_area(GTK_WIDGET(graph),
-		                           priv->content_rect.x,
-		                           priv->content_rect.y,
-		                           priv->content_rect.width,
-		                           priv->content_rect.height);
-	}
-	priv->fps_off++;
+	gtk_widget_queue_draw_area(GTK_WIDGET(graph),
+	                           priv->content_rect.x,
+	                           priv->content_rect.y,
+	                           priv->content_rect.width,
+	                           priv->content_rect.height);
 	return TRUE;
 }
 
@@ -401,7 +397,6 @@ uber_graph_dps_timeout (UberGraph *graph) /* IN */
 	 * Make sure the content is re-rendered.
 	 */
 	priv->fg_dirty = TRUE;
-	priv->fps_off = 0;
 	gtk_widget_queue_draw_area(GTK_WIDGET(graph),
 	                           priv->content_rect.x,
 	                           priv->content_rect.y,
