@@ -1,6 +1,26 @@
-#include "uber-line-graph.h"
-#include "uber-heat-map.h"
-#include "uber-scatter.h"
+/* main.c
+ *
+ * Copyright (C) 2010 Christian Hergert <chris@dronelabs.com>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include "uber.h"
 
 static guint gdk_event_count = 0;
 
@@ -34,7 +54,6 @@ main (gint   argc,   /* IN */
       gchar *argv[]) /* IN */
 {
 	GtkWidget *window;
-	GtkWidget *vbox;
 	GtkWidget *line;
 	GtkWidget *map;
 	GtkWidget *scatter;
@@ -47,26 +66,29 @@ main (gint   argc,   /* IN */
 	/*
 	 * Create window.
 	 */
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	vbox = gtk_vbox_new(TRUE, 3);
+	window = uber_window_new();
 	line = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
 	map = g_object_new(UBER_TYPE_HEAT_MAP, NULL);
 	scatter = g_object_new(UBER_TYPE_SCATTER, NULL);
 	uber_line_graph_add_line(UBER_LINE_GRAPH(line), NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
 	                              get_xevent_info, NULL, NULL);
+	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "X Events");
+	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
+	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
 #if 0
 	uber_graph_set_dps(UBER_GRAPH(map), 2.);
 #endif
+#if 0
 	gtk_container_add(GTK_CONTAINER(window), vbox);
 	gtk_box_pack_start(GTK_BOX(vbox), line, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), map, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(vbox), scatter, TRUE, TRUE, 0);
 	gtk_window_set_default_size(GTK_WINDOW(window), 300, 300);
+#endif
 	gtk_widget_show(scatter);
 	gtk_widget_show(map);
 	gtk_widget_show(line);
-	gtk_widget_show(vbox);
 	gtk_widget_show(window);
 	g_signal_connect(window,
 	                 "delete-event",

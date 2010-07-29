@@ -46,6 +46,7 @@ OBJECTS =								\
 	uber-line-graph.o						\
 	uber-heat-map.o							\
 	uber-scatter.o							\
+	uber-window.o							\
 	main.o								\
 	g-ring.o							\
 	$(NULL)
