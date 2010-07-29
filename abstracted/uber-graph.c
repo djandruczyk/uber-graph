@@ -928,6 +928,16 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 	              priv->content_rect.y - (height / 2.));
 	pango_cairo_show_layout(priv->bg_cairo, pl);
 	/*
+	 * Render bottom tick.
+	 */
+	label = g_markup_printf_escaped("%0.1f", range.begin);
+	pango_layout_set_text(pl, label, -1);
+	pango_layout_get_pixel_size(pl, &width, &height);
+	cairo_move_to(priv->bg_cairo,
+	              priv->content_rect.x - priv->tick_len - width - 3.,
+	              priv->content_rect.y + priv->content_rect.height - (height / 2.));
+	pango_cairo_show_layout(priv->bg_cairo, pl);
+	/*
 	 * Cleanup resources.
 	 */
 	g_free(label);
