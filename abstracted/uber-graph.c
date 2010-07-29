@@ -48,33 +48,34 @@ typedef struct
 
 struct _UberGraphPrivate
 {
-	GraphTexture  texture[2];    /* Front and back textures. */
-	gboolean      flipped;       /* Which texture are we using. */
-	cairo_t      *bg_cairo;      /* Cairo context for background. */
-	GdkPixmap    *bg_pixmap;     /* Server side pixmap for background. */
-	GdkRectangle  content_rect;  /* Content area rectangle. */
-	GdkRectangle  nonvis_rect;   /* Non-visible drawing area larger than
-	                              * content rect. Used to draw over larger
-	                              * area so we can scroll and not fall out
-	                              * of view.
-	                              */
-	gboolean      have_rgba;     /* Do we support 32-bit RGBA colormaps. */
-	gint          x_slots;       /* Number of data points on x axis. */
-	gint          fps;           /* Desired frames per second. */
-	gint          fps_real;      /* Milleseconds between FPS callbacks. */
-	gfloat        fps_each;      /* How far to move in each FPS tick. */
-	guint         fps_handler;   /* Timeout for moving the content. */
-	gfloat        dps;           /* Desired data points per second. */
-	gfloat        dps_each;      /* How many pixels between data points. */
-	GTimeVal      dps_tv;        /* Timeval of last data point. */
-	guint         dps_handler;   /* Timeout for getting new data. */
-	gboolean      fg_dirty;      /* Does the foreground need to be redrawn. */
-	gboolean      bg_dirty;      /* Does the background need to be redrawn. */
-	guint         tick_len;      /* How long should axis-ticks be. */
-	gboolean      full_draw;     /* Do we need to redraw all foreground content.
-	                              * If false, draws will try to only add new
-	                              * content to the back buffer.
-	                              */
+	GraphTexture     texture[2];    /* Front and back textures. */
+	gboolean         flipped;       /* Which texture are we using. */
+	cairo_t         *bg_cairo;      /* Cairo context for background. */
+	GdkPixmap       *bg_pixmap;     /* Server side pixmap for background. */
+	GdkRectangle     content_rect;  /* Content area rectangle. */
+	GdkRectangle     nonvis_rect;   /* Non-visible drawing area larger than
+	                                 * content rect. Used to draw over larger
+	                                 * area so we can scroll and not fall out
+	                                 * of view.
+	                                 */
+	UberGraphFormat  format;
+	gboolean         have_rgba;     /* Do we support 32-bit RGBA colormaps. */
+	gint             x_slots;       /* Number of data points on x axis. */
+	gint             fps;           /* Desired frames per second. */
+	gint             fps_real;      /* Milleseconds between FPS callbacks. */
+	gfloat           fps_each;      /* How far to move in each FPS tick. */
+	guint            fps_handler;   /* Timeout for moving the content. */
+	gfloat           dps;           /* Desired data points per second. */
+	gfloat           dps_each;      /* How many pixels between data points. */
+	GTimeVal         dps_tv;        /* Timeval of last data point. */
+	guint            dps_handler;   /* Timeout for getting new data. */
+	gboolean         fg_dirty;      /* Does the foreground need to be redrawn. */
+	gboolean         bg_dirty;      /* Does the background need to be redrawn. */
+	guint            tick_len;      /* How long should axis-ticks be. */
+	gboolean         full_draw;     /* Do we need to redraw all foreground content.
+	                                 * If false, draws will try to only add new
+	                                 * content to the back buffer.
+	                                 */
 };
 
 /**
@@ -361,7 +362,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	layout = pango_cairo_create_layout(cr);
 	font_desc = pango_font_description_new();
 	pango_font_description_set_family_static(font_desc, "Monospace");
-	pango_font_description_set_size(font_desc, 8 * PANGO_SCALE);
+	pango_font_description_set_size(font_desc, 6 * PANGO_SCALE);
 	pango_layout_set_font_description(layout, font_desc);
 	pango_layout_set_text(layout, "XXXXXXXX", -1);
 	pango_layout_get_pixel_size(layout, &pango_width, &pango_height);
@@ -888,6 +889,29 @@ uber_graph_get_yrange (UberGraph *graph, /* IN */
 	}
 }
 
+/**
+ * uber_graph_set_format:
+ * @graph: A UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_format (UberGraph       *graph, /* IN */
+                       UberGraphFormat  format) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->format = format;
+	priv->bg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
+}
+
 static void
 uber_graph_render_x_axis (UberGraph *graph) /* IN */
 {
@@ -915,12 +939,22 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 	pl = pango_cairo_create_layout(priv->bg_cairo);
 	fd = pango_font_description_new();
 	pango_font_description_set_family_static(fd, "Monospace");
-	pango_font_description_set_size(fd, PANGO_SCALE * 8);
+	pango_font_description_set_size(fd, 6 * PANGO_SCALE);
 	pango_layout_set_font_description(pl, fd);
 	/*
 	 * Render top tick.
 	 */
-	label = g_markup_printf_escaped("%0.1f", range.end);
+	switch (priv->format) {
+	case UBER_GRAPH_FORMAT_DIRECT:
+	case UBER_GRAPH_FORMAT_DIRECT1024: /* FIXME */
+		label = g_markup_printf_escaped("%0.1f", range.end);
+		break;
+	case UBER_GRAPH_FORMAT_PERCENT:
+		label = g_markup_printf_escaped("%0.0f %%", range.end);
+		break;
+	default:
+		g_assert_not_reached();
+	}
 	pango_layout_set_text(pl, label, -1);
 	pango_layout_get_pixel_size(pl, &width, &height);
 	cairo_move_to(priv->bg_cairo,
@@ -930,7 +964,17 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 	/*
 	 * Render bottom tick.
 	 */
-	label = g_markup_printf_escaped("%0.1f", range.begin);
+	switch (priv->format) {
+	case UBER_GRAPH_FORMAT_DIRECT:
+	case UBER_GRAPH_FORMAT_DIRECT1024: /* FIXME */
+		label = g_markup_printf_escaped("%0.1f", range.begin);
+		break;
+	case UBER_GRAPH_FORMAT_PERCENT:
+		label = g_markup_printf_escaped("%0.0f %%", range.begin);
+		break;
+	default:
+		g_assert_not_reached();
+	}
 	pango_layout_set_text(pl, label, -1);
 	pango_layout_get_pixel_size(pl, &width, &height);
 	cairo_move_to(priv->bg_cairo,

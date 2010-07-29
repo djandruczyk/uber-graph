@@ -33,6 +33,13 @@ G_BEGIN_DECLS
 #define UBER_IS_GRAPH_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  UBER_TYPE_GRAPH))
 #define UBER_GRAPH_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  UBER_TYPE_GRAPH, UberGraphClass))
 
+typedef enum
+{
+	UBER_GRAPH_FORMAT_DIRECT,
+	UBER_GRAPH_FORMAT_DIRECT1024,
+	UBER_GRAPH_FORMAT_PERCENT,
+} UberGraphFormat;
+
 typedef struct _UberGraph        UberGraph;
 typedef struct _UberGraphClass   UberGraphClass;
 typedef struct _UberGraphPrivate UberGraphPrivate;
@@ -64,12 +71,14 @@ struct _UberGraphClass
 	                           guint         stride);
 };
 
-GType uber_graph_get_type (void) G_GNUC_CONST;
-void  uber_graph_set_dps  (UberGraph *graph,
-                           gfloat     dps);
-void  uber_graph_set_fps  (UberGraph *graph,
-                           guint      fps);
-void  uber_graph_redraw   (UberGraph *graph);
+GType uber_graph_get_type   (void) G_GNUC_CONST;
+void  uber_graph_set_dps    (UberGraph       *graph,
+                             gfloat           dps);
+void  uber_graph_set_fps    (UberGraph       *graph,
+                             guint            fps);
+void  uber_graph_redraw     (UberGraph       *graph);
+void  uber_graph_set_format (UberGraph       *graph,
+                             UberGraphFormat  format);
 
 G_END_DECLS
 

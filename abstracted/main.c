@@ -285,7 +285,8 @@ main (gint   argc,   /* IN */
 		gdk_color_parse(default_colors[mod], &color);
 		uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color);
 		/*
-		 * XXX: Add the line regardless. Just dont populate it if we dont have data.
+		 * XXX: Add the line regardless. Just dont populate it if we don't
+		 *      have data.
 		 */
 		lineno = uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color);
 		if (has_freq_scaling(i)) {
@@ -297,6 +298,7 @@ main (gint   argc,   /* IN */
 	/*
 	 * Adjust graph settings.
 	 */
+	uber_graph_set_format(UBER_GRAPH(cpu), UBER_GRAPH_FORMAT_PERCENT);
 	uber_line_graph_set_range(UBER_LINE_GRAPH(cpu), &cpu_range);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(cpu),
 	                              get_cpu_info, NULL, NULL);
