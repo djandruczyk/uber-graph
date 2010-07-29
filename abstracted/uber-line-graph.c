@@ -29,6 +29,7 @@
 
 #define RECT_BOTTOM(r) ((r).y + (r).height)
 #define RECT_RIGHT(r)  ((r).x + (r).width)
+#define SCALE_FACTOR   (0.2)
 
 /**
  * SECTION:uber-line-graph.h
@@ -265,11 +266,11 @@ uber_line_graph_get_next_data (UberGraph *graph) /* IN */
 			g_ring_append_val(line->raw_data, val);
 			if (priv->autoscale) {
 				if (val < priv->range.begin) {
-					priv->range.begin = val;
+					priv->range.begin = val - (val * SCALE_FACTOR);
 					priv->range.range = priv->range.end - priv->range.begin;
 					redraw = TRUE;
 				} else if (val > priv->range.end) {
-					priv->range.end = val;
+					priv->range.end = val + (val * SCALE_FACTOR);
 					priv->range.range = priv->range.end - priv->range.begin;
 					redraw = TRUE;
 				}
