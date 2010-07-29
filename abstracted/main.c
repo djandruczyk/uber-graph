@@ -76,16 +76,6 @@ main (gint   argc,   /* IN */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "X Events");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
-#if 0
-	uber_graph_set_dps(UBER_GRAPH(map), 2.);
-#endif
-#if 0
-	gtk_container_add(GTK_CONTAINER(window), vbox);
-	gtk_box_pack_start(GTK_BOX(vbox), line, TRUE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), map, TRUE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(vbox), scatter, TRUE, TRUE, 0);
-	gtk_window_set_default_size(GTK_WINDOW(window), 300, 300);
-#endif
 	gtk_widget_show(scatter);
 	gtk_widget_show(map);
 	gtk_widget_show(line);
