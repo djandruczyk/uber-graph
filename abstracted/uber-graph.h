@@ -21,6 +21,8 @@
 
 #include <gtk/gtk.h>
 
+#include "uber-range.h"
+
 G_BEGIN_DECLS
 
 #define UBER_TYPE_GRAPH            (uber_graph_get_type())
@@ -48,6 +50,8 @@ struct _UberGraphClass
 	GtkDrawingAreaClass parent_class;
 
 	gboolean (*get_next_data) (UberGraph    *graph);
+	void     (*get_yrange)    (UberGraph    *graph,
+	                           UberRange    *range);
 	void     (*render)        (UberGraph    *graph,
 	                           cairo_t      *cairo,
 	                           GdkRectangle *content_area);

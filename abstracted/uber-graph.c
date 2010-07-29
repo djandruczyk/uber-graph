@@ -21,8 +21,10 @@
 #endif
 
 #include <math.h>
+#include <string.h>
 
 #include "uber-graph.h"
+#include "uber-range.h"
 
 #define WIDGET_CLASS (GTK_WIDGET_CLASS(uber_graph_parent_class))
 #define RECT_RIGHT(r)  ((r).x + (r).width)
@@ -370,9 +372,10 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 * Calculate content area rectangle.
 	 */
 	priv->content_rect.x = priv->tick_len + pango_width + 1.5;
-	priv->content_rect.y = 1.5;
+	priv->content_rect.y = (pango_height / 2.) + 1.5;
 	priv->content_rect.width = alloc.width - priv->content_rect.x - 3.0;
-	priv->content_rect.height = alloc.height - priv->tick_len - pango_height - 3.0;
+	priv->content_rect.height = alloc.height - priv->tick_len - pango_height
+	                          - (pango_height / 2.) - 3.0;
 	/*
 	 * Calculate FPS/DPS adjustments.
 	 */
@@ -864,6 +867,76 @@ uber_graph_redraw (UberGraph *graph) /* IN */
 }
 
 /**
+ * uber_graph_get_yrange:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_get_yrange (UberGraph *graph, /* IN */
+                       UberRange *range) /* OUT */
+{
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(range != NULL);
+
+	memset(range, 0, sizeof(*range));
+	if (UBER_GRAPH_GET_CLASS(graph)->get_yrange) {
+		UBER_GRAPH_GET_CLASS(graph)->get_yrange(graph, range);
+	}
+}
+
+static void
+uber_graph_render_x_axis (UberGraph *graph) /* IN */
+{
+}
+
+static void
+uber_graph_render_y_axis (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+	UberRange range;
+	PangoFontDescription *fd;
+	PangoLayout *pl;
+	gchar *label;
+	gint width;
+	gint height;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	uber_graph_get_yrange(graph, &range);
+	cairo_save(priv->bg_cairo);
+	/*
+	 * Create pango layout for labels.
+	 */
+	pl = pango_cairo_create_layout(priv->bg_cairo);
+	fd = pango_font_description_new();
+	pango_font_description_set_family_static(fd, "Monospace");
+	pango_font_description_set_size(fd, PANGO_SCALE * 8);
+	pango_layout_set_font_description(pl, fd);
+	/*
+	 * Render top tick.
+	 */
+	label = g_markup_printf_escaped("%0.1f", range.end);
+	pango_layout_set_text(pl, label, -1);
+	pango_layout_get_pixel_size(pl, &width, &height);
+	cairo_move_to(priv->bg_cairo,
+	              priv->content_rect.x - priv->tick_len - width - 3.,
+	              priv->content_rect.y - (height / 2.));
+	pango_cairo_show_layout(priv->bg_cairo, pl);
+	/*
+	 * Cleanup resources.
+	 */
+	g_free(label);
+	g_object_unref(pl);
+	pango_font_description_free(fd);
+	cairo_restore(priv->bg_cairo);
+}
+
+/**
  * uber_graph_render_bg:
  * @graph: A #UberGraph.
  *
@@ -926,6 +999,11 @@ uber_graph_render_bg (UberGraph *graph) /* IN */
 	                priv->content_rect.height + 1.0);
 	cairo_stroke(priv->bg_cairo);
 	cairo_restore(priv->bg_cairo);
+	/*
+	 * Render the axis ticks.
+	 */
+	uber_graph_render_y_axis(graph);
+	uber_graph_render_x_axis(graph);
 	/*
 	 * Background is no longer dirty.
 	 */

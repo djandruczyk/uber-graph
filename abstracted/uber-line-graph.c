@@ -596,6 +596,28 @@ uber_line_graph_set_range (UberLineGraph   *graph, /* IN */
 }
 
 /**
+ * uber_line_graph_get_yrange:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_line_graph_get_yrange (UberGraph *graph, /* IN */
+                            UberRange *range) /* OUT */
+{
+	UberLineGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+	g_return_if_fail(range != NULL);
+
+	priv = UBER_LINE_GRAPH(graph)->priv;
+	*range = priv->range;
+}
+
+/**
  * uber_line_graph_finalize:
  * @object: A #UberLineGraph.
  *
@@ -644,6 +666,7 @@ uber_line_graph_class_init (UberLineGraphClass *klass) /* IN */
 
 	graph_class = UBER_GRAPH_CLASS(klass);
 	graph_class->get_next_data = uber_line_graph_get_next_data;
+	graph_class->get_yrange = uber_line_graph_get_yrange;
 	graph_class->render = uber_line_graph_render;
 	graph_class->render_fast = uber_line_graph_render_fast;
 	graph_class->set_stride = uber_line_graph_set_stride;
