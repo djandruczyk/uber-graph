@@ -1,4 +1,4 @@
-/* uber.h
+/* uber-range.h
  *
  * Copyright (C) 2010 Christian Hergert <chris@dronelabs.com>
  * 
@@ -16,15 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __UBER_H__
-#define __UBER_H__
+#ifndef __UBER_RANGE_H__
+#define __UBER_RANGE_H__
 
-#include "uber-graph.h"
-#include "uber-line-graph.h"
-#include "uber-heat-map.h"
-#include "uber-range.h"
-#include "uber-scatter.h"
-#include "uber-scale.h"
-#include "uber-window.h"
+#include <glib.h>
 
-#endif /* __UBER_H__ */
+G_BEGIN_DECLS
+
+/**
+ * UberRange:
+ *
+ * #UberRange is a structure that encapsulates the range of a particular
+ * scale.  It contains the beginning value, ending value, and a pre-calculated
+ * range between the values.
+ */
+typedef struct
+{
+	gdouble begin;
+	gdouble end;
+	gdouble range;
+} UberRange;
+
+G_END_DECLS
+
+#endif /* __UBER_RANGE_H__ */

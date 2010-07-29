@@ -176,6 +176,7 @@ main (gint   argc,   /* IN */
 	GtkWidget *map;
 	GtkWidget *scatter;
 	GdkColor color;
+	UberRange cpu_range = { 0., 100., 100. };
 	gint nprocs;
 	gint i;
 	gint mod;
@@ -209,6 +210,7 @@ main (gint   argc,   /* IN */
 	/*
 	 * Set data funcs.
 	 */
+	uber_line_graph_set_range(UBER_LINE_GRAPH(cpu), &cpu_range);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(cpu),
 	                              get_cpu_info, NULL, NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),

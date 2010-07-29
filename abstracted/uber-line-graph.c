@@ -23,6 +23,8 @@
 #include <math.h>
 
 #include "uber-line-graph.h"
+#include "uber-range.h"
+#include "uber-scale.h"
 #include "g-ring.h"
 
 #define RECT_BOTTOM(r) ((r).y + (r).height)
@@ -42,7 +44,6 @@ typedef struct
 {
 	GdkColor  color;
 	GRing    *raw_data;
-	GRing    *scaled_data;
 } LineInfo;
 
 struct _UberLineGraphPrivate
@@ -51,6 +52,10 @@ struct _UberLineGraphPrivate
 	cairo_antialias_t  antialias;
 	guint              stride;
 	gboolean           autoscale;
+	UberRange          range;
+	UberScale          scale;
+	gpointer           scale_data;
+	GDestroyNotify     scale_notify;
 	UberLineGraphFunc  func;
 	gpointer           func_data;
 	GDestroyNotify     func_notify;
@@ -169,9 +174,7 @@ uber_line_graph_add_line (UberLineGraph  *graph, /* IN */
 	 * Allocate buffers for data points.
 	 */
 	info.raw_data = g_ring_sized_new(sizeof(gdouble), priv->stride, NULL);
-	info.scaled_data = g_ring_sized_new(sizeof(gdouble), priv->stride, NULL);
 	uber_line_graph_init_ring(info.raw_data);
-	uber_line_graph_init_ring(info.scaled_data);
 	/*
 	 * Store the newly crated line.
 	 */
@@ -259,10 +262,15 @@ uber_line_graph_get_next_data (UberGraph *graph) /* IN */
 				val = -INFINITY;
 			}
 			g_ring_append_val(line->raw_data, val);
-			/*
-			 * TODO: Scale value.
-			 */
-			g_ring_append_val(line->scaled_data, val);
+			if (val < priv->range.begin) {
+				priv->range.begin = val;
+				priv->range.range = priv->range.end - priv->range.begin;
+				uber_graph_redraw(graph);
+			} else if (val > priv->range.end) {
+				priv->range.end = val;
+				priv->range.range = priv->range.end - priv->range.begin;
+				uber_graph_redraw(graph);
+			}
 		}
 	}
 	return ret;
@@ -321,6 +329,7 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
                              LineInfo      *line)  /* IN */
 {
 	UberLineGraphPrivate *priv;
+	UberRange pixel_range;
 	guint x_epoch;
 	guint x;
 	guint y;
@@ -333,6 +342,9 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
 
 	priv = graph->priv;
+	pixel_range.begin = area->y;
+	pixel_range.end = area->y + area->height;
+	pixel_range.range = area->height;
 	/*
 	 * Calculate number of pixels per data point.
 	 */
@@ -364,6 +376,12 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 		 * sequence.  This may not always be true in the future.
 		 */
 		if (val == -INFINITY) {
+			break;
+		}
+		/*
+		 * Translate value to coordinate system.
+		 */
+		if (!priv->scale(&priv->range, &pixel_range, &val, priv->scale_data)) {
 			break;
 		}
 		/*
@@ -445,6 +463,7 @@ uber_line_graph_render_fast (UberGraph    *graph, /* IN */
                              gfloat        each)  /* IN */
 {
 	UberLineGraphPrivate *priv;
+	UberRange pixel_range;
 	LineInfo *line;
 	gdouble last_y;
 	gdouble y;
@@ -455,6 +474,9 @@ uber_line_graph_render_fast (UberGraph    *graph, /* IN */
 	g_return_if_fail(rect != NULL);
 
 	priv = UBER_LINE_GRAPH(graph)->priv;
+	pixel_range.begin = rect->y;
+	pixel_range.end = rect->y + rect->height;
+	pixel_range.range = rect->height;
 	/*
 	 * Prepare cairo line styling.
 	 */
@@ -471,12 +493,19 @@ uber_line_graph_render_fast (UberGraph    *graph, /* IN */
 		/*
 		 * Calculate positions.
 		 */
-		y = g_ring_get_index(line->scaled_data, gdouble, 0);
-		last_y = g_ring_get_index(line->scaled_data, gdouble, 1);
+		y = g_ring_get_index(line->raw_data, gdouble, 0);
+		last_y = g_ring_get_index(line->raw_data, gdouble, 1);
 		/*
 		 * Don't try to draw before we have real values.
 		 */
 		if ((isnan(y) || isinf(y)) || (isnan(last_y) || isinf(last_y))) {
+			continue;
+		}
+		/*
+		 * Translate to coordinate scale.
+		 */
+		if (!priv->scale(&priv->range, &pixel_range, &y, priv->scale_data) ||
+		    !priv->scale(&priv->range, &pixel_range, &last_y, priv->scale_data)) {
 			continue;
 		}
 		/*
@@ -529,16 +558,34 @@ uber_line_graph_set_stride (UberGraph *graph,  /* IN */
 		for (i = 0; i < priv->lines->len; i++) {
 			line = &g_array_index(priv->lines, LineInfo, i);
 			g_ring_unref(line->raw_data);
-			g_ring_unref(line->scaled_data);
 			line->raw_data = g_ring_sized_new(sizeof(gdouble),
 			                                  priv->stride, NULL);
-			line->scaled_data = g_ring_sized_new(sizeof(gdouble),
-			                                     priv->stride, NULL);
 			uber_line_graph_init_ring(line->raw_data);
-			uber_line_graph_init_ring(line->scaled_data);
 		}
 		return;
 	}
+}
+
+/**
+ * uber_line_graph_set_range:
+ * @graph: A #UberLineGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_line_graph_set_range (UberLineGraph   *graph, /* IN */
+                           const UberRange *range) /* IN */
+{
+	UberLineGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+	g_return_if_fail(range != NULL);
+
+	priv = graph->priv;
+	priv->range = *range;
 }
 
 /**
@@ -565,7 +612,6 @@ uber_line_graph_finalize (GObject *object) /* IN */
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
 		g_ring_unref(line->raw_data);
-		g_ring_unref(line->scaled_data);
 	}
 	G_OBJECT_CLASS(uber_line_graph_parent_class)->finalize(object);
 }
@@ -623,4 +669,5 @@ uber_line_graph_init (UberLineGraph *graph) /* IN */
 	priv->stride = 60;
 	priv->antialias = CAIRO_ANTIALIAS_DEFAULT;
 	priv->lines = g_array_sized_new(FALSE, FALSE, sizeof(LineInfo), 2);
+	priv->scale = uber_scale_linear;
 }

@@ -20,6 +20,7 @@
 #define __UBER_LINE_GRAPH_H__
 
 #include "uber-graph.h"
+#include "uber-range.h"
 
 G_BEGIN_DECLS
 
@@ -78,6 +79,8 @@ void              uber_line_graph_set_data_func (UberLineGraph     *graph,
 gboolean          uber_line_graph_get_autoscale (UberLineGraph     *graph);
 void              uber_line_graph_set_autoscale (UberLineGraph     *graph,
                                                  gboolean           autoscale);
+void              uber_line_graph_set_range     (UberLineGraph     *graph,
+                                                 const UberRange   *range);
 
 G_END_DECLS
 

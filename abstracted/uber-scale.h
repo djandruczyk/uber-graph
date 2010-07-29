@@ -1,4 +1,4 @@
-/* uber.h
+/* uber-scale.h
  *
  * Copyright (C) 2010 Christian Hergert <chris@dronelabs.com>
  * 
@@ -16,15 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __UBER_H__
-#define __UBER_H__
+#ifndef __UBER_SCALE_H__
+#define __UBER_SCALE_H__
 
-#include "uber-graph.h"
-#include "uber-line-graph.h"
-#include "uber-heat-map.h"
 #include "uber-range.h"
-#include "uber-scatter.h"
-#include "uber-scale.h"
-#include "uber-window.h"
 
-#endif /* __UBER_H__ */
+G_BEGIN_DECLS
+
+typedef gboolean (*UberScale) (const UberRange *range,
+                               const UberRange *pixel_range,
+                               gdouble         *value,
+                               gpointer         user_data);
+
+gboolean uber_scale_linear (const UberRange *range,
+                            const UberRange *pixel_range,
+                            gdouble         *value,
+                            gpointer         user_data);
+
+G_END_DECLS
+
+#endif /* __UBER_SCALE_H__ */
