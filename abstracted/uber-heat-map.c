@@ -20,6 +20,8 @@
 #include "config.h"
 #endif
 
+#include <string.h>
+
 #include "uber-heat-map.h"
 #include "g-ring.h"
 
@@ -35,7 +37,9 @@ G_DEFINE_TYPE(UberHeatMap, uber_heat_map, UBER_TYPE_GRAPH)
 
 struct _UberHeatMapPrivate
 {
-	GRing *raw_data;
+	GRing    *raw_data;
+	gboolean  fg_color_set;
+	GdkColor  fg_color;
 };
 
 /**
@@ -153,17 +157,24 @@ uber_heat_map_render_fast (UberGraph    *graph, /* IN */
                            guint         epoch, /* IN */
                            gfloat        each)  /* IN */
 {
-	UberGraphPrivate *priv;
+	UberHeatMapPrivate *priv;
+	GtkStyle *style;
+	GdkColor color;
 	gfloat height;
 	gint i;
 
 	g_return_if_fail(UBER_IS_HEAT_MAP(graph));
 
-	priv = graph->priv;
+	priv = UBER_HEAT_MAP(graph)->priv;
+	color = priv->fg_color;
+	if (!priv->fg_color_set) {
+		style = gtk_widget_get_style(GTK_WIDGET(graph));
+		color = style->dark[GTK_STATE_SELECTED];
+	}
 	/*
 	 * XXX: Temporarily draw nice little squares.
 	 */
-#define COUNT 10
+	#define COUNT 10
 	height = area->height / (gfloat)COUNT;
 	for (i = 0; i < COUNT; i++) {
 		cairo_rectangle(cr,
@@ -171,7 +182,10 @@ uber_heat_map_render_fast (UberGraph    *graph, /* IN */
 		                area->y + (i * height),
 		                each,
 		                height);
-		cairo_set_source_rgba(cr, .1, .1, .8,
+		cairo_set_source_rgba(cr,
+		                      color.red / 65535.,
+		                      color.green / 65535.,
+		                      color.blue / 65535.,
 		                      g_random_double_range(0., 1.));
 		cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
 		cairo_fill(cr);
@@ -196,6 +210,33 @@ uber_heat_map_get_next_data (UberGraph *graph) /* IN */
 
 	priv = UBER_HEAT_MAP(graph)->priv;
 	return TRUE;
+}
+
+/**
+ * uber_heat_map_set_fg_color:
+ * @map: A #UberHeatMap.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_heat_map_set_fg_color (UberHeatMap    *map,   /* IN */
+                            const GdkColor *color) /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+
+	priv = map->priv;
+	if (!color) {
+		priv->fg_color_set = FALSE;
+		memset(&priv->fg_color, 0, sizeof(priv->fg_color));
+	} else {
+		priv->fg_color = *color;
+		priv->fg_color_set = TRUE;
+	}
 }
 
 /**

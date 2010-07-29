@@ -208,7 +208,7 @@ main (gint   argc,   /* IN */
 		uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color);
 	}
 	/*
-	 * Set data funcs.
+	 * Adjust graph settings.
 	 */
 	uber_line_graph_set_range(UBER_LINE_GRAPH(cpu), &cpu_range);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(cpu),
@@ -216,15 +216,29 @@ main (gint   argc,   /* IN */
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
 	                              get_xevent_info, NULL, NULL);
 	uber_line_graph_add_line(UBER_LINE_GRAPH(line), NULL);
+	/*
+	 * Add graphs.
+	 */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(cpu), "CPU");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "X Events");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
+	/*
+	 * Set heat map color.
+	 */
+	gdk_color_parse(default_colors[0], &color);
+	uber_heat_map_set_fg_color(UBER_HEAT_MAP(map), &color);
+	/*
+	 * Show widgets.
+	 */
 	gtk_widget_show(scatter);
 	gtk_widget_show(map);
 	gtk_widget_show(line);
 	gtk_widget_show(cpu);
 	gtk_widget_show(window);
+	/*
+	 * Attach signals.
+	 */
 	g_signal_connect(window,
 	                 "delete-event",
 	                 G_CALLBACK(gtk_main_quit),

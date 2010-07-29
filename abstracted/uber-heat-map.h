@@ -48,8 +48,10 @@ struct _UberHeatMapClass
 	UberGraphClass parent_class;
 };
 
-GType      uber_heat_map_get_type (void) G_GNUC_CONST;
-GtkWidget* uber_heat_map_new      (void);
+GType      uber_heat_map_get_type     (void) G_GNUC_CONST;
+GtkWidget* uber_heat_map_new          (void);
+void       uber_heat_map_set_fg_color (UberHeatMap    *map,
+                                       const GdkColor *color);
 
 G_END_DECLS
 
