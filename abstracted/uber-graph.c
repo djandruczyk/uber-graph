@@ -1151,6 +1151,16 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	gtk_widget_queue_draw(widget);
 }
 
+static void
+uber_graph_size_request (GtkWidget      *widget, /* IN */
+                         GtkRequisition *req)    /* OUT */
+{
+	g_return_if_fail(req != NULL);
+
+	req->width = 150;
+	req->height = 50;
+}
+
 /**
  * uber_graph_finalize:
  * @object: A #UberGraph.
@@ -1233,6 +1243,7 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 	widget_class->size_allocate = uber_graph_size_allocate;
 	widget_class->style_set = uber_graph_style_set;
 	widget_class->unrealize = uber_graph_unrealize;
+	widget_class->size_request = uber_graph_size_request;
 }
 
 /**

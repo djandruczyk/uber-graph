@@ -187,7 +187,7 @@ uber_window_init (UberWindow *window) /* IN */
 	/*
 	 * Create table for graphs.
 	 */
-	priv->table = gtk_table_new(1, 2, FALSE);
+	priv->table = gtk_table_new(1, 1, TRUE);
 	gtk_notebook_append_page(GTK_NOTEBOOK(priv->notebook), priv->table, NULL);
 	gtk_widget_show(priv->table);
 }
