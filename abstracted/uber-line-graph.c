@@ -241,9 +241,10 @@ static gboolean
 uber_line_graph_get_next_data (UberGraph *graph) /* IN */
 {
 	UberLineGraphPrivate *priv;
+	gboolean redraw = FALSE;
+	gboolean ret = FALSE;
 	LineInfo *line;
 	gdouble val;
-	gboolean ret = FALSE;
 	gint i;
 
 	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), FALSE);
@@ -262,16 +263,21 @@ uber_line_graph_get_next_data (UberGraph *graph) /* IN */
 				val = -INFINITY;
 			}
 			g_ring_append_val(line->raw_data, val);
-			if (val < priv->range.begin) {
-				priv->range.begin = val;
-				priv->range.range = priv->range.end - priv->range.begin;
-				uber_graph_redraw(graph);
-			} else if (val > priv->range.end) {
-				priv->range.end = val;
-				priv->range.range = priv->range.end - priv->range.begin;
-				uber_graph_redraw(graph);
+			if (priv->autoscale) {
+				if (val < priv->range.begin) {
+					priv->range.begin = val;
+					priv->range.range = priv->range.end - priv->range.begin;
+					redraw = TRUE;
+				} else if (val > priv->range.end) {
+					priv->range.end = val;
+					priv->range.range = priv->range.end - priv->range.begin;
+					redraw = TRUE;
+				}
 			}
 		}
+	}
+	if (redraw) {
+		uber_graph_redraw(graph);
 	}
 	return ret;
 }
@@ -670,4 +676,5 @@ uber_line_graph_init (UberLineGraph *graph) /* IN */
 	priv->antialias = CAIRO_ANTIALIAS_DEFAULT;
 	priv->lines = g_array_sized_new(FALSE, FALSE, sizeof(LineInfo), 2);
 	priv->scale = uber_scale_linear;
+	priv->autoscale = TRUE;
 }
