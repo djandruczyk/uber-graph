@@ -72,8 +72,10 @@ uber_window_add_graph (UberWindow  *window, /* IN */
                        const gchar *title)  /* IN */
 {
 	UberWindowPrivate *priv;
+	GtkWidget *vbox;
 	GtkWidget *hbox;
 	GtkWidget *label;
+	GtkWidget *labels;
 	gchar *formatted;
 	gint left_attach;
 	gint top_attach;
@@ -88,14 +90,21 @@ uber_window_add_graph (UberWindow  *window, /* IN */
 	/*
 	 * Create container for graph.
 	 */
+	vbox = gtk_vbox_new(FALSE, 3);
 	hbox = gtk_hbox_new(FALSE, 3);
 	label = gtk_label_new(NULL);
+	labels = uber_graph_get_labels(graph);
 	gtk_label_set_markup(GTK_LABEL(label), formatted);
 	gtk_label_set_angle(GTK_LABEL(label), -270.);
 	gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(hbox), GTK_WIDGET(graph), TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(graph), TRUE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(hbox), vbox, TRUE, TRUE, 0);
+	if (labels) {
+		gtk_box_pack_start(GTK_BOX(vbox), labels, FALSE, TRUE, 0);
+	}
 	gtk_widget_show(label);
 	gtk_widget_show(hbox);
+	gtk_widget_show(vbox);
 	/*
 	 * Append graph to table.
 	 */

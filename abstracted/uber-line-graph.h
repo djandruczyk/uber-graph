@@ -21,6 +21,7 @@
 
 #include "uber-graph.h"
 #include "uber-range.h"
+#include "uber-label.h"
 
 G_BEGIN_DECLS
 
@@ -66,7 +67,8 @@ struct _UberLineGraphClass
 };
 
 guint             uber_line_graph_add_line      (UberLineGraph     *graph,
-                                                 const GdkColor    *color);
+                                                 const GdkColor    *color,
+                                                 UberLabel         *label);
 cairo_antialias_t uber_line_graph_get_antialias (UberLineGraph     *graph);
 GType             uber_line_graph_get_type      (void) G_GNUC_CONST;
 GtkWidget*        uber_line_graph_new           (void);

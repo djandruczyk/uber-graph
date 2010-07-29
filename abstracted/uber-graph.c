@@ -120,6 +120,39 @@ uber_graph_fps_timeout (UberGraph *graph) /* IN */
 	return TRUE;
 }
 
+void
+uber_graph_get_content_area (UberGraph    *graph, /* IN */
+                             GdkRectangle *rect)  /* OUT */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(rect != NULL);
+
+	priv = graph->priv;
+	*rect = priv->content_rect;
+}
+
+/**
+ * uber_graph_get_labels:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+GtkWidget*
+uber_graph_get_labels (UberGraph *graph) /* IN */
+{
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), NULL);
+
+	if (UBER_GRAPH_GET_CLASS(graph)->get_labels) {
+		return UBER_GRAPH_GET_CLASS(graph)->get_labels(graph);
+	}
+	return NULL;
+}
+
 /**
  * uber_graph_get_next_data:
  * @graph: A #UberGraph.
@@ -377,6 +410,9 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	priv->content_rect.width = alloc.width - priv->content_rect.x - 3.0;
 	priv->content_rect.height = alloc.height - priv->tick_len - pango_height
 	                          - (pango_height / 2.) - 3.0;
+	/*
+	 * Adjust label offset.
+	 */
 	/*
 	 * Calculate FPS/DPS adjustments.
 	 */

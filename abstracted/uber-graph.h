@@ -56,29 +56,33 @@ struct _UberGraphClass
 {
 	GtkDrawingAreaClass parent_class;
 
-	gboolean (*get_next_data) (UberGraph    *graph);
-	void     (*get_yrange)    (UberGraph    *graph,
-	                           UberRange    *range);
-	void     (*render)        (UberGraph    *graph,
-	                           cairo_t      *cairo,
-	                           GdkRectangle *content_area);
-	void     (*render_fast)   (UberGraph    *graph,
-	                           cairo_t      *cairo,
-	                           GdkRectangle *content_area,
-	                           guint         epoch,
-	                           gfloat        each);
-	void     (*set_stride)    (UberGraph    *graph,
-	                           guint         stride);
+	gboolean   (*get_next_data) (UberGraph    *graph);
+	void       (*get_yrange)    (UberGraph    *graph,
+	                             UberRange    *range);
+	void       (*render)        (UberGraph    *graph,
+	                             cairo_t      *cairo,
+	                             GdkRectangle *content_area);
+	void       (*render_fast)   (UberGraph    *graph,
+	                             cairo_t      *cairo,
+	                             GdkRectangle *content_area,
+	                             guint         epoch,
+	                             gfloat        each);
+	void       (*set_stride)    (UberGraph    *graph,
+	                             guint         stride);
+	GtkWidget* (*get_labels)    (UberGraph    *graph);
 };
 
-GType uber_graph_get_type   (void) G_GNUC_CONST;
-void  uber_graph_set_dps    (UberGraph       *graph,
-                             gfloat           dps);
-void  uber_graph_set_fps    (UberGraph       *graph,
-                             guint            fps);
-void  uber_graph_redraw     (UberGraph       *graph);
-void  uber_graph_set_format (UberGraph       *graph,
-                             UberGraphFormat  format);
+GType      uber_graph_get_type         (void) G_GNUC_CONST;
+void       uber_graph_set_dps          (UberGraph       *graph,
+                                        gfloat           dps);
+void       uber_graph_set_fps          (UberGraph       *graph,
+                                        guint            fps);
+void       uber_graph_redraw           (UberGraph       *graph);
+void       uber_graph_set_format       (UberGraph       *graph,
+                                        UberGraphFormat  format);
+GtkWidget* uber_graph_get_labels       (UberGraph       *graph);
+void       uber_graph_get_content_area (UberGraph       *graph,
+                                        GdkRectangle    *rect);
 
 G_END_DECLS
 

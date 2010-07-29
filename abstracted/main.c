@@ -252,6 +252,7 @@ main (gint   argc,   /* IN */
 	GtkWidget *line;
 	GtkWidget *map;
 	GtkWidget *scatter;
+	GtkWidget *label;
 	GdkColor color;
 	gint lineno;
 	gint nprocs;
@@ -283,12 +284,15 @@ main (gint   argc,   /* IN */
 	for (i = 0; i < nprocs; i++) {
 		mod = i % G_N_ELEMENTS(default_colors);
 		gdk_color_parse(default_colors[mod], &color);
-		uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color);
+		label = uber_label_new();
+		uber_label_set_color(UBER_LABEL(label), &color);
+		uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color,
+		                         UBER_LABEL(label));
 		/*
 		 * XXX: Add the line regardless. Just dont populate it if we don't
 		 *      have data.
 		 */
-		lineno = uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color);
+		lineno = uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color, NULL);
 		if (has_freq_scaling(i)) {
 			uber_line_graph_set_dash(UBER_LINE_GRAPH(cpu), lineno,
 									 dashes, G_N_ELEMENTS(dashes), 0);
@@ -304,7 +308,7 @@ main (gint   argc,   /* IN */
 	                              get_cpu_info, NULL, NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
 	                              get_xevent_info, NULL, NULL);
-	uber_line_graph_add_line(UBER_LINE_GRAPH(line), NULL);
+	uber_line_graph_add_line(UBER_LINE_GRAPH(line), NULL, NULL);
 	/*
 	 * Add graphs.
 	 */

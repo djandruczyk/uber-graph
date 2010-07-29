@@ -48,6 +48,7 @@ OBJECTS =								\
 	uber-scatter.o							\
 	uber-window.o							\
 	uber-scale.o							\
+	uber-label.o							\
 	main.o								\
 	g-ring.o							\
 	$(NULL)
