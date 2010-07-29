@@ -21,6 +21,7 @@
 #endif
 
 #include <math.h>
+#include <string.h>
 
 #include "uber-line-graph.h"
 #include "uber-range.h"
@@ -44,7 +45,11 @@ G_DEFINE_TYPE(UberLineGraph, uber_line_graph, UBER_TYPE_GRAPH)
 typedef struct
 {
 	GdkColor  color;
+	gdouble   alpha;
 	GRing    *raw_data;
+	gdouble  *dashes;
+	gint      num_dashes;
+	gdouble   dash_offset;
 } LineInfo;
 
 struct _UberLineGraphPrivate
@@ -163,6 +168,7 @@ uber_line_graph_add_line (UberLineGraph  *graph, /* IN */
 	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), 0);
 
 	priv = graph->priv;
+	info.alpha = 1.0;
 	/*
 	 * Retrieve the lines color.
 	 */
@@ -318,6 +324,42 @@ uber_line_graph_set_data_func (UberLineGraph     *graph,     /* IN */
 }
 
 /**
+ * uber_line_graph_stylize_line:
+ * @graph: A #UberLineGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_line_graph_stylize_line (UberLineGraph *graph, /* IN */
+                              LineInfo      *info,  /* IN */
+                              cairo_t       *cr)    /* IN */
+{
+	UberLineGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+	g_return_if_fail(info != NULL);
+
+	priv = graph->priv;
+	if (info->dashes) {
+		cairo_set_dash(cr, info->dashes, info->num_dashes, info->dash_offset);
+	} else {
+		cairo_set_dash(cr, NULL, 0, 0);
+	}
+	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+	cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+	cairo_set_line_width(cr, 1.0);
+	cairo_set_antialias(cr, priv->antialias);
+	cairo_set_source_rgba(cr,
+	                      info->color.red / 65535.,
+	                      info->color.green / 65535.,
+	                      info->color.blue / 65535.,
+	                      info->alpha);
+}
+
+/**
  * uber_line_graph_render:
  * @graph: A #UberGraph.
  * @cr: A #cairo_t context.
@@ -363,9 +405,7 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 	/*
 	 * Prepare cairo settings.
 	 */
-	cairo_set_line_width(cr, 1.0);
-	cairo_set_antialias(cr, priv->antialias);
-	gdk_cairo_set_source_color(cr, &line->color);
+	uber_line_graph_stylize_line(graph, line, cr);
 	/*
 	 * Force a new path.
 	 */
@@ -485,18 +525,11 @@ uber_line_graph_render_fast (UberGraph    *graph, /* IN */
 	pixel_range.end = rect->y + rect->height;
 	pixel_range.range = rect->height;
 	/*
-	 * Prepare cairo line styling.
-	 */
-	cairo_set_line_width(cr, 1.0);
-	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
-	cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-	cairo_set_antialias(cr, CAIRO_ANTIALIAS_DEFAULT);
-	/*
 	 * Render most recent data point for each line.
 	 */
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
-		gdk_cairo_set_source_color(cr, &line->color);
+		uber_line_graph_stylize_line(UBER_LINE_GRAPH(graph), line, cr);
 		/*
 		 * Calculate positions.
 		 */
@@ -615,6 +648,73 @@ uber_line_graph_get_yrange (UberGraph *graph, /* IN */
 
 	priv = UBER_LINE_GRAPH(graph)->priv;
 	*range = priv->range;
+}
+
+/**
+ * uber_line_graph_set_dash:
+ * @graph: A #UberLineGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_line_graph_set_dash (UberLineGraph *graph,      /* IN */
+                          guint          line,       /* IN */
+                          const gdouble *dashes,     /* IN */
+                          gint           num_dashes, /* IN */
+                          gdouble        offset)     /* IN */
+{
+	UberLineGraphPrivate *priv;
+	LineInfo *info;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+	g_return_if_fail(dashes != NULL);
+	g_return_if_fail(num_dashes > 0);
+	g_return_if_fail(line > 0);
+	g_return_if_fail(line <= graph->priv->lines->len);
+
+	priv = graph->priv;
+	info = &g_array_index(priv->lines, LineInfo, line - 1);
+	if (info->dashes) {
+		g_free(info->dashes);
+		info->dashes = NULL;
+		info->num_dashes = 0;
+		info->dash_offset = 0;
+	}
+	if (dashes) {
+		info->dashes = g_new0(gdouble, num_dashes);
+		memcpy(info->dashes, dashes, sizeof(gdouble) * num_dashes);
+		info->num_dashes = num_dashes;
+		info->dash_offset = offset;
+	}
+}
+
+/**
+ * uber_line_graph_set_alpha:
+ * @graph: A #UberLineGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_line_graph_set_alpha (UberLineGraph *graph, /* IN */
+                           gint           line,  /* IN */
+                           gdouble        alpha) /* IN */
+{
+	UberLineGraphPrivate *priv;
+	LineInfo *info;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+	g_return_if_fail(line > 0);
+	g_return_if_fail(line <= graph->priv->lines->len);
+
+	priv = graph->priv;
+	info = &g_array_index(priv->lines, LineInfo, line - 1);
+	info->alpha = alpha;
 }
 
 /**

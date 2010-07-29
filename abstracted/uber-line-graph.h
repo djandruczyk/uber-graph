@@ -81,6 +81,14 @@ void              uber_line_graph_set_autoscale (UberLineGraph     *graph,
                                                  gboolean           autoscale);
 void              uber_line_graph_set_range     (UberLineGraph     *graph,
                                                  const UberRange   *range);
+void              uber_line_graph_set_dash      (UberLineGraph     *graph,
+                                                 guint              line,
+                                                 const gdouble     *dashes,
+                                                 gint               num_dashes,
+                                                 gdouble            offset);
+void              uber_line_graph_set_alpha     (UberLineGraph     *graph,
+                                                 gint               line,
+                                                 gdouble            alpha);
 
 G_END_DECLS
 

@@ -20,8 +20,9 @@
 #include "config.h"
 #endif
 
-#include <sys/sysinfo.h>
 #include <ctype.h>
+#include <sys/sysinfo.h>
+#include <stdlib.h>
 
 #include "uber.h"
 
@@ -29,6 +30,7 @@ typedef struct
 {
 	guint    len;
 	gdouble *total;
+	gdouble *freq;
 	glong   *last_user;
 	glong   *last_idle;
 	glong   *last_system;
@@ -79,9 +81,13 @@ get_cpu_info (UberLineGraph *graph,     /* IN */
               gpointer       user_data) /* IN */
 {
 	g_assert_cmpint(line, >, 0);
-	g_assert_cmpint(line, <=, cpu_info.len);
+	g_assert_cmpint(line, <=, cpu_info.len * 2);
 
-	*value = cpu_info.total[line - 1];
+	if ((line % 2) == 0) {
+		*value = cpu_info.freq[((line - 1) / 2)];
+	} else {
+		*value = cpu_info.total[((line - 1) / 2)];
+	}
 	return TRUE;
 }
 
@@ -157,26 +163,97 @@ next_cpu_info (void)
 	g_free(buf);
 }
 
+static void
+next_cpu_freq_info (void)
+{
+	glong max;
+	glong cur;
+	gboolean ret;
+	gchar *buf;
+	gchar *path;
+	gint i;
+
+	g_return_if_fail(cpu_info.len > 0);
+
+	/*
+	 * Initialize.
+	 */
+	if (!cpu_info.freq) {
+		cpu_info.freq = g_new0(gdouble, cpu_info.len);
+	}
+
+	/*
+	 * Get current frequencies.
+	 */
+	for (i = 0; i < cpu_info.len; i++) {
+		/*
+		 * Get max frequency.
+		 */
+		path = g_strdup_printf("/sys/devices/system/cpu/cpu%d"
+		                       "/cpufreq/scaling_max_freq", i);
+		ret = g_file_get_contents(path, &buf, NULL, NULL);
+		g_free(path);
+		if (!ret) {
+			continue;
+		}
+		max = atoi(buf);
+		g_free(buf);
+
+		/*
+		 * Get current frequency.
+		 */
+		path = g_strdup_printf("/sys/devices/system/cpu/cpu%d/"
+		                       "cpufreq/scaling_cur_freq", i);
+		ret = g_file_get_contents(path, &buf, NULL, NULL);
+		g_free(path);
+		if (!ret) {
+			continue;
+		}
+		cur = atoi(buf);
+		g_free(buf);
+
+		/*
+		 * Store frequency percentage.
+		 */
+		cpu_info.freq[i] = (gfloat)cur / (gfloat)max * 100.;
+	}
+}
+
 static gpointer G_GNUC_NORETURN
 sample_thread (gpointer data)
 {
 	while (TRUE) {
 		g_usleep(G_USEC_PER_SEC);
 		next_cpu_info();
+		next_cpu_freq_info();
 	}
+}
+
+static gboolean
+has_freq_scaling (gint cpu)
+{
+	gboolean ret;
+	gchar *path;
+
+	path = g_strdup_printf("/sys/devices/system/cpu/cpu%d/cpufreq", cpu);
+	ret = g_file_test(path, G_FILE_TEST_IS_DIR);
+	g_free(path);
+	return ret;
 }
 
 gint
 main (gint   argc,   /* IN */
       gchar *argv[]) /* IN */
 {
+	gdouble dashes[] = { 1.0, 4.0 };
+	UberRange cpu_range = { 0., 100., 100. };
 	GtkWidget *window;
 	GtkWidget *cpu;
 	GtkWidget *line;
 	GtkWidget *map;
 	GtkWidget *scatter;
 	GdkColor color;
-	UberRange cpu_range = { 0., 100., 100. };
+	gint lineno;
 	gint nprocs;
 	gint i;
 	gint mod;
@@ -187,6 +264,7 @@ main (gint   argc,   /* IN */
 	 * Warm up differential samplers.
 	 */
 	next_cpu_info();
+	next_cpu_freq_info();
 	/*
 	 * Install event hook to track how many X events we are doing.
 	 */
@@ -206,6 +284,15 @@ main (gint   argc,   /* IN */
 		mod = i % G_N_ELEMENTS(default_colors);
 		gdk_color_parse(default_colors[mod], &color);
 		uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color);
+		/*
+		 * XXX: Add the line regardless. Just dont populate it if we dont have data.
+		 */
+		lineno = uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color);
+		if (has_freq_scaling(i)) {
+			uber_line_graph_set_dash(UBER_LINE_GRAPH(cpu), lineno,
+									 dashes, G_N_ELEMENTS(dashes), 0);
+			uber_line_graph_set_alpha(UBER_LINE_GRAPH(cpu), lineno, 1.);
+		}
 	}
 	/*
 	 * Adjust graph settings.
