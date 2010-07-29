@@ -224,10 +224,12 @@ main (gint   argc,   /* IN */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
 	/*
-	 * Set heat map color.
+	 * Set heat map and scatter color.
 	 */
 	gdk_color_parse(default_colors[0], &color);
 	uber_heat_map_set_fg_color(UBER_HEAT_MAP(map), &color);
+	gdk_color_parse(default_colors[3], &color);
+	uber_scatter_set_fg_color(UBER_SCATTER(scatter), &color);
 	/*
 	 * Show widgets.
 	 */

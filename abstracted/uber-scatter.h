@@ -48,8 +48,10 @@ struct _UberScatterClass
 	UberGraphClass parent_class;
 };
 
-GType      uber_scatter_get_type (void) G_GNUC_CONST;
-GtkWidget* uber_scatter_new      (void);
+GType      uber_scatter_get_type     (void) G_GNUC_CONST;
+GtkWidget* uber_scatter_new          (void);
+void       uber_scatter_set_fg_color (UberScatter    *scatter,
+                                      const GdkColor *color);
 
 G_END_DECLS
 

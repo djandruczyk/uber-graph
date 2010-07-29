@@ -21,6 +21,7 @@
 #endif
 
 #include <math.h>
+#include <string.h>
 
 #include "uber-scatter.h"
 #include "g-ring.h"
@@ -37,8 +38,10 @@ G_DEFINE_TYPE(UberScatter, uber_scatter, UBER_TYPE_GRAPH)
 
 struct _UberScatterPrivate
 {
-	GRing *raw_data;
-	gint   stride;
+	GRing    *raw_data;
+	gint      stride;
+	GdkColor  fg_color;
+	gboolean  fg_color_set;
 };
 
 /**
@@ -159,7 +162,9 @@ uber_scatter_render_fast (UberGraph    *graph, /* IN */
                            guint         epoch, /* IN */
                            gfloat        each)  /* IN */
 {
-	UberGraphPrivate *priv;
+	UberScatterPrivate *priv;
+	GtkStyle *style;
+	GdkColor color;
 	gfloat x;
 	gfloat y;
 	gint i;
@@ -169,7 +174,12 @@ uber_scatter_render_fast (UberGraph    *graph, /* IN */
 	#define COUNT  3
 	#define RADIUS 3
 
-	priv = graph->priv;
+	priv = UBER_SCATTER(graph)->priv;
+	color = priv->fg_color;
+	if (!priv->fg_color_set) {
+		style = gtk_widget_get_style(GTK_WIDGET(graph));
+		color = style->dark[GTK_STATE_SELECTED];
+	}
 	/*
 	 * XXX: Temporarily draw nice little cicles;
 	 */
@@ -180,13 +190,16 @@ uber_scatter_render_fast (UberGraph    *graph, /* IN */
 		 * Shadow.
 		 */
 		cairo_arc(cr, x + .5, y + .5, RADIUS, 0, 2 * M_PI);
-		cairo_set_source_rgb(cr, .3, .3, .3);
+		cairo_set_source_rgb(cr, .1, .1, .1);
 		cairo_fill(cr);
 		/*
 		 * Foreground.
 		 */
 		cairo_arc(cr, x, y, RADIUS, 0, 2 * M_PI);
-		cairo_set_source_rgb(cr, 1., 0, 0);
+		cairo_set_source_rgb(cr,
+		                     color.red / 65535.,
+		                     color.green / 65535.,
+		                     color.blue / 65535.);
 		cairo_fill(cr);
 	}
 }
@@ -209,6 +222,33 @@ uber_scatter_get_next_data (UberGraph *graph) /* IN */
 
 	priv = UBER_SCATTER(graph)->priv;
 	return TRUE;
+}
+
+/**
+ * uber_scatter_set_fg_color:
+ * @scatter: A #UberScatter.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_scatter_set_fg_color (UberScatter    *scatter, /* IN */
+                           const GdkColor *color)   /* IN */
+{
+	UberScatterPrivate *priv;
+
+	g_return_if_fail(UBER_IS_SCATTER(scatter));
+
+	priv = scatter->priv;
+	if (color) {
+		priv->fg_color = *color;
+		priv->fg_color_set = TRUE;
+	} else {
+		memset(&priv->fg_color, 0, sizeof(priv->fg_color));
+		priv->fg_color_set = FALSE;
+	}
 }
 
 /**
@@ -265,7 +305,10 @@ uber_scatter_class_init (UberScatterClass *klass) /* IN */
 static void
 uber_scatter_init (UberScatter *scatter) /* IN */
 {
+	UberScatterPrivate *priv;
+
 	scatter->priv = G_TYPE_INSTANCE_GET_PRIVATE(scatter,
 	                                            UBER_TYPE_SCATTER,
 	                                            UberScatterPrivate);
+	priv = scatter->priv;
 }
