@@ -1444,10 +1444,30 @@ uber_graph_button_press_event (GtkWidget      *widget, /* IN */
 
 	priv = UBER_GRAPH(widget)->priv;
 
-	if (gtk_container_get_children(GTK_CONTAINER(priv->labels))) {
-		show = !gtk_widget_get_visible(priv->align);
+	switch (button->button) {
+	case 1: /* Left Click */
+		if (gtk_container_get_children(GTK_CONTAINER(priv->labels))) {
+			show = !gtk_widget_get_visible(priv->align);
+		}
+		gtk_widget_set_visible(priv->align, show);
+		break;
+	case 2: /* Middle Click */
+		if (priv->dps_handler) {
+			g_source_remove(priv->dps_handler);
+			priv->dps_handler = 0;
+		} else {
+			uber_graph_register_dps_handler(UBER_GRAPH(widget));
+		}
+		if (priv->fps_handler) {
+			g_source_remove(priv->fps_handler);
+			priv->fps_handler = 0;
+		} else {
+			uber_graph_register_fps_handler(UBER_GRAPH(widget));
+		}
+		break;
+	default:
+		break;
 	}
-	gtk_widget_set_visible(priv->align, show);
 	return FALSE;
 }
 
