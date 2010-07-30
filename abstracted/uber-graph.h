@@ -22,6 +22,7 @@
 #include <gtk/gtk.h>
 
 #include "uber-range.h"
+#include "uber-label.h"
 
 G_BEGIN_DECLS
 
@@ -69,7 +70,6 @@ struct _UberGraphClass
 	                             gfloat        each);
 	void       (*set_stride)    (UberGraph    *graph,
 	                             guint         stride);
-	GtkWidget* (*get_labels)    (UberGraph    *graph);
 };
 
 GType      uber_graph_get_type         (void) G_GNUC_CONST;
@@ -83,6 +83,8 @@ void       uber_graph_set_format       (UberGraph       *graph,
 GtkWidget* uber_graph_get_labels       (UberGraph       *graph);
 void       uber_graph_get_content_area (UberGraph       *graph,
                                         GdkRectangle    *rect);
+void       uber_graph_add_label        (UberGraph       *graph,
+                                        UberLabel       *label);
 
 G_END_DECLS
 

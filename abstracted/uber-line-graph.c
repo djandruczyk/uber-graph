@@ -57,8 +57,6 @@ typedef struct
 struct _UberLineGraphPrivate
 {
 	GArray            *lines;
-	GtkWidget         *labels;
-	GtkWidget         *labels_hbox;
 	cairo_antialias_t  antialias;
 	guint              stride;
 	gboolean           autoscale;
@@ -108,14 +106,6 @@ uber_line_graph_new (void)
 
 	graph = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
 	return GTK_WIDGET(graph);
-}
-
-static GtkWidget*
-uber_line_graph_get_labels (UberGraph *graph) /* IN */
-{
-	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), NULL);
-	gtk_widget_show_all(GTK_WIDGET(UBER_LINE_GRAPH(graph)->priv->labels));
-	return UBER_LINE_GRAPH(graph)->priv->labels;
 }
 
 /**
@@ -264,9 +254,8 @@ uber_line_graph_add_line (UberLineGraph  *graph, /* IN */
 	 */
 	if (label) {
 		uber_line_graph_bind_label(graph, priv->lines->len, label);
-		gtk_box_pack_start(GTK_BOX(priv->labels_hbox), GTK_WIDGET(label),
-		                   TRUE, TRUE, 0);
-		gtk_widget_show(GTK_WIDGET(label));
+		uber_graph_add_label(UBER_GRAPH(graph), label);
+		uber_label_set_color(label, &info.color);
 	}
 	/*
 	 * Line indexes start from 1.
@@ -796,31 +785,6 @@ uber_line_graph_set_alpha (UberLineGraph *graph, /* IN */
 }
 
 /**
- * uber_line_graph_size_allocate:
- * @widget: A #GtkWidget.
- *
- * XXX
- *
- * Returns: None.
- * Side effects: None.
- */
-static void
-uber_line_graph_size_allocate (GtkWidget     *widget, /* IN */
-                               GtkAllocation *alloc)  /* IN */
-{
-	UberLineGraphPrivate *priv;
-	GdkRectangle rect;
-
-	g_return_if_fail(UBER_IS_LINE_GRAPH(widget));
-
-	priv = UBER_LINE_GRAPH(widget)->priv;
-	GTK_WIDGET_CLASS(uber_line_graph_parent_class)->size_allocate(widget, alloc);
-	uber_graph_get_content_area(UBER_GRAPH(widget), &rect);
-	gtk_alignment_set_padding(GTK_ALIGNMENT(priv->labels),
-	                          0, 0, rect.x, 0);
-}
-
-/**
  * uber_line_graph_finalize:
  * @object: A #UberLineGraph.
  *
@@ -862,14 +826,10 @@ uber_line_graph_class_init (UberLineGraphClass *klass) /* IN */
 {
 	GObjectClass *object_class;
 	UberGraphClass *graph_class;
-	GtkWidgetClass *widget_class;
 
 	object_class = G_OBJECT_CLASS(klass);
 	object_class->finalize = uber_line_graph_finalize;
 	g_type_class_add_private(object_class, sizeof(UberLineGraphPrivate));
-
-	widget_class = GTK_WIDGET_CLASS(klass);
-	widget_class->size_allocate = uber_line_graph_size_allocate;
 
 	graph_class = UBER_GRAPH_CLASS(klass);
 	graph_class->get_next_data = uber_line_graph_get_next_data;
@@ -877,7 +837,6 @@ uber_line_graph_class_init (UberLineGraphClass *klass) /* IN */
 	graph_class->render = uber_line_graph_render;
 	graph_class->render_fast = uber_line_graph_render_fast;
 	graph_class->set_stride = uber_line_graph_set_stride;
-	graph_class->get_labels = uber_line_graph_get_labels;
 }
 
 /**
@@ -909,12 +868,4 @@ uber_line_graph_init (UberLineGraph *graph) /* IN */
 	priv->lines = g_array_sized_new(FALSE, FALSE, sizeof(LineInfo), 2);
 	priv->scale = uber_scale_linear;
 	priv->autoscale = TRUE;
-	/*
-	 * Create container for labels.
-	 */
-	priv->labels = gtk_alignment_new(.5, .5, 1., 1.);
-	priv->labels_hbox = gtk_hbox_new(TRUE, 3);
-	gtk_container_add(GTK_CONTAINER(priv->labels), priv->labels_hbox);
-	gtk_widget_show(priv->labels);
-	gtk_widget_show(priv->labels_hbox);
 }

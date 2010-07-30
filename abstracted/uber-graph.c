@@ -24,7 +24,6 @@
 #include <string.h>
 
 #include "uber-graph.h"
-#include "uber-range.h"
 
 #define WIDGET_CLASS (GTK_WIDGET_CLASS(uber_graph_parent_class))
 #define RECT_RIGHT(r)  ((r).x + (r).width)
@@ -76,6 +75,8 @@ struct _UberGraphPrivate
 	                                 * If false, draws will try to only add new
 	                                 * content to the back buffer.
 	                                 */
+	GtkWidget       *labels;        /* Container for graph labels. */
+	GtkWidget       *align;         /* Alignment for labels. */
 };
 
 /**
@@ -145,12 +146,12 @@ uber_graph_get_content_area (UberGraph    *graph, /* IN */
 GtkWidget*
 uber_graph_get_labels (UberGraph *graph) /* IN */
 {
+	UberGraphPrivate *priv;
+
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), NULL);
 
-	if (UBER_GRAPH_GET_CLASS(graph)->get_labels) {
-		return UBER_GRAPH_GET_CLASS(graph)->get_labels(graph);
-	}
-	return NULL;
+	priv = graph->priv;
+	return priv->align;
 }
 
 /**
@@ -441,6 +442,11 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 */
 	priv->nonvis_rect = priv->content_rect;
 	priv->nonvis_rect.width += priv->dps_each + 2;
+	/*
+	 * Update positioning for label alignment.
+	 */
+	gtk_alignment_set_padding(GTK_ALIGNMENT(priv->align),
+	                          0, 6, priv->content_rect.x, 0);
 }
 
 /**
@@ -1330,6 +1336,57 @@ uber_graph_size_request (GtkWidget      *widget, /* IN */
 }
 
 /**
+ * uber_graph_add_label:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_add_label (UberGraph *graph, /* IN */
+                      UberLabel *label) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(UBER_IS_LABEL(label));
+
+	priv = graph->priv;
+	gtk_box_pack_start(GTK_BOX(priv->labels), GTK_WIDGET(label),
+	                   TRUE, TRUE, 0);
+	gtk_widget_show(GTK_WIDGET(label));
+}
+
+/**
+ * uber_graph_button_press:
+ * @widget: A #GtkWidget.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static gboolean
+uber_graph_button_press_event (GtkWidget      *widget, /* IN */
+                               GdkEventButton *button) /* IN */
+{
+	UberGraphPrivate *priv;
+	gboolean show = FALSE;
+
+	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
+
+	priv = UBER_GRAPH(widget)->priv;
+
+	if (gtk_container_get_children(GTK_CONTAINER(priv->labels))) {
+		show = !gtk_widget_get_visible(priv->align);
+	}
+	gtk_widget_set_visible(priv->align, show);
+	return FALSE;
+}
+
+/**
  * uber_graph_finalize:
  * @object: A #UberGraph.
  *
@@ -1412,6 +1469,7 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 	widget_class->style_set = uber_graph_style_set;
 	widget_class->unrealize = uber_graph_unrealize;
 	widget_class->size_request = uber_graph_size_request;
+	widget_class->button_press_event = uber_graph_button_press_event;
 }
 
 /**
@@ -1436,6 +1494,10 @@ uber_graph_init (UberGraph *graph) /* IN */
 	                                          UberGraphPrivate);
 	priv = graph->priv;
 	/*
+	 * Enable required events.
+	 */
+	gtk_widget_set_events(GTK_WIDGET(graph), GDK_BUTTON_PRESS_MASK);
+	/*
 	 * Prepare default values.
 	 */
 	priv->tick_len = 10;
@@ -1446,4 +1508,11 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
 	priv->full_draw = TRUE;
+	/*
+	 * TODO: Support labels in a grid.
+	 */
+	priv->labels = gtk_hbox_new(TRUE, 3);
+	priv->align = gtk_alignment_new(.5, .5, 1., 1.);
+	gtk_container_add(GTK_CONTAINER(priv->align), priv->labels);
+	gtk_widget_show(priv->labels);
 }

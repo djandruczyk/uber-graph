@@ -28,13 +28,14 @@
 
 typedef struct
 {
-	guint    len;
-	gdouble *total;
-	gdouble *freq;
-	glong   *last_user;
-	glong   *last_idle;
-	glong   *last_system;
-	glong   *last_nice;
+	guint       len;
+	gdouble    *total;
+	gdouble    *freq;
+	glong      *last_user;
+	glong      *last_idle;
+	glong      *last_system;
+	glong      *last_nice;
+	GtkWidget **labels;
 } CpuInfo;
 
 static guint        gdk_event_count  = 0;
@@ -80,13 +81,23 @@ get_cpu_info (UberLineGraph *graph,     /* IN */
               gdouble       *value,     /* OUT */
               gpointer       user_data) /* IN */
 {
+	gchar *text;
+	gint i;
+
 	g_assert_cmpint(line, >, 0);
 	g_assert_cmpint(line, <=, cpu_info.len * 2);
 
 	if ((line % 2) == 0) {
 		*value = cpu_info.freq[((line - 1) / 2)];
 	} else {
-		*value = cpu_info.total[((line - 1) / 2)];
+		i = (line - 1) / 2;
+		*value = cpu_info.total[i];
+		/*
+		 * Update label text.
+		 */
+		text = g_strdup_printf("CPU%d  %0.1f %%", i + 1, *value);
+		uber_label_set_text(UBER_LABEL(cpu_info.labels[i]), text);
+		g_free(text);
 	}
 	return TRUE;
 }
@@ -125,6 +136,7 @@ next_cpu_info (void)
 		cpu_info.last_idle = g_new0(glong, cpu_info.len);
 		cpu_info.last_system = g_new0(glong, cpu_info.len);
 		cpu_info.last_nice = g_new0(glong, cpu_info.len);
+		cpu_info.labels = g_new0(GtkWidget*, cpu_info.len);
 	}
 
 	if (g_file_get_contents("/proc/stat", &buf, NULL, NULL)) {
@@ -288,6 +300,7 @@ main (gint   argc,   /* IN */
 		uber_label_set_color(UBER_LABEL(label), &color);
 		uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color,
 		                         UBER_LABEL(label));
+		cpu_info.labels[i] = label;
 		/*
 		 * XXX: Add the line regardless. Just dont populate it if we don't
 		 *      have data.
@@ -302,18 +315,21 @@ main (gint   argc,   /* IN */
 	/*
 	 * Adjust graph settings.
 	 */
+	label = uber_label_new();
+	uber_label_set_text(UBER_LABEL(label), "Gdk Events");
+	gdk_color_parse("#729fcf", &color);
+	uber_line_graph_add_line(UBER_LINE_GRAPH(line), &color, UBER_LABEL(label));
 	uber_graph_set_format(UBER_GRAPH(cpu), UBER_GRAPH_FORMAT_PERCENT);
 	uber_line_graph_set_range(UBER_LINE_GRAPH(cpu), &cpu_range);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(cpu),
 	                              get_cpu_info, NULL, NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
 	                              get_xevent_info, NULL, NULL);
-	uber_line_graph_add_line(UBER_LINE_GRAPH(line), NULL, NULL);
 	/*
 	 * Add graphs.
 	 */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(cpu), "CPU");
-	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "X Events");
+	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "GDK Events");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
 	/*
