@@ -71,6 +71,7 @@ struct _UberGraphPrivate
 	gboolean         fg_dirty;      /* Does the foreground need to be redrawn. */
 	gboolean         bg_dirty;      /* Does the background need to be redrawn. */
 	guint            tick_len;      /* How long should axis-ticks be. */
+	gboolean         show_xlines;   /* Show X axis vertical lines. */
 	gboolean         full_draw;     /* Do we need to redraw all foreground content.
 	                                 * If false, draws will try to only add new
 	                                 * content to the back buffer.
@@ -446,7 +447,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 * Update positioning for label alignment.
 	 */
 	gtk_alignment_set_padding(GTK_ALIGNMENT(priv->align),
-	                          0, 6, priv->content_rect.x, 0);
+	                          6, 6, priv->content_rect.x, 0);
 }
 
 /**
@@ -957,6 +958,70 @@ uber_graph_set_format (UberGraph       *graph, /* IN */
 static void
 uber_graph_render_x_axis (UberGraph *graph) /* IN */
 {
+	const gdouble dashes[] = { 1.0, 2.0 };
+	PangoFontDescription *fd;
+	PangoLayout *pl;
+	UberGraphPrivate *priv;
+	gfloat each;
+	gfloat x;
+	gfloat y;
+	gfloat h;
+	gchar text[16] = { 0 };
+	gint count;
+	gint wi;
+	gint hi;
+	gint i;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	count = priv->x_slots / 10;
+	each = priv->content_rect.width / (gfloat)count;
+	/*
+	 * Draw ticks.
+	 */
+	pl = pango_cairo_create_layout(priv->bg_cairo);
+	fd = pango_font_description_new();
+	pango_font_description_set_family_static(fd, "Monospace");
+	pango_font_description_set_size(fd, 6 * PANGO_SCALE);
+	pango_layout_set_font_description(pl, fd);
+	cairo_set_line_width(priv->bg_cairo, 1.0);
+	cairo_set_dash(priv->bg_cairo, dashes, G_N_ELEMENTS(dashes), 0);
+	for (i = 0; i <= count; i++) {
+		x = RECT_RIGHT(priv->content_rect) - (gint)(i * each) + .5;
+		if (priv->show_xlines && (i != 0 && i != count)) {
+			y = priv->content_rect.y;
+			h = priv->content_rect.height + priv->tick_len;
+		} else {
+			y = priv->content_rect.y + priv->content_rect.height;
+			h = priv->tick_len;
+		}
+		if (i != 0 && i != count) {
+			cairo_move_to(priv->bg_cairo, x, y);
+			cairo_line_to(priv->bg_cairo, x, y + h);
+			cairo_stroke(priv->bg_cairo);
+		}
+		/*
+		 * Render the label.
+		 */
+		g_snprintf(text, sizeof(text), "%d", i * 10);
+		pango_layout_set_text(pl, text, -1);
+		pango_layout_get_pixel_size(pl, &wi, &hi);
+		if (i != 0 && i != count) {
+			cairo_move_to(priv->bg_cairo, x - (wi / 2), y + h);
+		} else if (i == 0) {
+			cairo_move_to(priv->bg_cairo,
+			              RECT_RIGHT(priv->content_rect) - (wi / 2),
+			              RECT_BOTTOM(priv->content_rect) + priv->tick_len);
+		} else if (i == count) {
+			cairo_move_to(priv->bg_cairo,
+			              priv->content_rect.x - (wi / 2),
+			              RECT_BOTTOM(priv->content_rect) + priv->tick_len);
+		}
+		pango_cairo_show_layout(priv->bg_cairo, pl);
+	}
+	g_object_unref(pl);
+	pango_font_description_free(fd);
 }
 
 static void
@@ -1508,6 +1573,7 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->fg_dirty = TRUE;
 	priv->bg_dirty = TRUE;
 	priv->full_draw = TRUE;
+	priv->show_xlines = TRUE;
 	/*
 	 * TODO: Support labels in a grid.
 	 */
