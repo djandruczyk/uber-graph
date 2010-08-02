@@ -58,6 +58,7 @@ struct _UberGraphPrivate
 	                                 * of view.
 	                                 */
 	UberGraphFormat  format;
+	gboolean         paused;        /* Is the graph paused. */
 	gboolean         have_rgba;     /* Do we support 32-bit RGBA colormaps. */
 	gint             x_slots;       /* Number of data points on x axis. */
 	gint             fps;           /* Desired frames per second. */
@@ -168,7 +169,7 @@ static inline gboolean
 uber_graph_get_next_data (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
-	gboolean ret = FALSE;
+	gboolean ret = TRUE;
 
 	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
 
@@ -182,10 +183,7 @@ uber_graph_get_next_data (UberGraph *graph) /* IN */
 	 * Notify the subclass to retrieve the data point.
 	 */
 	if (UBER_GRAPH_GET_CLASS(graph)->get_next_data) {
-		if ((ret = UBER_GRAPH_GET_CLASS(graph)->get_next_data(graph))) {
-			priv->fg_dirty = TRUE;
-			gtk_widget_queue_draw(GTK_WIDGET(graph));
-		}
+		ret = UBER_GRAPH_GET_CLASS(graph)->get_next_data(graph);
 	}
 	return ret;
 }
@@ -476,11 +474,13 @@ uber_graph_dps_timeout (UberGraph *graph) /* IN */
 	 * Make sure the content is re-rendered.
 	 */
 	priv->fg_dirty = TRUE;
-	gtk_widget_queue_draw_area(GTK_WIDGET(graph),
-	                           priv->content_rect.x,
-	                           priv->content_rect.y,
-	                           priv->content_rect.width,
-	                           priv->content_rect.height);
+	if (!priv->paused) {
+		gtk_widget_queue_draw_area(GTK_WIDGET(graph),
+		                           priv->content_rect.x,
+		                           priv->content_rect.y,
+		                           priv->content_rect.width,
+		                           priv->content_rect.height);
+	}
 	return TRUE;
 }
 
@@ -1452,16 +1452,13 @@ uber_graph_button_press_event (GtkWidget      *widget, /* IN */
 		gtk_widget_set_visible(priv->align, show);
 		break;
 	case 2: /* Middle Click */
-		if (priv->dps_handler) {
-			g_source_remove(priv->dps_handler);
-			priv->dps_handler = 0;
-		} else {
-			uber_graph_register_dps_handler(UBER_GRAPH(widget));
-		}
+		priv->paused = !priv->paused;
 		if (priv->fps_handler) {
 			g_source_remove(priv->fps_handler);
 			priv->fps_handler = 0;
 		} else {
+			priv->fg_dirty = TRUE;
+			priv->full_draw = TRUE;
 			uber_graph_register_fps_handler(UBER_GRAPH(widget));
 		}
 		break;
