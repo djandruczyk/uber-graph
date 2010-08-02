@@ -85,6 +85,9 @@ void       uber_graph_get_content_area (UberGraph       *graph,
                                         GdkRectangle    *rect);
 void       uber_graph_add_label        (UberGraph       *graph,
                                         UberLabel       *label);
+gboolean   uber_graph_get_show_xlines  (UberGraph       *graph);
+void       uber_graph_set_show_xlines  (UberGraph       *graph,
+                                        gboolean         show_xlines);
 
 G_END_DECLS
 

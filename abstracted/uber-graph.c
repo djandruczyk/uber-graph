@@ -123,6 +123,15 @@ uber_graph_fps_timeout (UberGraph *graph) /* IN */
 	return TRUE;
 }
 
+/**
+ * uber_graph_get_content_area:
+ * @graph: A #UberGraph.
+ *
+ * Retrieves the content area of the graph.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
 void
 uber_graph_get_content_area (UberGraph    *graph, /* IN */
                              GdkRectangle *rect)  /* OUT */
@@ -134,6 +143,50 @@ uber_graph_get_content_area (UberGraph    *graph, /* IN */
 
 	priv = graph->priv;
 	*rect = priv->content_rect;
+}
+
+/**
+ * uber_graph_get_show_xlines:
+ * @graph: A #UberGraph.
+ *
+ * Retrieves if the X grid lines should be shown.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+gboolean
+uber_graph_get_show_xlines (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
+
+	priv = graph->priv;
+	return priv->show_xlines;
+}
+
+/**
+ * uber_graph_set_show_xlines:
+ * @graph: A #UberGraph.
+ * @show_xlines: Show x lines.
+ *
+ * Sets if the x lines should be shown.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_show_xlines (UberGraph *graph,       /* IN */
+                            gboolean   show_xlines) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->show_xlines = show_xlines;
+	priv->bg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
 
 /**
