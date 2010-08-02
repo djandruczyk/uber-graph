@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include "uber-graph.h"
+#include "uber-scale.h"
 
 #define WIDGET_CLASS (GTK_WIDGET_CLASS(uber_graph_parent_class))
 #define RECT_RIGHT(r)  ((r).x + (r).width)
@@ -1093,6 +1094,7 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 	gchar *text;
 	gint width;
 	gint height;
+	gfloat real_y = y + .5;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 	g_return_if_fail(cr != NULL);
@@ -1111,11 +1113,11 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 	cairo_save(cr);
 	cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0);
 	cairo_set_line_width(cr, 1.0);
-	cairo_move_to(cr, priv->content_rect.x - priv->tick_len, y);
+	cairo_move_to(cr, priv->content_rect.x - priv->tick_len, real_y);
 	if (tick_only) {
-		cairo_line_to(cr, priv->content_rect.x, y);
+		cairo_line_to(cr, priv->content_rect.x, real_y);
 	} else {
-		cairo_line_to(cr, RECT_RIGHT(priv->content_rect), y);
+		cairo_line_to(cr, RECT_RIGHT(priv->content_rect), real_y);
 	}
 	cairo_restore(cr);
 	/*
@@ -1129,7 +1131,7 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 	pango_layout_set_text(pl, text, -1);
 	pango_layout_get_pixel_size(pl, &width, &height);
 	cairo_move_to(cr, priv->content_rect.x - priv->tick_len - width - 3,
-	              y - height / 2);
+	              real_y - height / 2);
 	pango_cairo_show_layout(cr, pl);
 	/*
 	 * Cleanup resources.
@@ -1144,7 +1146,12 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
 	const gchar *format = NULL;
+	UberRange pixel_range;
 	UberRange range;
+	gdouble value;
+	gdouble y;
+	gint n_lines;
+	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
@@ -1168,11 +1175,24 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 	 * Render top and bottom ticks.
 	 */
 	uber_graph_render_y_line(graph, priv->bg_cairo,
-	                         priv->content_rect.y,
+	                         priv->content_rect.y - 1,
 	                         TRUE, format, range.end);
 	uber_graph_render_y_line(graph, priv->bg_cairo,
 	                         RECT_BOTTOM(priv->content_rect),
 	                         TRUE, format, range.begin);
+	/*
+	 * Render lines between edges.
+	 */
+	n_lines = MIN(priv->content_rect.height / 20, 5);
+	pixel_range.begin = priv->content_rect.y;
+	pixel_range.end = priv->content_rect.y + priv->content_rect.height;
+	pixel_range.range = priv->content_rect.height;
+	for (i = 1; i < n_lines; i++) {
+		value = y = priv->content_rect.y + (priv->content_rect.height / n_lines * i);
+		uber_scale_linear(&pixel_range, &range, &value, NULL);
+		uber_graph_render_y_line(graph, priv->bg_cairo, y,
+		                         FALSE, format, range.end - value);
+	}
 }
 
 /**
