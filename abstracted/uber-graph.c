@@ -1228,16 +1228,18 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 	/*
 	 * Render lines between edges.
 	 */
-	n_lines = MIN(priv->content_rect.height / 25, 5);
-	pixel_range.begin = priv->content_rect.y;
-	pixel_range.end = priv->content_rect.y + priv->content_rect.height;
-	pixel_range.range = priv->content_rect.height;
-	for (i = 1; i < n_lines; i++) {
-		value = y = priv->content_rect.y + (priv->content_rect.height / n_lines * i);
-		uber_scale_linear(&pixel_range, &range, &value, NULL);
-		uber_graph_render_y_line(graph, priv->bg_cairo, y,
-		                         !priv->show_ylines, format,
-		                         range.end - value);
+	if (range.end != range.begin) {
+		n_lines = MIN(priv->content_rect.height / 25, 5);
+		pixel_range.begin = priv->content_rect.y;
+		pixel_range.end = priv->content_rect.y + priv->content_rect.height;
+		pixel_range.range = priv->content_rect.height;
+		for (i = 1; i < n_lines; i++) {
+			value = y = priv->content_rect.y + (priv->content_rect.height / n_lines * i);
+			uber_scale_linear(&pixel_range, &range, &value, NULL);
+			uber_graph_render_y_line(graph, priv->bg_cairo, y,
+			                         !priv->show_ylines, format,
+			                         range.end - value);
+		}
 	}
 }
 
