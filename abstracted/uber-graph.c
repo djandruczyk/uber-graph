@@ -1077,77 +1077,102 @@ uber_graph_render_x_axis (UberGraph *graph) /* IN */
 	pango_font_description_free(fd);
 }
 
+static inline void
+uber_graph_render_y_line (UberGraph   *graph,     /* IN */
+                          cairo_t     *cr,        /* IN */
+                          gint         y,         /* IN */
+                          gboolean     tick_only, /* IN */
+                          const gchar *format,    /* IN */
+                          ...)                    /* IN */
+{
+	UberGraphPrivate *priv;
+	const gdouble dashes[] = { 1.0, 2.0 };
+	PangoFontDescription *fd;
+	PangoLayout *pl;
+	va_list args;
+	gchar *text;
+	gint width;
+	gint height;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(cr != NULL);
+	g_return_if_fail(format != NULL);
+
+	priv = graph->priv;
+	/*
+	 * Format text.
+	 */
+	va_start(args, format);
+	text = g_strdup_vprintf(format, args);
+	va_end(args);
+	/*
+	 * Draw grid line.
+	 */
+	cairo_save(cr);
+	cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0);
+	cairo_set_line_width(cr, 1.0);
+	cairo_move_to(cr, priv->content_rect.x - priv->tick_len, y);
+	if (tick_only) {
+		cairo_line_to(cr, priv->content_rect.x, y);
+	} else {
+		cairo_line_to(cr, RECT_RIGHT(priv->content_rect), y);
+	}
+	cairo_restore(cr);
+	/*
+	 * Show label.
+	 */
+	pl = pango_cairo_create_layout(cr);
+	fd = pango_font_description_new();
+	pango_font_description_set_family_static(fd, "Monospace");
+	pango_font_description_set_size(fd, 6 * PANGO_SCALE);
+	pango_layout_set_font_description(pl, fd);
+	pango_layout_set_text(pl, text, -1);
+	pango_layout_get_pixel_size(pl, &width, &height);
+	cairo_move_to(cr, priv->content_rect.x - priv->tick_len - width - 3,
+	              y - height / 2);
+	pango_cairo_show_layout(cr, pl);
+	/*
+	 * Cleanup resources.
+	 */
+	g_free(text);
+	pango_font_description_free(fd);
+	g_object_unref(pl);
+}
+
 static void
 uber_graph_render_y_axis (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
+	const gchar *format = NULL;
 	UberRange range;
-	PangoFontDescription *fd;
-	PangoLayout *pl;
-	gchar *label;
-	gint width;
-	gint height;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
 	uber_graph_get_yrange(graph, &range);
-	cairo_save(priv->bg_cairo);
 	/*
-	 * Create pango layout for labels.
-	 */
-	pl = pango_cairo_create_layout(priv->bg_cairo);
-	fd = pango_font_description_new();
-	pango_font_description_set_family_static(fd, "Monospace");
-	pango_font_description_set_size(fd, 6 * PANGO_SCALE);
-	pango_layout_set_font_description(pl, fd);
-	/*
-	 * Render top tick.
+	 * Get label format.
 	 */
 	switch (priv->format) {
 	case UBER_GRAPH_FORMAT_DIRECT:
 	case UBER_GRAPH_FORMAT_DIRECT1024: /* FIXME */
-		label = g_markup_printf_escaped("%0.1f", range.end);
+		format = "%0.1f";
 		break;
 	case UBER_GRAPH_FORMAT_PERCENT:
-		label = g_markup_printf_escaped("%0.0f %%", range.end);
+		format = "%0.0f %%";
 		break;
 	default:
 		g_assert_not_reached();
 	}
-	pango_layout_set_text(pl, label, -1);
-	pango_layout_get_pixel_size(pl, &width, &height);
-	cairo_move_to(priv->bg_cairo,
-	              priv->content_rect.x - priv->tick_len - width - 3.,
-	              priv->content_rect.y - (height / 2.));
-	pango_cairo_show_layout(priv->bg_cairo, pl);
 	/*
-	 * Render bottom tick.
+	 * Render top and bottom ticks.
 	 */
-	switch (priv->format) {
-	case UBER_GRAPH_FORMAT_DIRECT:
-	case UBER_GRAPH_FORMAT_DIRECT1024: /* FIXME */
-		label = g_markup_printf_escaped("%0.1f", range.begin);
-		break;
-	case UBER_GRAPH_FORMAT_PERCENT:
-		label = g_markup_printf_escaped("%0.0f %%", range.begin);
-		break;
-	default:
-		g_assert_not_reached();
-	}
-	pango_layout_set_text(pl, label, -1);
-	pango_layout_get_pixel_size(pl, &width, &height);
-	cairo_move_to(priv->bg_cairo,
-	              priv->content_rect.x - priv->tick_len - width - 3.,
-	              priv->content_rect.y + priv->content_rect.height - (height / 2.));
-	pango_cairo_show_layout(priv->bg_cairo, pl);
-	/*
-	 * Cleanup resources.
-	 */
-	g_free(label);
-	g_object_unref(pl);
-	pango_font_description_free(fd);
-	cairo_restore(priv->bg_cairo);
+	uber_graph_render_y_line(graph, priv->bg_cairo,
+	                         priv->content_rect.y,
+	                         TRUE, format, range.end);
+	uber_graph_render_y_line(graph, priv->bg_cairo,
+	                         RECT_BOTTOM(priv->content_rect),
+	                         TRUE, format, range.begin);
 }
 
 /**
