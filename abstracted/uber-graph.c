@@ -73,7 +73,8 @@ struct _UberGraphPrivate
 	gboolean         fg_dirty;      /* Does the foreground need to be redrawn. */
 	gboolean         bg_dirty;      /* Does the background need to be redrawn. */
 	guint            tick_len;      /* How long should axis-ticks be. */
-	gboolean         show_xlines;   /* Show X axis vertical lines. */
+	gboolean         show_xlines;   /* Show X axis lines. */
+	gboolean         show_ylines;   /* Show Y axis lines. */
 	gboolean         full_draw;     /* Do we need to redraw all foreground content.
 	                                 * If false, draws will try to only add new
 	                                 * content to the back buffer.
@@ -186,6 +187,50 @@ uber_graph_set_show_xlines (UberGraph *graph,       /* IN */
 
 	priv = graph->priv;
 	priv->show_xlines = show_xlines;
+	priv->bg_dirty = TRUE;
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
+}
+
+/**
+ * uber_graph_get_show_ylines:
+ * @graph: A #UberGraph.
+ *
+ * Retrieves if the X grid lines should be shown.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+gboolean
+uber_graph_get_show_ylines (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
+
+	priv = graph->priv;
+	return priv->show_ylines;
+}
+
+/**
+ * uber_graph_set_show_ylines:
+ * @graph: A #UberGraph.
+ * @show_ylines: Show x lines.
+ *
+ * Sets if the x lines should be shown.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_show_ylines (UberGraph *graph,       /* IN */
+                            gboolean   show_ylines) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->show_ylines = show_ylines;
 	priv->bg_dirty = TRUE;
 	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
@@ -1183,7 +1228,7 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 	/*
 	 * Render lines between edges.
 	 */
-	n_lines = MIN(priv->content_rect.height / 20, 5);
+	n_lines = MIN(priv->content_rect.height / 25, 5);
 	pixel_range.begin = priv->content_rect.y;
 	pixel_range.end = priv->content_rect.y + priv->content_rect.height;
 	pixel_range.range = priv->content_rect.height;
@@ -1191,7 +1236,8 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 		value = y = priv->content_rect.y + (priv->content_rect.height / n_lines * i);
 		uber_scale_linear(&pixel_range, &range, &value, NULL);
 		uber_graph_render_y_line(graph, priv->bg_cairo, y,
-		                         FALSE, format, range.end - value);
+		                         !priv->show_ylines, format,
+		                         range.end - value);
 	}
 }
 
@@ -1689,6 +1735,7 @@ uber_graph_init (UberGraph *graph) /* IN */
 	priv->bg_dirty = TRUE;
 	priv->full_draw = TRUE;
 	priv->show_xlines = TRUE;
+	priv->show_ylines = TRUE;
 	/*
 	 * TODO: Support labels in a grid.
 	 */

@@ -325,6 +325,8 @@ main (gint   argc,   /* IN */
 	                              get_cpu_info, NULL, NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
 	                              get_xevent_info, NULL, NULL);
+	uber_graph_set_show_ylines(UBER_GRAPH(map), FALSE);
+	uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
 	/*
 	 * Add graphs.
 	 */
