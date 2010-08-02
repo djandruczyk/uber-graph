@@ -38,8 +38,17 @@ typedef struct
 	GtkWidget **labels;
 } CpuInfo;
 
+typedef struct
+{
+	gdouble total_in;
+	gdouble total_out;
+	gdouble last_total_in;
+	gdouble last_total_out;
+} NetInfo;
+
 static guint        gdk_event_count  = 0;
 static CpuInfo      cpu_info         = { 0 };
+static NetInfo      net_info         = { 0 };
 static const gchar *default_colors[] = { "#73d216",
                                          "#f57900",
                                          "#3465a4",
@@ -98,6 +107,25 @@ get_cpu_info (UberLineGraph *graph,     /* IN */
 		text = g_strdup_printf("CPU%d  %0.1f %%", i + 1, *value);
 		uber_label_set_text(UBER_LABEL(cpu_info.labels[i]), text);
 		g_free(text);
+	}
+	return TRUE;
+}
+
+static gboolean
+get_net_info (UberLineGraph *graph,     /* IN */
+              guint          line,      /* IN */
+              gdouble       *value,     /* IN */
+              gpointer       user_data) /* IN */
+{
+	switch (line) {
+	case 1:
+		*value = net_info.total_in;
+		break;
+	case 2:
+		*value = net_info.total_out;
+		break;
+	default:
+		g_assert_not_reached();
 	}
 	return TRUE;
 }
@@ -231,6 +259,61 @@ next_cpu_freq_info (void)
 	}
 }
 
+static void
+next_net_info (void)
+{
+	GError *error = NULL;
+	gulong total_in = 0;
+	gulong total_out = 0;
+	gulong bytes_in;
+	gulong bytes_out;
+	gulong dummy;
+	gchar *buf = NULL;
+	gchar iface[32];
+	gchar *line;
+	gsize len;
+	gint l = 0;
+	gint i;
+
+	if (!g_file_get_contents("/proc/net/dev", &buf, &len, &error)) {
+		g_printerr("%s", error->message);
+		g_error_free(error);
+		return;
+	}
+
+	line = buf;
+	for (i = 0; buf[i]; i++) {
+		if (buf[i] == ':') {
+			buf[i] = ' ';
+		} else if (buf[i] == '\n') {
+			buf[i] = '\0';
+			if (++l > 2) { // ignore first two lines
+				if (sscanf(line, "%s %lu %lu %lu %lu %lu %lu %lu %lu %lu",
+				           iface, &bytes_in,
+				           &dummy, &dummy, &dummy, &dummy,
+				           &dummy, &dummy, &dummy,
+				           &bytes_out) != 10) {
+					g_warning("Skipping invalid line: %s", line);
+				} else if (g_strcmp0(iface, "lo") != 0) {
+					total_in += bytes_in;
+					total_out += bytes_out;
+				}
+				line = NULL;
+			}
+			line = &buf[++i];
+		}
+	}
+
+	if ((net_info.last_total_in != 0.) && (net_info.last_total_out != 0.)) {
+		net_info.total_in = (total_in - net_info.last_total_in);
+		net_info.total_out = (total_out - net_info.last_total_out);
+	}
+
+	net_info.last_total_in = total_in;
+	net_info.last_total_out = total_out;
+	g_free(buf);
+}
+
 static gpointer G_GNUC_NORETURN
 sample_thread (gpointer data)
 {
@@ -238,6 +321,7 @@ sample_thread (gpointer data)
 		g_usleep(G_USEC_PER_SEC);
 		next_cpu_info();
 		next_cpu_freq_info();
+		next_net_info();
 	}
 }
 
@@ -261,6 +345,7 @@ main (gint   argc,   /* IN */
 	UberRange cpu_range = { 0., 100., 100. };
 	GtkWidget *window;
 	GtkWidget *cpu;
+	GtkWidget *net;
 	GtkWidget *line;
 	GtkWidget *map;
 	GtkWidget *scatter;
@@ -287,6 +372,7 @@ main (gint   argc,   /* IN */
 	 */
 	window = uber_window_new();
 	cpu = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
+	net = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
 	line = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
 	map = g_object_new(UBER_TYPE_HEAT_MAP, NULL);
 	scatter = g_object_new(UBER_TYPE_SCATTER, NULL);
@@ -325,12 +411,26 @@ main (gint   argc,   /* IN */
 	                              get_cpu_info, NULL, NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
 	                              get_xevent_info, NULL, NULL);
+	uber_line_graph_set_data_func(UBER_LINE_GRAPH(net),
+	                              get_net_info, NULL, NULL);
 	uber_graph_set_show_ylines(UBER_GRAPH(map), FALSE);
 	uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
+	/*
+	 * Add lines for bytes in/out.
+	 */
+	label = uber_label_new();
+	uber_label_set_text(UBER_LABEL(label), "Bytes In");
+	gdk_color_parse("#a40000", &color);
+	uber_line_graph_add_line(UBER_LINE_GRAPH(net), &color, UBER_LABEL(label));
+	label = uber_label_new();
+	uber_label_set_text(UBER_LABEL(label), "Bytes Out");
+	gdk_color_parse("#4e9a06", &color);
+	uber_line_graph_add_line(UBER_LINE_GRAPH(net), &color, UBER_LABEL(label));
 	/*
 	 * Add graphs.
 	 */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(cpu), "CPU");
+	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(net), "Network");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "GDK Events");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
@@ -345,6 +445,7 @@ main (gint   argc,   /* IN */
 	 * Show widgets.
 	 */
 	gtk_widget_show(scatter);
+	gtk_widget_show(net);
 	gtk_widget_show(map);
 	gtk_widget_show(line);
 	gtk_widget_show(cpu);

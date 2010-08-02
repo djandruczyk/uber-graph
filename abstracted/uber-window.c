@@ -108,8 +108,8 @@ uber_window_add_graph (UberWindow  *window, /* IN */
 	/*
 	 * Append graph to table.
 	 */
-	left_attach = priv->graph_count / 4;
-	top_attach = priv->graph_count % 4;
+	left_attach = 0;
+	top_attach = priv->graph_count; // % 4;
 	gtk_table_attach(GTK_TABLE(priv->table), hbox,
 	                 left_attach,
 	                 left_attach + 1,

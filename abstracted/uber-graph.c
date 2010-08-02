@@ -1252,9 +1252,11 @@ static void
 uber_graph_render_y_axis_direct (UberGraph *graph,       /* IN */
                                  UberRange *range,       /* IN */
                                  UberRange *pixel_range, /* IN */
-                                 gint       n_lines)     /* IN */
+                                 gint       n_lines,     /* IN */
+                                 gboolean   kibi)        /* IN */
 {
-	static const gchar format[] = "%0.1f";
+	static const gchar format[] = "%0.1f%s";
+	const gchar *modifier = "";
 	UberGraphPrivate *priv;
 	gdouble value;
 	gdouble y;
@@ -1262,16 +1264,51 @@ uber_graph_render_y_axis_direct (UberGraph *graph,       /* IN */
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
+#define CONDENSE(v) \
+G_STMT_START { \
+    if (kibi) { \
+        if ((v) >= 1073741824.) { \
+            (v) /= 1073741824.; \
+            modifier = "Gi"; \
+        } else if ((v) >= 1048576.) { \
+            (v) /= 1048576.; \
+            modifier = "Mi"; \
+        } else if ((v) >= 1024.) { \
+            (v) /= 1024.; \
+            modifier = "Ki"; \
+        } else { \
+            modifier = ""; \
+        } \
+    } else {  \
+        if ((v) >= 1000000000.) { \
+            (v) /= 1000000000.; \
+            modifier = "G"; \
+        } else if ((v) >= 1000000.) { \
+            (v) /= 1000000.; \
+            modifier = "M"; \
+        } else if ((v) >= 1000.) { \
+            (v) /= 1000.; \
+            modifier = "K"; \
+        } else { \
+            modifier = ""; \
+        } \
+    } \
+} G_STMT_END
+
 	priv = graph->priv;
 	/*
 	 * Render top and bottom lines.
 	 */
+	value = range->end;
+	CONDENSE(value);
 	uber_graph_render_y_line(graph, priv->bg_cairo,
 	                         priv->content_rect.y - 1,
-	                         TRUE, FALSE, format, range->end);
+	                         TRUE, FALSE, format, value, modifier);
+	value = range->begin;
+	CONDENSE(value);
 	uber_graph_render_y_line(graph, priv->bg_cairo,
 	                         RECT_BOTTOM(priv->content_rect),
-	                         TRUE, FALSE, format, range->begin);
+	                         TRUE, FALSE, format, value, modifier);
 	/*
 	 * Render lines between the edges.
 	 */
@@ -1282,10 +1319,11 @@ uber_graph_render_y_axis_direct (UberGraph *graph,       /* IN */
 		 */
 		uber_scale_linear(range, pixel_range, &y, NULL);
 		y = pixel_range->end - y;
+		CONDENSE(value);
 		uber_graph_render_y_line(graph, priv->bg_cairo, y,
 		                         !priv->show_ylines,
 		                         (range->begin == range->end),
-		                         format, value);
+		                         format, value, modifier);
 	}
 }
 
@@ -1325,9 +1363,12 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 		uber_graph_render_y_axis_percent(graph, &range, &pixel_range, n_lines);
 		break;
 	case UBER_GRAPH_FORMAT_DIRECT:
-		uber_graph_render_y_axis_direct(graph, &range, &pixel_range, n_lines);
+		uber_graph_render_y_axis_direct(graph, &range, &pixel_range,
+		                                n_lines, FALSE);
 		break;
 	case UBER_GRAPH_FORMAT_DIRECT1024:
+		uber_graph_render_y_axis_direct(graph, &range, &pixel_range,
+		                                n_lines, TRUE);
 		break;
 	default:
 		g_assert_not_reached();
