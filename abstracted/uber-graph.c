@@ -1128,7 +1128,7 @@ uber_graph_render_x_axis (UberGraph *graph) /* IN */
 	pango_font_description_free(fd);
 }
 
-static inline void
+static inline void G_GNUC_PRINTF(6, 7)
 uber_graph_render_y_line (UberGraph   *graph,     /* IN */
                           cairo_t     *cr,        /* IN */
                           gint         y,         /* IN */
@@ -1164,6 +1164,7 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 	} else {
 		cairo_line_to(cr, RECT_RIGHT(priv->content_rect), real_y);
 	}
+	cairo_stroke(cr);
 	cairo_restore(cr);
 	/*
 	 * Show label.
@@ -1198,57 +1199,138 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 }
 
 static void
-uber_graph_render_y_axis (UberGraph *graph) /* IN */
+uber_graph_render_y_axis_percent (UberGraph *graph,       /* IN */
+                                  UberRange *range,       /* IN */
+                                  UberRange *pixel_range, /* IN */
+                                  gint       n_lines)     /* IN */
 {
+	static const gchar format[] = "%0.0f %%";
 	UberGraphPrivate *priv;
-	const gchar *format = NULL;
-	UberRange pixel_range;
-	UberRange range;
 	gdouble value;
 	gdouble y;
-	gint n_lines;
+	gint i;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+	g_return_if_fail(range != NULL);
+	g_return_if_fail(pixel_range != NULL);
+	g_return_if_fail(n_lines >= 0);
+	g_return_if_fail(n_lines < 6);
+
+	priv = graph->priv;
+	/*
+	 * Render top and bottom lines.
+	 */
+	uber_graph_render_y_line(graph, priv->bg_cairo,
+	                         priv->content_rect.y - 1,
+	                         TRUE, FALSE, format, 100.);
+	uber_graph_render_y_line(graph, priv->bg_cairo,
+	                         RECT_BOTTOM(priv->content_rect),
+	                         TRUE, FALSE, format, 0.);
+	/*
+	 * Render lines between the edges.
+	 */
+	for (i = 1; i < n_lines; i++) {
+		value = (n_lines - i) / (gfloat)n_lines;
+		y = pixel_range->end - (pixel_range->range * value);
+		value *= 100.;
+		uber_graph_render_y_line(graph, priv->bg_cairo, y,
+		                         !priv->show_ylines, FALSE,
+		                         format, value);
+	}
+}
+
+/**
+ * uber_graph_render_y_axis_direct:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_render_y_axis_direct (UberGraph *graph,       /* IN */
+                                 UberRange *range,       /* IN */
+                                 UberRange *pixel_range, /* IN */
+                                 gint       n_lines)     /* IN */
+{
+	static const gchar format[] = "%0.1f";
+	UberGraphPrivate *priv;
+	gdouble value;
+	gdouble y;
 	gint i;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
-	uber_graph_get_yrange(graph, &range);
 	/*
-	 * Get label format.
-	 */
-	switch (priv->format) {
-	case UBER_GRAPH_FORMAT_DIRECT:
-	case UBER_GRAPH_FORMAT_DIRECT1024: /* FIXME */
-		format = "%0.1f";
-		break;
-	case UBER_GRAPH_FORMAT_PERCENT:
-		format = "%0.0f %%";
-		break;
-	default:
-		g_assert_not_reached();
-	}
-	/*
-	 * Render top and bottom ticks.
+	 * Render top and bottom lines.
 	 */
 	uber_graph_render_y_line(graph, priv->bg_cairo,
 	                         priv->content_rect.y - 1,
-	                         TRUE, FALSE, format, range.end);
+	                         TRUE, FALSE, format, range->end);
 	uber_graph_render_y_line(graph, priv->bg_cairo,
 	                         RECT_BOTTOM(priv->content_rect),
-	                         TRUE, FALSE, format, range.begin);
+	                         TRUE, FALSE, format, range->begin);
 	/*
-	 * Render lines between edges.
+	 * Render lines between the edges.
 	 */
-	n_lines = MIN(priv->content_rect.height / 25, 5);
+	for (i = 1; i < n_lines; i++) {
+		y = value = range->range / (gfloat)(n_lines) * (gfloat)i;
+		/*
+		 * TODO: Use proper scale.
+		 */
+		uber_scale_linear(range, pixel_range, &y, NULL);
+		y = pixel_range->end - y;
+		uber_graph_render_y_line(graph, priv->bg_cairo, y,
+		                         !priv->show_ylines,
+		                         (range->begin == range->end),
+		                         format, value);
+	}
+}
+
+/**
+ * uber_graph_render_y_axis:
+ * @graph: A #UberGraph.
+ *
+ * Render the Y axis grid lines and labels.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_render_y_axis (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+	UberRange pixel_range;
+	UberRange range;
+	gint n_lines;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	/*
+	 * Calculate ranges.
+	 */
+	uber_graph_get_yrange(graph, &range);
 	pixel_range.begin = priv->content_rect.y;
 	pixel_range.end = priv->content_rect.y + priv->content_rect.height;
-	pixel_range.range = priv->content_rect.height;
-	for (i = 1; i < n_lines; i++) {
-		value = y = priv->content_rect.y + (priv->content_rect.height / n_lines * i);
-		uber_scale_linear(&pixel_range, &range, &value, NULL);
-		uber_graph_render_y_line(graph, priv->bg_cairo, y,
-		                         !priv->show_ylines, (range.end == range.begin),
-		                         format, range.end - value);
+	pixel_range.range = pixel_range.end - pixel_range.begin;
+	/*
+	 * Render grid lines for given format.
+	 */
+	n_lines = MIN(priv->content_rect.height / 25, 5);
+	switch (priv->format) {
+	case UBER_GRAPH_FORMAT_PERCENT:
+		uber_graph_render_y_axis_percent(graph, &range, &pixel_range, n_lines);
+		break;
+	case UBER_GRAPH_FORMAT_DIRECT:
+		uber_graph_render_y_axis_direct(graph, &range, &pixel_range, n_lines);
+		break;
+	case UBER_GRAPH_FORMAT_DIRECT1024:
+		break;
+	default:
+		g_assert_not_reached();
 	}
 }
 
