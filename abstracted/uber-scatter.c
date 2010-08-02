@@ -119,9 +119,11 @@ uber_scatter_set_stride (UberGraph *graph,  /* IN */
  * Side effects: None.
  */
 static void
-uber_scatter_render (UberGraph    *graph, /* IN */
+uber_scatter_render (UberGraph     *graph, /* IN */
                       cairo_t      *cr,    /* IN */
-                      GdkRectangle *area)  /* IN */
+                      GdkRectangle *area,  /* IN */
+                      guint         epoch, /* IN */
+                      gfloat        each)  /* IN */
 {
 	UberGraphPrivate *priv;
 	cairo_pattern_t *cp;

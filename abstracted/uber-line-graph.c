@@ -442,33 +442,27 @@ static void
 uber_line_graph_render_line (UberLineGraph *graph, /* IN */
                              cairo_t       *cr,    /* IN */
                              GdkRectangle  *area,  /* IN */
-                             LineInfo      *line)  /* IN */
+                             LineInfo      *line,  /* IN */
+                             guint          epoch, /* IN */
+                             gfloat         each)  /* IN */
 {
 	UberLineGraphPrivate *priv;
 	UberRange pixel_range;
-	guint x_epoch;
+	GdkRectangle vis;
 	guint x;
 	guint y;
 	guint last_x;
 	guint last_y;
 	gdouble val;
-	gdouble each;
 	gint i;
 
 	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
 
 	priv = graph->priv;
+	uber_graph_get_content_area(UBER_GRAPH(graph), &vis);
 	pixel_range.begin = area->y;
 	pixel_range.end = area->y + area->height;
 	pixel_range.range = area->height;
-	/*
-	 * Calculate number of pixels per data point.
-	 */
-	each = area->width / ((gfloat)priv->stride - 1.);
-	/*
-	 * Determine the end of our drawing area for relative coordinates.
-	 */
-	x_epoch = area->x + area->width;
 	/*
 	 * Prepare cairo settings.
 	 */
@@ -502,7 +496,7 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 		 * Calculate X/Y coordinate.
 		 */
 		y = area->y + area->height - val;
-		x = x_epoch - (each * i);
+		x = epoch - (each * i);
 		if (i == 0) {
 			/*
 			 * Just move to the right position on first entry.
@@ -542,7 +536,9 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 static void
 uber_line_graph_render (UberGraph    *graph, /* IN */
                         cairo_t      *cr,    /* IN */
-                        GdkRectangle *rect)  /* IN */
+                        GdkRectangle *rect,  /* IN */
+                        guint         epoch, /* IN */
+                        gfloat        each)  /* IN */
 {
 	UberLineGraphPrivate *priv;
 	LineInfo *line;
@@ -556,7 +552,8 @@ uber_line_graph_render (UberGraph    *graph, /* IN */
 	 */
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
-		uber_line_graph_render_line(UBER_LINE_GRAPH(graph), cr, rect, line);
+		uber_line_graph_render_line(UBER_LINE_GRAPH(graph), cr, rect,
+		                            line, epoch, each);
 	}
 }
 

@@ -921,6 +921,11 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 	 */
 	if (priv->fg_dirty) {
 		/*
+		 * Caclulate relative positionings for use in renderers.
+		 */
+		each = priv->content_rect.width / (gfloat)priv->x_slots;
+		x_epoch = RECT_RIGHT(priv->content_rect) + each;
+		/*
 		 * Clear content area.
 		 */
 		cairo_save(dst->fg_cairo);
@@ -956,8 +961,6 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 			                RECT_RIGHT(priv->nonvis_rect) - RECT_RIGHT(priv->content_rect),
 			                alloc.height);
 			cairo_clip(dst->fg_cairo);
-			each = priv->content_rect.width / (gfloat)priv->x_slots;
-			x_epoch = RECT_RIGHT(priv->content_rect) + each;
 			UBER_GRAPH_GET_CLASS(graph)->render_fast(graph,
 			                                         dst->fg_cairo,
 			                                         &priv->nonvis_rect,
@@ -974,7 +977,9 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 				cairo_clip(dst->fg_cairo);
 				UBER_GRAPH_GET_CLASS(graph)->render(graph,
 				                                    dst->fg_cairo,
-				                                    &priv->nonvis_rect);
+				                                    &priv->nonvis_rect,
+				                                    x_epoch,
+				                                    each);
 				cairo_restore(dst->fg_cairo);
 			}
 		}
@@ -1018,7 +1023,7 @@ uber_graph_redraw (UberGraph *graph) /* IN */
  * Returns: None.
  * Side effects: None.
  */
-static void
+static inline void
 uber_graph_get_yrange (UberGraph *graph, /* IN */
                        UberRange *range) /* OUT */
 {

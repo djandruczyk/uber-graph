@@ -62,7 +62,9 @@ struct _UberGraphClass
 	                             UberRange    *range);
 	void       (*render)        (UberGraph    *graph,
 	                             cairo_t      *cairo,
-	                             GdkRectangle *content_area);
+	                             GdkRectangle *content_area,
+	                             guint         epoch,
+	                             gfloat        each);
 	void       (*render_fast)   (UberGraph    *graph,
 	                             cairo_t      *cairo,
 	                             GdkRectangle *content_area,

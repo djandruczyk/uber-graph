@@ -115,7 +115,9 @@ uber_heat_map_set_stride (UberGraph *graph,  /* IN */
 static void
 uber_heat_map_render (UberGraph    *graph, /* IN */
                       cairo_t      *cr,    /* IN */
-                      GdkRectangle *area)  /* IN */
+                      GdkRectangle *area,  /* IN */
+                      guint         epoch, /* IN */
+                      gfloat        each)  /* IN */
 {
 #if 0
 	UberGraphPrivate *priv;
