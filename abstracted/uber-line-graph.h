@@ -66,31 +66,34 @@ struct _UberLineGraphClass
 	UberGraphClass parent_class;
 };
 
-guint             uber_line_graph_add_line      (UberLineGraph     *graph,
-                                                 const GdkColor    *color,
-                                                 UberLabel         *label);
-cairo_antialias_t uber_line_graph_get_antialias (UberLineGraph     *graph);
-GType             uber_line_graph_get_type      (void) G_GNUC_CONST;
-GtkWidget*        uber_line_graph_new           (void);
-void              uber_line_graph_set_antialias (UberLineGraph     *graph,
-                                                 cairo_antialias_t  antialias);
-void              uber_line_graph_set_data_func (UberLineGraph     *graph,
-                                                 UberLineGraphFunc  func,
-                                                 gpointer           user_data,
-                                                 GDestroyNotify     notify);
-gboolean          uber_line_graph_get_autoscale (UberLineGraph     *graph);
-void              uber_line_graph_set_autoscale (UberLineGraph     *graph,
-                                                 gboolean           autoscale);
-void              uber_line_graph_set_range     (UberLineGraph     *graph,
-                                                 const UberRange   *range);
-void              uber_line_graph_set_dash      (UberLineGraph     *graph,
-                                                 guint              line,
-                                                 const gdouble     *dashes,
-                                                 gint               num_dashes,
-                                                 gdouble            offset);
-void              uber_line_graph_set_alpha     (UberLineGraph     *graph,
-                                                 gint               line,
-                                                 gdouble            alpha);
+gint              uber_line_graph_add_line       (UberLineGraph     *graph,
+                                                  const GdkColor    *color,
+                                                  UberLabel         *label);
+cairo_antialias_t uber_line_graph_get_antialias  (UberLineGraph     *graph);
+GType             uber_line_graph_get_type       (void) G_GNUC_CONST;
+GtkWidget*        uber_line_graph_new            (void);
+void              uber_line_graph_set_antialias  (UberLineGraph     *graph,
+                                                  cairo_antialias_t  antialias);
+void              uber_line_graph_set_data_func  (UberLineGraph     *graph,
+                                                  UberLineGraphFunc  func,
+                                                  gpointer           user_data,
+                                                  GDestroyNotify     notify);
+gboolean          uber_line_graph_get_autoscale  (UberLineGraph     *graph);
+void              uber_line_graph_set_autoscale  (UberLineGraph     *graph,
+                                                  gboolean           autoscale);
+void              uber_line_graph_set_range      (UberLineGraph     *graph,
+                                                  const UberRange   *range);
+void              uber_line_graph_set_line_dash  (UberLineGraph     *graph,
+                                                  guint              line,
+                                                  const gdouble     *dashes,
+                                                  gint               num_dashes,
+                                                  gdouble            offset);
+void              uber_line_graph_set_line_alpha (UberLineGraph     *graph,
+                                                  gint               line,
+                                                  gdouble            alpha);
+void              uber_line_graph_set_line_width (UberLineGraph     *graph,
+                                                  gint               line,
+                                                  gdouble            width);
 
 G_END_DECLS
 

@@ -307,9 +307,9 @@ main (gint   argc,   /* IN */
 		 */
 		lineno = uber_line_graph_add_line(UBER_LINE_GRAPH(cpu), &color, NULL);
 		if (has_freq_scaling(i)) {
-			uber_line_graph_set_dash(UBER_LINE_GRAPH(cpu), lineno,
-									 dashes, G_N_ELEMENTS(dashes), 0);
-			uber_line_graph_set_alpha(UBER_LINE_GRAPH(cpu), lineno, 1.);
+			uber_line_graph_set_line_dash(UBER_LINE_GRAPH(cpu), lineno,
+			                              dashes, G_N_ELEMENTS(dashes), 0);
+			uber_line_graph_set_line_alpha(UBER_LINE_GRAPH(cpu), lineno, 1.);
 		}
 	}
 	/*

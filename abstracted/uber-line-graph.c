@@ -44,9 +44,10 @@ G_DEFINE_TYPE(UberLineGraph, uber_line_graph, UBER_TYPE_GRAPH)
 
 typedef struct
 {
+	GRing     *raw_data;
 	GdkColor   color;
 	gdouble    alpha;
-	GRing     *raw_data;
+	gdouble    width;
 	gdouble   *dashes;
 	gint       num_dashes;
 	gdouble    dash_offset;
@@ -216,18 +217,19 @@ uber_line_graph_get_autoscale (UberLineGraph *graph) /* IN */
  * Returns: The line identifier.
  * Side effects: None.
  */
-guint
+gint
 uber_line_graph_add_line (UberLineGraph  *graph, /* IN */
                           const GdkColor *color, /* IN */
                           UberLabel      *label) /* IN */
 {
 	UberLineGraphPrivate *priv;
-	LineInfo info = { { 0 } };
+	LineInfo info = { 0 };
 
 	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), 0);
 
 	priv = graph->priv;
 	info.alpha = 1.0;
+	info.width = 1.0;
 	/*
 	 * Retrieve the lines color.
 	 */
@@ -417,7 +419,7 @@ uber_line_graph_stylize_line (UberLineGraph *graph, /* IN */
 	}
 	cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
 	cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-	cairo_set_line_width(cr, 1.0);
+	cairo_set_line_width(cr, info->width);
 	cairo_set_antialias(cr, priv->antialias);
 	cairo_set_source_rgba(cr,
 	                      info->color.red / 65535.,
@@ -715,7 +717,7 @@ uber_line_graph_get_yrange (UberGraph *graph, /* IN */
 }
 
 /**
- * uber_line_graph_set_dash:
+ * uber_line_graph_set_line_dash:
  * @graph: A #UberLineGraph.
  *
  * XXX
@@ -724,11 +726,11 @@ uber_line_graph_get_yrange (UberGraph *graph, /* IN */
  * Side effects: None.
  */
 void
-uber_line_graph_set_dash (UberLineGraph *graph,      /* IN */
-                          guint          line,       /* IN */
-                          const gdouble *dashes,     /* IN */
-                          gint           num_dashes, /* IN */
-                          gdouble        offset)     /* IN */
+uber_line_graph_set_line_dash (UberLineGraph *graph,      /* IN */
+                               guint          line,       /* IN */
+                               const gdouble *dashes,     /* IN */
+                               gint           num_dashes, /* IN */
+                               gdouble        offset)     /* IN */
 {
 	UberLineGraphPrivate *priv;
 	LineInfo *info;
@@ -756,7 +758,7 @@ uber_line_graph_set_dash (UberLineGraph *graph,      /* IN */
 }
 
 /**
- * uber_line_graph_set_alpha:
+ * uber_line_graph_set_line_alpha:
  * @graph: A #UberLineGraph.
  *
  * XXX
@@ -765,9 +767,9 @@ uber_line_graph_set_dash (UberLineGraph *graph,      /* IN */
  * Side effects: None.
  */
 void
-uber_line_graph_set_alpha (UberLineGraph *graph, /* IN */
-                           gint           line,  /* IN */
-                           gdouble        alpha) /* IN */
+uber_line_graph_set_line_alpha (UberLineGraph *graph, /* IN */
+                                gint           line,  /* IN */
+                                gdouble        alpha) /* IN */
 {
 	UberLineGraphPrivate *priv;
 	LineInfo *info;
@@ -779,6 +781,33 @@ uber_line_graph_set_alpha (UberLineGraph *graph, /* IN */
 	priv = graph->priv;
 	info = &g_array_index(priv->lines, LineInfo, line - 1);
 	info->alpha = alpha;
+}
+
+/**
+ * uber_line_graph_set_line_width:
+ * @graph: A #UberLineGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_line_graph_set_line_width (UberLineGraph *graph, /* IN */
+                                gint           line,  /* IN */
+                                gdouble        width) /* IN */
+{
+	UberLineGraphPrivate *priv;
+	LineInfo *info;
+
+	g_return_if_fail(UBER_IS_LINE_GRAPH(graph));
+	g_return_if_fail(line > 0);
+	g_return_if_fail(line <= graph->priv->lines->len);
+
+	priv = graph->priv;
+	info = &g_array_index(graph->priv->lines, LineInfo, line - 1);
+	info->width = width;
+	uber_graph_redraw(UBER_GRAPH(graph));
 }
 
 /**
@@ -805,6 +834,7 @@ uber_line_graph_finalize (GObject *object) /* IN */
 	for (i = 0; i < priv->lines->len; i++) {
 		line = &g_array_index(priv->lines, LineInfo, i);
 		g_ring_unref(line->raw_data);
+		g_free(line->dashes);
 	}
 	G_OBJECT_CLASS(uber_line_graph_parent_class)->finalize(object);
 }
