@@ -379,6 +379,7 @@ main (gint   argc,   /* IN */
 {
 	gdouble dashes[] = { 1.0, 4.0 };
 	UberRange cpu_range = { 0., 100., 100. };
+	UberRange net_range = { 0., 512., 512. };
 	GtkWidget *window;
 	GtkWidget *cpu;
 	GtkWidget *net;
@@ -454,6 +455,7 @@ main (gint   argc,   /* IN */
 	/*
 	 * Add lines for bytes in/out.
 	 */
+	uber_line_graph_set_range(UBER_LINE_GRAPH(net), &net_range);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(net),
 	                              get_net_info, NULL, NULL);
 	uber_graph_set_format(UBER_GRAPH(net), UBER_GRAPH_FORMAT_DIRECT1024);
