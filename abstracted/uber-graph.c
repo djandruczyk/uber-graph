@@ -1318,6 +1318,9 @@ G_STMT_START { \
 		 * TODO: Use proper scale.
 		 */
 		uber_scale_linear(range, pixel_range, &y, NULL);
+		if (y == 0 || y == pixel_range->begin || y == pixel_range->end) {
+			continue;
+		}
 		y = pixel_range->end - y;
 		CONDENSE(value);
 		uber_graph_render_y_line(graph, priv->bg_cairo, y,
