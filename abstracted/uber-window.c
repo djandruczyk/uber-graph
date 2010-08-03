@@ -34,8 +34,8 @@ G_DEFINE_TYPE(UberWindow, uber_window, GTK_TYPE_WINDOW)
 
 struct _UberWindowPrivate
 {
-	gint graph_count;
-
+	gint       graph_count;
+	GList     *graphs;
 	GtkWidget *notebook;
 	GtkWidget *table;
 };
@@ -55,6 +55,54 @@ uber_window_new (void)
 
 	window = g_object_new(UBER_TYPE_WINDOW, NULL);
 	return GTK_WIDGET(window);
+}
+
+static gboolean
+uber_window_graph_button_press_event (GtkWidget      *widget, /* IN */
+                                      GdkEventButton *button, /* IN */
+                                      UberWindow     *window) /* IN */
+{
+	UberWindowPrivate *priv;
+	GtkWidget *labels;
+	GList *list;
+
+	g_return_val_if_fail(UBER_IS_WINDOW(window), FALSE);
+	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
+
+	priv = window->priv;
+	/*
+	 * Get the widgets labels.
+	 */
+	labels = uber_graph_get_labels(UBER_GRAPH(widget));
+	/*
+	 * Show/Hide tick labels if needed.
+	 */
+	if (!labels) {
+		uber_graph_set_show_xlabels(UBER_GRAPH(widget), FALSE);
+	} else {
+		uber_graph_set_show_xlabels(UBER_GRAPH(widget),
+		                            gtk_widget_get_visible(labels));
+	}
+	/*
+	 * Hide labels/xlabels for other graphs.
+	 */
+	for (list = priv->graphs; list && list->next; list = list->next) {
+		if (list->data != widget) {
+			uber_graph_set_show_xlabels(list->data, FALSE);
+			labels = uber_graph_get_labels(list->data);
+			if (labels) {
+				gtk_widget_hide(labels);
+			}
+		}
+	}
+	/*
+	 * Ensure the last graph always has labels.
+	 */
+	if (list) {
+		uber_graph_set_show_xlabels(UBER_GRAPH(list->data), TRUE);
+	}
+
+	return FALSE;
 }
 
 /**
@@ -119,6 +167,14 @@ uber_window_add_graph (UberWindow  *window, /* IN */
 	                 GTK_FILL | GTK_EXPAND,
 	                 0, 0);
 	/*
+	 * Attach signal to show ticks when label is shown.
+	 */
+	g_signal_connect_after(graph,
+	                       "button-press-event",
+	                       G_CALLBACK(uber_window_graph_button_press_event),
+	                       window);
+	priv->graphs = g_list_append(priv->graphs, graph);
+	/*
 	 * Cleanup.
 	 */
 	g_free(formatted);
@@ -138,6 +194,10 @@ uber_window_add_graph (UberWindow  *window, /* IN */
 static void
 uber_window_finalize (GObject *object) /* IN */
 {
+	UberWindowPrivate *priv;
+
+	priv = UBER_WINDOW(object)->priv;
+	g_list_free(priv->graphs);
 	G_OBJECT_CLASS(uber_window_parent_class)->finalize(object);
 }
 

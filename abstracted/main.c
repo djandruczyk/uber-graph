@@ -490,13 +490,13 @@ main (gint   argc,   /* IN */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
 	/*
-	 * Disable X tick labels by default.
+	 * Disable X tick labels by default (except last).
 	 */
 	uber_graph_set_show_xlabels(UBER_GRAPH(cpu), FALSE);
 	uber_graph_set_show_xlabels(UBER_GRAPH(net), FALSE);
 	uber_graph_set_show_xlabels(UBER_GRAPH(line), FALSE);
 	uber_graph_set_show_xlabels(UBER_GRAPH(map), FALSE);
-	uber_graph_set_show_xlabels(UBER_GRAPH(scatter), FALSE);
+	uber_graph_set_show_xlabels(UBER_GRAPH(scatter), TRUE);
 	/*
 	 * Show widgets.
 	 */
