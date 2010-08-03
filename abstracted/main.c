@@ -407,14 +407,18 @@ main (gint   argc,   /* IN */
 	 * Create window and graphs.
 	 */
 	window = uber_window_new();
-	cpu = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
-	net = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
-	line = g_object_new(UBER_TYPE_LINE_GRAPH, NULL);
-	map = g_object_new(UBER_TYPE_HEAT_MAP, NULL);
-	scatter = g_object_new(UBER_TYPE_SCATTER, NULL);
+	cpu = uber_line_graph_new();
+	net = uber_line_graph_new();
+	line = uber_line_graph_new();
+	map = uber_heat_map_new();
+	scatter = uber_scatter_new();
 	/*
-	 * Add lines for CPU graph.
+	 * Configure CPU graph.
 	 */
+	uber_graph_set_format(UBER_GRAPH(cpu), UBER_GRAPH_FORMAT_PERCENT);
+	uber_line_graph_set_range(UBER_LINE_GRAPH(cpu), &cpu_range);
+	uber_line_graph_set_data_func(UBER_LINE_GRAPH(cpu),
+	                              get_cpu_info, NULL, NULL);
 	for (i = 0; i < nprocs; i++) {
 		mod = i % G_N_ELEMENTS(default_colors);
 		gdk_color_parse(default_colors[mod], &color);
@@ -435,17 +439,6 @@ main (gint   argc,   /* IN */
 		}
 	}
 	/*
-	 * Adjust graph settings.
-	 */
-	uber_graph_set_format(UBER_GRAPH(cpu), UBER_GRAPH_FORMAT_PERCENT);
-	uber_line_graph_set_range(UBER_LINE_GRAPH(cpu), &cpu_range);
-	uber_line_graph_set_data_func(UBER_LINE_GRAPH(cpu),
-	                              get_cpu_info, NULL, NULL);
-	uber_line_graph_set_data_func(UBER_LINE_GRAPH(net),
-	                              get_net_info, NULL, NULL);
-	uber_graph_set_show_ylines(UBER_GRAPH(map), FALSE);
-	uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
-	/*
 	 * Add lines for GDK/X events.
 	 */
 	label = uber_label_new();
@@ -461,6 +454,8 @@ main (gint   argc,   /* IN */
 	/*
 	 * Add lines for bytes in/out.
 	 */
+	uber_line_graph_set_data_func(UBER_LINE_GRAPH(net),
+	                              get_net_info, NULL, NULL);
 	uber_graph_set_format(UBER_GRAPH(net), UBER_GRAPH_FORMAT_DIRECT1024);
 	label = uber_label_new();
 	uber_label_set_text(UBER_LABEL(label), "Bytes In");
@@ -471,6 +466,18 @@ main (gint   argc,   /* IN */
 	gdk_color_parse("#4e9a06", &color);
 	uber_line_graph_add_line(UBER_LINE_GRAPH(net), &color, UBER_LABEL(label));
 	/*
+	 * Configure heat map.
+	 */
+	uber_graph_set_show_ylines(UBER_GRAPH(map), FALSE);
+	gdk_color_parse(default_colors[0], &color);
+	uber_heat_map_set_fg_color(UBER_HEAT_MAP(map), &color);
+	/*
+	 * Configure scatter.
+	 */
+	uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
+	gdk_color_parse(default_colors[3], &color);
+	uber_scatter_set_fg_color(UBER_SCATTER(scatter), &color);
+	/*
 	 * Add graphs.
 	 */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(cpu), "CPU");
@@ -478,13 +485,6 @@ main (gint   argc,   /* IN */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "UI Events");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
-	/*
-	 * Set heat map and scatter color.
-	 */
-	gdk_color_parse(default_colors[0], &color);
-	uber_heat_map_set_fg_color(UBER_HEAT_MAP(map), &color);
-	gdk_color_parse(default_colors[3], &color);
-	uber_scatter_set_fg_color(UBER_SCATTER(scatter), &color);
 	/*
 	 * Show widgets.
 	 */
