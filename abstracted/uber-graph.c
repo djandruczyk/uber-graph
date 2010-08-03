@@ -74,6 +74,7 @@ struct _UberGraphPrivate
 	gboolean         bg_dirty;      /* Does the background need to be redrawn. */
 	guint            tick_len;      /* How long should axis-ticks be. */
 	gboolean         show_xlines;   /* Show X axis lines. */
+	gboolean         show_xlabels;  /* Show X axis labels. */
 	gboolean         show_ylines;   /* Show Y axis lines. */
 	gboolean         full_draw;     /* Do we need to redraw all foreground content.
 	                                 * If false, draws will try to only add new
@@ -509,6 +510,9 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	priv->content_rect.width = alloc.width - priv->content_rect.x - 3.0;
 	priv->content_rect.height = alloc.height - priv->tick_len - pango_height
 	                          - (pango_height / 2.) - 3.0;
+	if (!priv->show_xlabels) {
+		priv->content_rect.height += pango_height;
+	}
 	/*
 	 * Adjust label offset.
 	 */
@@ -545,6 +549,51 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 */
 	gtk_alignment_set_padding(GTK_ALIGNMENT(priv->align),
 	                          6, 6, priv->content_rect.x, 0);
+}
+
+/**
+ * uber_graph_get_show_xlabels:
+ * @graph: A #UberGraph.
+ *
+ * Retrieves if the X grid labels should be shown.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+gboolean
+uber_graph_get_show_xlabels (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_val_if_fail(UBER_IS_GRAPH(graph), FALSE);
+
+	priv = graph->priv;
+	return priv->show_xlabels;
+}
+
+/**
+ * uber_graph_set_show_xlabels:
+ * @graph: A #UberGraph.
+ * @show_xlabels: Show x labels.
+ *
+ * Sets if the x labels should be shown.
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_set_show_xlabels (UberGraph *graph,       /* IN */
+                             gboolean   show_xlabels) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->show_xlabels = show_xlabels;
+	priv->bg_dirty = TRUE;
+	uber_graph_calculate_rects(graph);
+	gtk_widget_queue_draw(GTK_WIDGET(graph));
 }
 
 /**
@@ -1108,21 +1157,23 @@ uber_graph_render_x_axis (UberGraph *graph) /* IN */
 		/*
 		 * Render the label.
 		 */
-		g_snprintf(text, sizeof(text), "%d", i * 10);
-		pango_layout_set_text(pl, text, -1);
-		pango_layout_get_pixel_size(pl, &wi, &hi);
-		if (i != 0 && i != count) {
-			cairo_move_to(priv->bg_cairo, x - (wi / 2), y + h);
-		} else if (i == 0) {
-			cairo_move_to(priv->bg_cairo,
-			              RECT_RIGHT(priv->content_rect) - (wi / 2),
-			              RECT_BOTTOM(priv->content_rect) + priv->tick_len);
-		} else if (i == count) {
-			cairo_move_to(priv->bg_cairo,
-			              priv->content_rect.x - (wi / 2),
-			              RECT_BOTTOM(priv->content_rect) + priv->tick_len);
+		if (priv->show_xlabels) {
+			g_snprintf(text, sizeof(text), "%d", i * 10);
+			pango_layout_set_text(pl, text, -1);
+			pango_layout_get_pixel_size(pl, &wi, &hi);
+			if (i != 0 && i != count) {
+				cairo_move_to(priv->bg_cairo, x - (wi / 2), y + h);
+			} else if (i == 0) {
+				cairo_move_to(priv->bg_cairo,
+				              RECT_RIGHT(priv->content_rect) - (wi / 2),
+				              RECT_BOTTOM(priv->content_rect) + priv->tick_len);
+			} else if (i == count) {
+				cairo_move_to(priv->bg_cairo,
+				              priv->content_rect.x - (wi / 2),
+				              RECT_BOTTOM(priv->content_rect) + priv->tick_len);
+			}
+			pango_cairo_show_layout(priv->bg_cairo, pl);
 		}
-		pango_cairo_show_layout(priv->bg_cairo, pl);
 	}
 	g_object_unref(pl);
 	pango_font_description_free(fd);

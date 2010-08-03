@@ -90,6 +90,9 @@ void       uber_graph_add_label        (UberGraph       *graph,
 gboolean   uber_graph_get_show_xlines  (UberGraph       *graph);
 void       uber_graph_set_show_xlines  (UberGraph       *graph,
                                         gboolean         show_xlines);
+gboolean   uber_graph_get_show_xlabels (UberGraph       *graph);
+void       uber_graph_set_show_xlabels (UberGraph       *graph,
+                                        gboolean         show_xlabels);
 gboolean   uber_graph_get_show_ylines  (UberGraph       *graph);
 void       uber_graph_set_show_ylines  (UberGraph       *graph,
                                         gboolean         show_ylines);
