@@ -380,6 +380,7 @@ main (gint   argc,   /* IN */
 	gdouble dashes[] = { 1.0, 4.0 };
 	UberRange cpu_range = { 0., 100., 100. };
 	UberRange net_range = { 0., 512., 512. };
+	UberRange ui_range = { 0., 10., 10. };
 	GtkWidget *window;
 	GtkWidget *cpu;
 	GtkWidget *net;
@@ -442,6 +443,7 @@ main (gint   argc,   /* IN */
 	/*
 	 * Add lines for GDK/X events.
 	 */
+	uber_line_graph_set_range(UBER_LINE_GRAPH(line), &ui_range);
 	label = uber_label_new();
 	uber_label_set_text(UBER_LABEL(label), "GDK Events");
 	gdk_color_parse("#729fcf", &color);
