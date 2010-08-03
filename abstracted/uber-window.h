@@ -50,11 +50,15 @@ struct _UberWindowClass
 	GtkWindowClass parent_class;
 };
 
-GType      uber_window_get_type  (void) G_GNUC_CONST;
-GtkWidget* uber_window_new       (void);
-void       uber_window_add_graph (UberWindow  *window,
-                                  UberGraph   *graph,
-                                  const gchar *title);
+GType      uber_window_get_type    (void) G_GNUC_CONST;
+GtkWidget* uber_window_new         (void);
+void       uber_window_add_graph   (UberWindow  *window,
+                                    UberGraph   *graph,
+                                    const gchar *title);
+void       uber_window_show_labels (UberWindow  *window,
+                                    UberGraph   *graph);
+void       uber_window_hide_labels (UberWindow  *window,
+                                    UberGraph   *graph);
 
 G_END_DECLS
 

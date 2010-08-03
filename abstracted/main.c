@@ -519,6 +519,10 @@ main (gint   argc,   /* IN */
 	gtk_widget_show(cpu);
 	gtk_widget_show(window);
 	/*
+	 * Show cpu labels by default.
+	 */
+	uber_window_show_labels(UBER_WINDOW(window), UBER_GRAPH(cpu));
+	/*
 	 * Setup accelerators.
 	 */
 	ag = gtk_accel_group_new();

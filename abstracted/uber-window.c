@@ -57,37 +57,57 @@ uber_window_new (void)
 	return GTK_WIDGET(window);
 }
 
-static gboolean
-uber_window_graph_button_press_event (GtkWidget      *widget, /* IN */
-                                      GdkEventButton *button, /* IN */
-                                      UberWindow     *window) /* IN */
+/**
+ * uber_window_show_labels:
+ * @window: A #UberWindow.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_window_show_labels (UberWindow *window, /* IN */
+                         UberGraph  *graph)  /* IN */
 {
 	UberWindowPrivate *priv;
 	GtkWidget *labels;
+	GtkWidget *align;
 	GList *list;
+	gboolean show;
 
-	g_return_val_if_fail(UBER_IS_WINDOW(window), FALSE);
-	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
+	g_return_if_fail(UBER_IS_WINDOW(window));
+	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = window->priv;
 	/*
 	 * Get the widgets labels.
 	 */
-	labels = uber_graph_get_labels(UBER_GRAPH(widget));
+	labels = uber_graph_get_labels(graph);
 	/*
-	 * Show/Hide tick labels if needed.
+	 * Show/hide ticks and labels.
 	 */
-	if (!labels) {
-		uber_graph_set_show_xlabels(UBER_GRAPH(widget), FALSE);
-	} else {
-		uber_graph_set_show_xlabels(UBER_GRAPH(widget),
-		                            gtk_widget_get_visible(labels));
+	show = !!labels;
+	if (labels) {
+		align = gtk_bin_get_child(GTK_BIN(labels));
+		list = gtk_container_get_children(GTK_CONTAINER(align));
+		if (list) {
+			gtk_widget_show(labels);
+		} else {
+			gtk_widget_hide(labels);
+			show = FALSE;
+		}
+		g_list_free(list);
 	}
+	if (graph == (gpointer)g_list_last(priv->graphs)) {
+		show = TRUE;
+	}
+	uber_graph_set_show_xlabels(graph, show);
 	/*
 	 * Hide labels/xlabels for other graphs.
 	 */
 	for (list = priv->graphs; list && list->next; list = list->next) {
-		if (list->data != widget) {
+		if (list->data != graph) {
 			uber_graph_set_show_xlabels(list->data, FALSE);
 			labels = uber_graph_get_labels(list->data);
 			if (labels) {
@@ -101,7 +121,53 @@ uber_window_graph_button_press_event (GtkWidget      *widget, /* IN */
 	if (list) {
 		uber_graph_set_show_xlabels(UBER_GRAPH(list->data), TRUE);
 	}
+}
 
+/**
+ * uber_window_hide_labels:
+ * @window: A #UberWindow.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_window_hide_labels (UberWindow *window, /* IN */
+                         UberGraph  *graph)  /* IN */
+{
+	UberWindowPrivate *priv;
+	GtkWidget *labels;
+	gboolean show;
+
+	g_return_if_fail(UBER_IS_WINDOW(window));
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = window->priv;
+	labels = uber_graph_get_labels(graph);
+	if (labels) {
+		gtk_widget_hide(labels);
+	}
+	show = g_list_last(priv->graphs) == (gpointer)graph;
+	uber_graph_set_show_xlabels(graph, show);
+}
+
+static gboolean
+uber_window_graph_button_press_event (GtkWidget      *widget, /* IN */
+                                      GdkEventButton *button, /* IN */
+                                      UberWindow     *window) /* IN */
+{
+	GtkWidget *labels;
+
+	g_return_val_if_fail(UBER_IS_WINDOW(window), FALSE);
+	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
+
+	labels = uber_graph_get_labels(UBER_GRAPH(widget));
+	if (GTK_WIDGET_VISIBLE(labels)) {
+		uber_window_hide_labels(window, UBER_GRAPH(widget));
+	} else {
+		uber_window_show_labels(window, UBER_GRAPH(widget));
+	}
 	return FALSE;
 }
 

@@ -1781,19 +1781,12 @@ uber_graph_button_press_event (GtkWidget      *widget, /* IN */
                                GdkEventButton *button) /* IN */
 {
 	UberGraphPrivate *priv;
-	gboolean show = FALSE;
 
 	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
 
 	priv = UBER_GRAPH(widget)->priv;
 
 	switch (button->button) {
-	case 1: /* Left Click */
-		if (gtk_container_get_children(GTK_CONTAINER(priv->labels))) {
-			show = !gtk_widget_get_visible(priv->align);
-		}
-		gtk_widget_set_visible(priv->align, show);
-		break;
 	case 2: /* Middle Click */
 		priv->paused = !priv->paused;
 		if (priv->fps_handler) {
