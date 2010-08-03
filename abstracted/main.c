@@ -461,6 +461,7 @@ main (gint   argc,   /* IN */
 	/*
 	 * Add lines for bytes in/out.
 	 */
+	uber_graph_set_format(UBER_GRAPH(net), UBER_GRAPH_FORMAT_DIRECT1024);
 	label = uber_label_new();
 	uber_label_set_text(UBER_LABEL(label), "Bytes In");
 	gdk_color_parse("#a40000", &color);
