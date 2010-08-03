@@ -1269,26 +1269,26 @@ G_STMT_START { \
     if (kibi) { \
         if ((v) >= 1073741824.) { \
             (v) /= 1073741824.; \
-            modifier = "Gi"; \
+            modifier = " Gi"; \
         } else if ((v) >= 1048576.) { \
             (v) /= 1048576.; \
-            modifier = "Mi"; \
+            modifier = " Mi"; \
         } else if ((v) >= 1024.) { \
             (v) /= 1024.; \
-            modifier = "Ki"; \
+            modifier = " Ki"; \
         } else { \
             modifier = ""; \
         } \
     } else {  \
         if ((v) >= 1000000000.) { \
             (v) /= 1000000000.; \
-            modifier = "G"; \
+            modifier = " G"; \
         } else if ((v) >= 1000000.) { \
             (v) /= 1000000.; \
-            modifier = "M"; \
+            modifier = " M"; \
         } else if ((v) >= 1000.) { \
             (v) /= 1000.; \
-            modifier = "K"; \
+            modifier = " K"; \
         } else { \
             modifier = ""; \
         } \
