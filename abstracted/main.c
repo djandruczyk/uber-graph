@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <gdk/gdkx.h>
+#include <gdk/gdkkeysyms.h>
 
 #include "uber.h"
 
@@ -388,6 +389,7 @@ main (gint   argc,   /* IN */
 	GtkWidget *map;
 	GtkWidget *scatter;
 	GtkWidget *label;
+	GtkAccelGroup *ag;
 	GdkColor color;
 	gint lineno;
 	gint nprocs;
@@ -506,6 +508,13 @@ main (gint   argc,   /* IN */
 	gtk_widget_show(line);
 	gtk_widget_show(cpu);
 	gtk_widget_show(window);
+	/*
+	 * Setup accelerators.
+	 */
+	ag = gtk_accel_group_new();
+	gtk_accel_group_connect(ag, GDK_w, GDK_CONTROL_MASK, GTK_ACCEL_MASK,
+	                        g_cclosure_new(gtk_main_quit, NULL, NULL));
+	gtk_window_add_accel_group(GTK_WINDOW(window), ag);
 	/*
 	 * Attach signals.
 	 */
