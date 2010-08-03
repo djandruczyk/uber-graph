@@ -1111,10 +1111,11 @@ uber_graph_set_format (UberGraph       *graph, /* IN */
 static void
 uber_graph_render_x_axis (UberGraph *graph) /* IN */
 {
+	UberGraphPrivate *priv;
 	const gdouble dashes[] = { 1.0, 2.0 };
 	PangoFontDescription *fd;
 	PangoLayout *pl;
-	UberGraphPrivate *priv;
+	GtkStyle *style;
 	gfloat each;
 	gfloat x;
 	gfloat y;
@@ -1128,16 +1129,19 @@ uber_graph_render_x_axis (UberGraph *graph) /* IN */
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
 	priv = graph->priv;
+	style = gtk_widget_get_style(GTK_WIDGET(graph));
 	count = priv->x_slots / 10;
 	each = priv->content_rect.width / (gfloat)count;
 	/*
 	 * Draw ticks.
 	 */
+	cairo_save(priv->bg_cairo);
 	pl = pango_cairo_create_layout(priv->bg_cairo);
 	fd = pango_font_description_new();
 	pango_font_description_set_family_static(fd, "Monospace");
 	pango_font_description_set_size(fd, 6 * PANGO_SCALE);
 	pango_layout_set_font_description(pl, fd);
+	gdk_cairo_set_source_color(priv->bg_cairo, &style->fg[GTK_STATE_NORMAL]);
 	cairo_set_line_width(priv->bg_cairo, 1.0);
 	cairo_set_dash(priv->bg_cairo, dashes, G_N_ELEMENTS(dashes), 0);
 	for (i = 0; i <= count; i++) {
@@ -1177,6 +1181,7 @@ uber_graph_render_x_axis (UberGraph *graph) /* IN */
 	}
 	g_object_unref(pl);
 	pango_font_description_free(fd);
+	cairo_restore(priv->bg_cairo);
 }
 
 static inline void G_GNUC_PRINTF(6, 7)
@@ -1192,6 +1197,7 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 	const gdouble dashes[] = { 1.0, 2.0 };
 	PangoFontDescription *fd;
 	PangoLayout *pl;
+	GtkStyle *style;
 	va_list args;
 	gchar *text;
 	gint width;
@@ -1203,12 +1209,14 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 	g_return_if_fail(format != NULL);
 
 	priv = graph->priv;
+	style = gtk_widget_get_style(GTK_WIDGET(graph));
 	/*
 	 * Draw grid line.
 	 */
 	cairo_save(cr);
 	cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0);
 	cairo_set_line_width(cr, 1.0);
+	gdk_cairo_set_source_color(cr, &style->fg[GTK_STATE_NORMAL]);
 	cairo_move_to(cr, priv->content_rect.x - priv->tick_len, real_y);
 	if (tick_only) {
 		cairo_line_to(cr, priv->content_rect.x, real_y);
@@ -1221,6 +1229,8 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 	 * Show label.
 	 */
 	if (!no_label) {
+		cairo_save(cr);
+		gdk_cairo_set_source_color(cr, &style->fg[GTK_STATE_NORMAL]);
 		/*
 		 * Format text.
 		 */
@@ -1246,6 +1256,7 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 		g_free(text);
 		pango_font_description_free(fd);
 		g_object_unref(pl);
+		cairo_restore(cr);
 	}
 }
 
