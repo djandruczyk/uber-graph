@@ -305,7 +305,7 @@ next_net_info (void)
 	gulong bytes_out;
 	gulong dummy;
 	gchar *buf = NULL;
-	gchar iface[32];
+	gchar iface[32] = { 0 };
 	gchar *line;
 	gsize len;
 	gint l = 0;
@@ -318,13 +318,13 @@ next_net_info (void)
 	}
 
 	line = buf;
-	for (i = 0; buf[i]; i++) {
+	for (i = 0; i < len; i++) {
 		if (buf[i] == ':') {
 			buf[i] = ' ';
 		} else if (buf[i] == '\n') {
 			buf[i] = '\0';
 			if (++l > 2) { // ignore first two lines
-				if (sscanf(line, "%s %lu %lu %lu %lu %lu %lu %lu %lu %lu",
+				if (sscanf(line, "%31s %lu %lu %lu %lu %lu %lu %lu %lu %lu",
 				           iface, &bytes_in,
 				           &dummy, &dummy, &dummy, &dummy,
 				           &dummy, &dummy, &dummy,
