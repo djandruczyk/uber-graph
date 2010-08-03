@@ -28,6 +28,7 @@
 #include <gdk/gdkkeysyms.h>
 
 #include "uber.h"
+#include "uber-blktrace.h"
 
 typedef struct
 {
@@ -359,6 +360,7 @@ sample_thread (gpointer data)
 		next_cpu_info();
 		next_cpu_freq_info();
 		next_net_info();
+		uber_blktrace_next();
 	}
 }
 
@@ -403,6 +405,7 @@ main (gint   argc,   /* IN */
 	 */
 	next_cpu_info();
 	next_cpu_freq_info();
+	uber_blktrace_init();
 	/*
 	 * Install event hook to track how many X events we are doing.
 	 */
@@ -477,6 +480,11 @@ main (gint   argc,   /* IN */
 	uber_graph_set_show_ylines(UBER_GRAPH(map), FALSE);
 	gdk_color_parse(default_colors[0], &color);
 	uber_heat_map_set_fg_color(UBER_HEAT_MAP(map), &color);
+#if 0
+	uber_heat_map_set_data_func(UBER_HEAT_MAP(map),
+	                            uber_blktrace_get,
+	                            NULL);
+#endif
 	/*
 	 * Configure scatter.
 	 */

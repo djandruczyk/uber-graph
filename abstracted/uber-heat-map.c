@@ -37,9 +37,12 @@ G_DEFINE_TYPE(UberHeatMap, uber_heat_map, UBER_TYPE_GRAPH)
 
 struct _UberHeatMapPrivate
 {
-	GRing    *raw_data;
-	gboolean  fg_color_set;
-	GdkColor  fg_color;
+	GRing           *raw_data;
+	gboolean         fg_color_set;
+	GdkColor         fg_color;
+	UberHeatMapFunc  func;
+	GDestroyNotify   func_destroy;
+	gpointer         func_user_data;
 };
 
 /**
@@ -101,6 +104,34 @@ uber_heat_map_set_stride (UberGraph *graph,  /* IN */
 	}
 	priv->raw_data = g_ring_sized_new(sizeof(GArray*), stride,
 	                                  uber_heat_map_destroy_array);
+}
+
+/**
+ * uber_heat_map_set_data_func:
+ * @map: A #UberHeatMap.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_heat_map_set_data_func (UberHeatMap     *map,       /* IN */
+                             UberHeatMapFunc  func,      /* IN */
+                             gpointer         user_data, /* IN */
+                             GDestroyNotify   destroy)   /* IN */
+{
+	UberHeatMapPrivate *priv;
+
+	g_return_if_fail(UBER_IS_HEAT_MAP(map));
+
+	priv = map->priv;
+	if (priv->func_destroy) {
+		priv->func_destroy(priv->func_user_data);
+	}
+	priv->func = func;
+	priv->func_destroy = destroy;
+	priv->func_user_data = user_data;
 }
 
 /**
@@ -207,10 +238,28 @@ static gboolean
 uber_heat_map_get_next_data (UberGraph *graph) /* IN */
 {
 	UberHeatMapPrivate *priv;
+	GArray *array = NULL;
+	gint i;
 
 	g_return_val_if_fail(UBER_IS_HEAT_MAP(graph), FALSE);
 
 	priv = UBER_HEAT_MAP(graph)->priv;
+	if (!priv->func) {
+		return FALSE;
+	}
+	/*
+	 * Retrieve the next data point.
+	 */
+	if (!priv->func(UBER_HEAT_MAP(graph), &array, priv->func_user_data)) {
+		return FALSE;
+	}
+	/*
+	 * Store data points.
+	 */
+	g_ring_append_val(priv->raw_data, array);
+	for (i = 0; i < array->len; i++) {
+		g_print("==> %f\n", g_array_index(array, gdouble, i));
+	}
 	return TRUE;
 }
 

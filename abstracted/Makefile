@@ -49,6 +49,7 @@ OBJECTS =								\
 	uber-window.o							\
 	uber-scale.o							\
 	uber-label.o							\
+	uber-blktrace.o							\
 	main.o								\
 	g-ring.o							\
 	$(NULL)

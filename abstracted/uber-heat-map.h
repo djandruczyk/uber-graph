@@ -35,6 +35,10 @@ typedef struct _UberHeatMap        UberHeatMap;
 typedef struct _UberHeatMapClass   UberHeatMapClass;
 typedef struct _UberHeatMapPrivate UberHeatMapPrivate;
 
+typedef gboolean (*UberHeatMapFunc) (UberHeatMap  *map,
+                                     GArray      **values,
+                                     gpointer      user_data);
+
 struct _UberHeatMap
 {
 	UberGraph parent;
@@ -48,10 +52,14 @@ struct _UberHeatMapClass
 	UberGraphClass parent_class;
 };
 
-GType      uber_heat_map_get_type     (void) G_GNUC_CONST;
-GtkWidget* uber_heat_map_new          (void);
-void       uber_heat_map_set_fg_color (UberHeatMap    *map,
-                                       const GdkColor *color);
+GType      uber_heat_map_get_type      (void) G_GNUC_CONST;
+GtkWidget* uber_heat_map_new           (void);
+void       uber_heat_map_set_fg_color  (UberHeatMap     *map,
+                                        const GdkColor  *color);
+void       uber_heat_map_set_data_func (UberHeatMap     *map,
+                                        UberHeatMapFunc  func,
+                                        gpointer         user_data,
+                                        GDestroyNotify   destroy);
 
 G_END_DECLS
 
