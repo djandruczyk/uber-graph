@@ -23,6 +23,8 @@
 #include <ctype.h>
 #include <sys/sysinfo.h>
 #include <stdlib.h>
+#include <dlfcn.h>
+#include <gdk/gdkx.h>
 
 #include "uber.h"
 
@@ -46,7 +48,13 @@ typedef struct
 	gdouble last_total_out;
 } NetInfo;
 
-static guint        gdk_event_count  = 0;
+typedef struct
+{
+	gulong gdk_event_count;
+	gulong x_event_count;
+} UIInfo;
+
+static UIInfo       ui_info          = { 0 };
 static CpuInfo      cpu_info         = { 0 };
 static NetInfo      net_info         = { 0 };
 static const gchar *default_colors[] = { "#73d216",
@@ -63,7 +71,7 @@ static void
 gdk_event_hook (GdkEvent *event, /* IN */
                 gpointer  data)  /* IN */
 {
-	gdk_event_count++;
+	ui_info.gdk_event_count++;
 	gtk_main_do_event(event);
 }
 
@@ -75,8 +83,12 @@ get_xevent_info (UberLineGraph *graph,     /* IN */
 {
 	switch (line) {
 	case 1:
-		*value = gdk_event_count;
-		gdk_event_count = 0;
+		*value = ui_info.gdk_event_count;
+		ui_info.gdk_event_count = 0;
+		break;
+	case 2:
+		*value = ui_info.x_event_count;
+		ui_info.x_event_count = 0;
 		break;
 	default:
 		g_assert_not_reached();
@@ -128,6 +140,30 @@ get_net_info (UberLineGraph *graph,     /* IN */
 		g_assert_not_reached();
 	}
 	return TRUE;
+}
+
+int
+XNextEvent (Display *display,      /* IN */
+            XEvent  *event_return) /* OUT */
+{
+	static gsize initialized = FALSE;
+	static int (*Real_XNextEvent) (Display*disp, XEvent*evt);
+	gpointer lib;
+	int ret;
+	
+	if (g_once_init_enter(&initialized)) {
+		if (!(lib = dlopen("libX11.so.6", RTLD_LAZY))) {
+			g_error("Could not load libX11.so.6");
+		}
+		if (!(Real_XNextEvent = dlsym(lib, "XNextEvent"))) {
+			g_error("Could not find XNextEvent in libX11.so.6");
+		}
+		g_once_init_leave(&initialized, TRUE);
+	}
+
+	ret = Real_XNextEvent(display, event_return);
+	ui_info.x_event_count++;
+	return ret;
 }
 
 static void
@@ -401,20 +437,27 @@ main (gint   argc,   /* IN */
 	/*
 	 * Adjust graph settings.
 	 */
-	label = uber_label_new();
-	uber_label_set_text(UBER_LABEL(label), "Gdk Events");
-	gdk_color_parse("#729fcf", &color);
-	uber_line_graph_add_line(UBER_LINE_GRAPH(line), &color, UBER_LABEL(label));
 	uber_graph_set_format(UBER_GRAPH(cpu), UBER_GRAPH_FORMAT_PERCENT);
 	uber_line_graph_set_range(UBER_LINE_GRAPH(cpu), &cpu_range);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(cpu),
 	                              get_cpu_info, NULL, NULL);
-	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
-	                              get_xevent_info, NULL, NULL);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(net),
 	                              get_net_info, NULL, NULL);
 	uber_graph_set_show_ylines(UBER_GRAPH(map), FALSE);
 	uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
+	/*
+	 * Add lines for GDK/X events.
+	 */
+	label = uber_label_new();
+	uber_label_set_text(UBER_LABEL(label), "GDK Events");
+	gdk_color_parse("#729fcf", &color);
+	uber_line_graph_add_line(UBER_LINE_GRAPH(line), &color, UBER_LABEL(label));
+	label = uber_label_new();
+	uber_label_set_text(UBER_LABEL(label), "X Events");
+	gdk_color_parse("#a40000", &color);
+	uber_line_graph_add_line(UBER_LINE_GRAPH(line), &color, UBER_LABEL(label));
+	uber_line_graph_set_data_func(UBER_LINE_GRAPH(line),
+	                              get_xevent_info, NULL, NULL);
 	/*
 	 * Add lines for bytes in/out.
 	 */
@@ -431,7 +474,7 @@ main (gint   argc,   /* IN */
 	 */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(cpu), "CPU");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(net), "Network");
-	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "GDK Events");
+	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "UI Events");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
 	/*
