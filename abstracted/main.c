@@ -153,7 +153,7 @@ XNextEvent (Display *display,      /* IN */
 	gpointer lib;
 	int ret;
 	
-	if (g_once_init_enter(&initialized)) {
+	if (G_UNLIKELY(g_once_init_enter(&initialized))) {
 		if (!(lib = dlopen("libX11.so.6", RTLD_LAZY))) {
 			g_error("Could not load libX11.so.6");
 		}
@@ -187,7 +187,7 @@ next_cpu_info (void)
 	gint id;
 	gint i;
 
-	if (!cpu_info.len) {
+	if (G_UNLIKELY(!cpu_info.len)) {
 #if __linux__
 		cpu_info.len = get_nprocs();
 #else
@@ -205,32 +205,37 @@ next_cpu_info (void)
 		cpu_info.labels = g_new0(GtkWidget*, cpu_info.len);
 	}
 
-	if (g_file_get_contents("/proc/stat", &buf, NULL, NULL)) {
+	if (G_LIKELY(g_file_get_contents("/proc/stat", &buf, NULL, NULL))) {
 		line = buf;
 		for (i = 0; buf[i]; i++) {
 			if (buf[i] == '\n') {
 				buf[i] = '\0';
-				if (g_str_has_prefix(line, "cpu") && isdigit(line[3])) {
-					user = nice = system = idle = id = 0;
-					ret = sscanf(line, "%s %ld %ld %ld %ld",
-					             cpu, &user, &nice, &system, &idle);
-					if (ret != 5) {
-						goto next;
+				if (g_str_has_prefix(line, "cpu")) {
+					if (isdigit(line[3])) {
+						user = nice = system = idle = id = 0;
+						ret = sscanf(line, "%s %ld %ld %ld %ld",
+						             cpu, &user, &nice, &system, &idle);
+						if (ret != 5) {
+							goto next;
+						}
+						ret = sscanf(cpu, "cpu%d", &id);
+						if (ret != 1 || id < 0 || id >= cpu_info.len) {
+							goto next;
+						}
+						user_calc = user - cpu_info.last_user[id];
+						nice_calc = nice - cpu_info.last_nice[id];
+						system_calc = system - cpu_info.last_system[id];
+						idle_calc = idle - cpu_info.last_idle[id];
+						total = user_calc + nice_calc + system_calc + idle_calc;
+						cpu_info.total[id] = (user_calc + nice_calc + system_calc) / (gfloat)total * 100.;
+						cpu_info.last_user[id] = user;
+						cpu_info.last_nice[id] = nice;
+						cpu_info.last_idle[id] = idle;
+						cpu_info.last_system[id] = system;
 					}
-					ret = sscanf(cpu, "cpu%d", &id);
-					if (ret != 1 || id < 0 || id >= cpu_info.len) {
-						goto next;
-					}
-					user_calc = user - cpu_info.last_user[id];
-					nice_calc = nice - cpu_info.last_nice[id];
-					system_calc = system - cpu_info.last_system[id];
-					idle_calc = idle - cpu_info.last_idle[id];
-					total = user_calc + nice_calc + system_calc + idle_calc;
-					cpu_info.total[id] = (user_calc + nice_calc + system_calc) / (gfloat)total * 100.;
-					cpu_info.last_user[id] = user;
-					cpu_info.last_nice[id] = nice;
-					cpu_info.last_idle[id] = idle;
-					cpu_info.last_system[id] = system;
+				} else {
+					/* CPU info comes first. Skip further lines. */
+					break;
 				}
 			  next:
 				line = &buf[i + 1];
@@ -360,7 +365,9 @@ sample_thread (gpointer data)
 		next_cpu_info();
 		next_cpu_freq_info();
 		next_net_info();
+#if 0
 		uber_blktrace_next();
+#endif
 	}
 }
 
