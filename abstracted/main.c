@@ -405,7 +405,9 @@ main (gint   argc,   /* IN */
 	 */
 	next_cpu_info();
 	next_cpu_freq_info();
+#if 0
 	uber_blktrace_init();
+#endif
 	/*
 	 * Install event hook to track how many X events we are doing.
 	 */
