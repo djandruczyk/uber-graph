@@ -497,7 +497,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	pango_font_description_set_family_static(font_desc, "Monospace");
 	pango_font_description_set_size(font_desc, 6 * PANGO_SCALE);
 	pango_layout_set_font_description(layout, font_desc);
-	pango_layout_set_text(layout, "XXXXXXXX", -1);
+	pango_layout_set_text(layout, "XXXXXXXXXX", -1);
 	pango_layout_get_pixel_size(layout, &pango_width, &pango_height);
 	pango_font_description_free(font_desc);
 	g_object_unref(layout);
