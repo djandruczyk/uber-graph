@@ -162,11 +162,17 @@ uber_window_graph_button_press_event (GtkWidget      *widget, /* IN */
 	g_return_val_if_fail(UBER_IS_WINDOW(window), FALSE);
 	g_return_val_if_fail(UBER_IS_GRAPH(widget), FALSE);
 
-	labels = uber_graph_get_labels(UBER_GRAPH(widget));
-	if (GTK_WIDGET_VISIBLE(labels)) {
-		uber_window_hide_labels(window, UBER_GRAPH(widget));
-	} else {
-		uber_window_show_labels(window, UBER_GRAPH(widget));
+	switch (button->button) {
+	case 1: /* Left click */
+		labels = uber_graph_get_labels(UBER_GRAPH(widget));
+		if (GTK_WIDGET_VISIBLE(labels)) {
+			uber_window_hide_labels(window, UBER_GRAPH(widget));
+		} else {
+			uber_window_show_labels(window, UBER_GRAPH(widget));
+		}
+		break;
+	default:
+		break;
 	}
 	return FALSE;
 }
