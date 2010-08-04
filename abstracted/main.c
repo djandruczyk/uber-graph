@@ -383,6 +383,22 @@ has_freq_scaling (gint cpu)
 	return ret;
 }
 
+static gboolean
+dummy_scatter_func (UberScatter  *scatter,   /* IN */
+                    GArray      **array,     /* OUT */
+                    gpointer      user_data) /* IN */
+{
+	gdouble val;
+	gint i;
+
+	*array = g_array_new(FALSE, FALSE, sizeof(gdouble));
+	for (i = 0; i < 4; i++) {
+		val = g_random_double_range(0., 100.);
+		g_array_append_val(*array, val);
+	}
+	return TRUE;
+}
+
 gint
 main (gint   argc,   /* IN */
       gchar *argv[]) /* IN */
@@ -500,6 +516,8 @@ main (gint   argc,   /* IN */
 	uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
 	gdk_color_parse(default_colors[3], &color);
 	uber_scatter_set_fg_color(UBER_SCATTER(scatter), &color);
+	uber_scatter_set_data_func(UBER_SCATTER(scatter),
+	                           dummy_scatter_func, NULL, NULL);
 	/*
 	 * Add graphs.
 	 */

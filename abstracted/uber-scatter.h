@@ -35,6 +35,10 @@ typedef struct _UberScatter        UberScatter;
 typedef struct _UberScatterClass   UberScatterClass;
 typedef struct _UberScatterPrivate UberScatterPrivate;
 
+typedef gboolean (*UberScatterFunc) (UberScatter  *scatter,
+                                     GArray      **values,
+                                     gpointer      user_data);
+
 struct _UberScatter
 {
 	UberGraph parent;
@@ -48,10 +52,14 @@ struct _UberScatterClass
 	UberGraphClass parent_class;
 };
 
-GType      uber_scatter_get_type     (void) G_GNUC_CONST;
-GtkWidget* uber_scatter_new          (void);
-void       uber_scatter_set_fg_color (UberScatter    *scatter,
-                                      const GdkColor *color);
+GType      uber_scatter_get_type      (void) G_GNUC_CONST;
+GtkWidget* uber_scatter_new           (void);
+void       uber_scatter_set_fg_color  (UberScatter     *scatter,
+                                       const GdkColor  *color);
+void       uber_scatter_set_data_func (UberScatter     *scatter,
+                                       UberScatterFunc  func,
+                                       gpointer         user_data,
+                                       GDestroyNotify   destroy);
 
 G_END_DECLS
 

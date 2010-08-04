@@ -24,7 +24,11 @@
 #include <string.h>
 
 #include "uber-scatter.h"
+#include "uber-scale.h"
+#include "uber-range.h"
 #include "g-ring.h"
+
+#define RADIUS 3
 
 /**
  * SECTION:uber-scatter.h
@@ -38,10 +42,14 @@ G_DEFINE_TYPE(UberScatter, uber_scatter, UBER_TYPE_GRAPH)
 
 struct _UberScatterPrivate
 {
-	GRing    *raw_data;
-	gint      stride;
-	GdkColor  fg_color;
-	gboolean  fg_color_set;
+	GRing           *raw_data;
+	UberRange        range;
+	gint             stride;
+	GdkColor         fg_color;
+	gboolean         fg_color_set;
+	UberScatterFunc  func;
+	gpointer         func_user_data;
+	GDestroyNotify   func_destroy;
 };
 
 /**
@@ -59,6 +67,38 @@ uber_scatter_new (void)
 
 	scatter = g_object_new(UBER_TYPE_SCATTER, NULL);
 	return GTK_WIDGET(scatter);
+}
+
+/**
+ * uber_scatter_set_data_func:
+ * @scatter: A #UberScatter.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_scatter_set_data_func (UberScatter *scatter,       /* IN */
+                            UberScatterFunc  func,      /* IN */
+                            gpointer         user_data, /* IN */
+                            GDestroyNotify   destroy)   /* IN */
+{
+	UberScatterPrivate *priv;
+
+	g_return_if_fail(UBER_IS_SCATTER(scatter));
+	g_return_if_fail(func != NULL);
+
+	priv = scatter->priv;
+	/*
+	 * Cleanup previous data func if necessary.
+	 */
+	if (priv->func_destroy) {
+		priv->func_destroy(priv->func_user_data);
+	}
+	priv->func = func;
+	priv->func_destroy = destroy;
+	priv->func_user_data = user_data;
 }
 
 /**
@@ -125,27 +165,58 @@ uber_scatter_render (UberGraph     *graph, /* IN */
                       guint         epoch, /* IN */
                       gfloat        each)  /* IN */
 {
-	UberGraphPrivate *priv;
-	cairo_pattern_t *cp;
+	UberScatterPrivate *priv;
+	UberRange pixel_range;
+	GtkStyle *style;
+	GdkColor color;
+	GArray *ar;
+	gdouble x;
+	gdouble y;
+	gint i;
+	gint j;
 
 	g_return_if_fail(UBER_IS_SCATTER(graph));
 
-	priv = graph->priv;
+	priv = UBER_SCATTER(graph)->priv;
+	color = priv->fg_color;
+	if (!priv->fg_color_set) {
+		style = gtk_widget_get_style(GTK_WIDGET(graph));
+		color = style->dark[GTK_STATE_SELECTED];
+	}
 	/*
-	 * XXX: Temporarily draw a nice little gradient to test sliding.
+	 * Calculate ranges.
 	 */
-	return;
-	cp = cairo_pattern_create_linear(0, 0, area->width, 0);
-	cairo_pattern_add_color_stop_rgb(cp, 0, .1, .1, .1);
-	cairo_pattern_add_color_stop_rgb(cp, .2, .3, .3, .5);
-	cairo_pattern_add_color_stop_rgb(cp, .4, .2, .7, .4);
-	cairo_pattern_add_color_stop_rgb(cp, .7, .6, .2, .1);
-	cairo_pattern_add_color_stop_rgb(cp, .8, .6, .8, .1);
-	cairo_pattern_add_color_stop_rgb(cp, 1., .3, .8, .5);
-	gdk_cairo_rectangle(cr, area);
-	cairo_set_source(cr, cp);
-	cairo_fill(cr);
-	cairo_pattern_destroy(cp);
+	pixel_range.begin = area->y + (RADIUS / 2.);
+	pixel_range.end = area->y + area->height - RADIUS;
+	pixel_range.range = pixel_range.end - pixel_range.begin;
+	/*
+	 * Retrieve the current data set.
+	 */
+	for (i = 0; i < priv->raw_data->len; i++) {
+		if (!(ar = g_ring_get_index(priv->raw_data, GArray*, i))) {
+			continue;
+		}
+		x = epoch - (i * each) - (each / 2.);
+		for (j = 0; j < ar->len; j++) {
+			y = g_array_index(ar, gdouble, j);
+			uber_scale_linear(&priv->range, &pixel_range, &y, NULL);
+			/*
+			 * Shadow.
+			 */
+			cairo_arc(cr, x + .5, y + .5, RADIUS, 0, 2 * M_PI);
+			cairo_set_source_rgb(cr, .1, .1, .1);
+			cairo_fill(cr);
+			/*
+			 * Foreground.
+			 */
+			cairo_arc(cr, x, y, RADIUS, 0, 2 * M_PI);
+			cairo_set_source_rgb(cr,
+			                     color.red / 65535.,
+			                     color.green / 65535.,
+			                     color.blue / 65535.);
+			cairo_fill(cr);
+		}
+	}
 }
 
 /**
@@ -159,22 +230,21 @@ uber_scatter_render (UberGraph     *graph, /* IN */
  */
 static void
 uber_scatter_render_fast (UberGraph    *graph, /* IN */
-                           cairo_t      *cr,    /* IN */
-                           GdkRectangle *area,  /* IN */
-                           guint         epoch, /* IN */
-                           gfloat        each)  /* IN */
+                          cairo_t      *cr,    /* IN */
+                          GdkRectangle *area,  /* IN */
+                          guint         epoch, /* IN */
+                          gfloat        each)  /* IN */
 {
 	UberScatterPrivate *priv;
+	UberRange pixel_range;
 	GtkStyle *style;
 	GdkColor color;
-	gfloat x;
-	gfloat y;
+	GArray *ar;
+	gdouble x;
+	gdouble y;
 	gint i;
 
 	g_return_if_fail(UBER_IS_SCATTER(graph));
-
-	#define COUNT  3
-	#define RADIUS 3
 
 	priv = UBER_SCATTER(graph)->priv;
 	color = priv->fg_color;
@@ -183,11 +253,34 @@ uber_scatter_render_fast (UberGraph    *graph, /* IN */
 		color = style->dark[GTK_STATE_SELECTED];
 	}
 	/*
-	 * XXX: Temporarily draw nice little cicles;
+	 * Calculate ranges.
 	 */
-	for (i = 0; i < COUNT; i++) {
-		x = g_random_double_range(epoch - each, epoch);
-		y = g_random_double_range(area->y, area->y + area->height);
+	pixel_range.begin = area->y + (RADIUS / 2.);
+	pixel_range.end = area->y + area->height - RADIUS;
+	pixel_range.range = pixel_range.end - pixel_range.begin;
+	/*
+	 * Retrieve the current data set.
+	 */
+	ar = g_ring_get_index(priv->raw_data, GArray*, 0);
+	if (!ar) {
+		return;
+	}
+	/*
+	 * Calculate X position (Center of this chunk).
+	 */
+	x = epoch - (each / 2.);
+	/*
+	 * Draw scatter dots.
+	 */
+	for (i = 0; i < ar->len; i++) {
+		/*
+		 * Scale the value to our graph coordinates.
+		 */
+		y = g_array_index(ar, gdouble, i);
+		/*
+		 * XXX: Support multiple scales.
+		 */
+		uber_scale_linear(&priv->range, &pixel_range, &y, NULL);
 		/*
 		 * Shadow.
 		 */
@@ -219,11 +312,19 @@ static gboolean
 uber_scatter_get_next_data (UberGraph *graph) /* IN */
 {
 	UberScatterPrivate *priv;
+	GArray *array = NULL;
 
 	g_return_val_if_fail(UBER_IS_SCATTER(graph), FALSE);
 
 	priv = UBER_SCATTER(graph)->priv;
-	return TRUE;
+	if (priv->func) {
+		if (!priv->func(UBER_SCATTER(graph), &array, priv->func_user_data)) {
+			array = NULL;
+		}
+		g_ring_append_val(priv->raw_data, array);
+		return TRUE;
+	}
+	return FALSE;
 }
 
 /**
@@ -313,4 +414,8 @@ uber_scatter_init (UberScatter *scatter) /* IN */
 	                                            UBER_TYPE_SCATTER,
 	                                            UberScatterPrivate);
 	priv = scatter->priv;
+
+	priv->range.begin = 0;
+	priv->range.end = 100;
+	priv->range.range = priv->range.end - priv->range.begin;
 }

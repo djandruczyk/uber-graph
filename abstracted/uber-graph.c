@@ -1839,6 +1839,15 @@ uber_graph_dispose (GObject *object) /* IN */
 	graph = UBER_GRAPH(object);
 	priv = graph->priv;
 	/*
+	 * Stop any timeout handlers.
+	 */
+	if (priv->fps_handler) {
+		g_source_remove(priv->fps_handler);
+	}
+	if (priv->dps_handler) {
+		g_source_remove(priv->dps_handler);
+	}
+	/*
 	 * Destroy textures.
 	 */
 	uber_graph_destroy_texture(graph, &priv->texture[0]);
