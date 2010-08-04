@@ -24,11 +24,12 @@
 
 G_BEGIN_DECLS
 
-void     uber_blktrace_init (void);
-void     uber_blktrace_next (void);
-gboolean uber_blktrace_get  (UberHeatMap  *map,
-                             GArray      **values,
-                             gpointer      user_data);
+void     uber_blktrace_init     (void);
+void     uber_blktrace_next     (void);
+gboolean uber_blktrace_get      (UberHeatMap  *map,
+                                 GArray      **values,
+                                 gpointer      user_data);
+void     uber_blktrace_shutdown (void);
 
 G_END_DECLS
 

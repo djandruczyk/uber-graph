@@ -375,13 +375,28 @@ uber_blktrace_get (UberHeatMap  *map,       /* IN */
 {
 	GArray *v;
 	GArray *sum;
+	gdouble val;
+	gint i;
 
-	sum = g_array_sized_new(FALSE, TRUE, sizeof(gint), 1 /* map->nbucket */);
+	sum = g_array_sized_new(FALSE, TRUE, sizeof(gdouble), 1 /* map->nbucket */);
 	while ((v = g_async_queue_try_pop((GAsyncQueue *)iolat_info.q)) != NULL) {
-		if (g_async_queue_length((GAsyncQueue *)iolat_info.q) == 0)
-			break;
+		if (v->len == 0) {
+			continue;
+		}
+		for (i = 0; i < v->len; i++) {
+			val = (gdouble)g_array_index(v, gint, i) / 1000.;
+			g_array_append_val(sum, val);
+		}
 		g_array_unref(v);
 	}
 	*values = sum;
-	return !!v;
+	return TRUE;
+}
+
+void
+uber_blktrace_shutdown (void)
+{
+	if (blktrace_fd > 0) {
+		kill(blktrace_fd, SIGINT);
+	}
 }

@@ -199,6 +199,7 @@ uber_scatter_render (UberGraph     *graph, /* IN */
 		x = epoch - (i * each) - (each / 2.);
 		for (j = 0; j < ar->len; j++) {
 			y = g_array_index(ar, gdouble, j);
+			g_debug("Raw ==> %f", y);
 			uber_scale_linear(&priv->range, &pixel_range, &y, NULL);
 			/*
 			 * Shadow.
@@ -415,7 +416,7 @@ uber_scatter_init (UberScatter *scatter) /* IN */
 	                                            UberScatterPrivate);
 	priv = scatter->priv;
 
-	priv->range.begin = 0;
-	priv->range.end = 100;
+	priv->range.begin = 0.;
+	priv->range.end = 15000.;
 	priv->range.range = priv->range.end - priv->range.begin;
 }

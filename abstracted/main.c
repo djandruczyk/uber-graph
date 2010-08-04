@@ -56,6 +56,7 @@ typedef struct
 	gulong x_event_count;
 } UIInfo;
 
+static gboolean     want_blktrace    = FALSE;
 static UIInfo       ui_info          = { 0 };
 static CpuInfo      cpu_info         = { 0 };
 static NetInfo      net_info         = { 0 };
@@ -365,9 +366,9 @@ sample_thread (gpointer data)
 		next_cpu_info();
 		next_cpu_freq_info();
 		next_net_info();
-#if 0
-		uber_blktrace_next();
-#endif
+		if (want_blktrace) {
+			uber_blktrace_next();
+		}
 	}
 }
 
@@ -383,6 +384,7 @@ has_freq_scaling (gint cpu)
 	return ret;
 }
 
+#if 0
 static gboolean
 dummy_scatter_func (UberScatter  *scatter,   /* IN */
                     GArray      **array,     /* OUT */
@@ -398,6 +400,7 @@ dummy_scatter_func (UberScatter  *scatter,   /* IN */
 	}
 	return TRUE;
 }
+#endif
 
 gint
 main (gint   argc,   /* IN */
@@ -424,13 +427,19 @@ main (gint   argc,   /* IN */
 	gtk_init(&argc, &argv);
 	nprocs = get_nprocs();
 	/*
+	 * Check for blktrace hack.
+	 */
+	if (argc > 1 && (g_strcmp0(argv[1], "--i-can-haz-blktrace") == 0)) {
+		want_blktrace = TRUE;
+	}
+	/*
 	 * Warm up differential samplers.
 	 */
 	next_cpu_info();
 	next_cpu_freq_info();
-#if 0
-	uber_blktrace_init();
-#endif
+	if (want_blktrace) {
+		uber_blktrace_init();
+	}
 	/*
 	 * Install event hook to track how many X events we are doing.
 	 */
@@ -516,8 +525,13 @@ main (gint   argc,   /* IN */
 	uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
 	gdk_color_parse(default_colors[3], &color);
 	uber_scatter_set_fg_color(UBER_SCATTER(scatter), &color);
-	uber_scatter_set_data_func(UBER_SCATTER(scatter),
-	                           dummy_scatter_func, NULL, NULL);
+	if (want_blktrace) {
+		uber_scatter_set_data_func(UBER_SCATTER(scatter),
+#if 0
+								   //dummy_scatter_func, NULL, NULL);
+#endif
+								   (UberScatterFunc)uber_blktrace_get, NULL, NULL);
+	}
 	/*
 	 * Add graphs.
 	 */
@@ -566,5 +580,11 @@ main (gint   argc,   /* IN */
 	 */
 	g_thread_create(sample_thread, NULL, FALSE, NULL);
 	gtk_main();
-	return 0;
+	/*
+	 * Cleanup after blktrace.
+	 */
+	if (want_blktrace) {
+		uber_blktrace_shutdown();
+	}
+	return EXIT_SUCCESS;
 }
