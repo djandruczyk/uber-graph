@@ -497,7 +497,7 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 		/*
 		 * Calculate X/Y coordinate.
 		 */
-		y = area->y + area->height - val;
+		y = RECT_BOTTOM(*area) - val;
 		x = epoch - (each * i);
 		if (i == 0) {
 			/*
