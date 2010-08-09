@@ -33,9 +33,21 @@
 /**
  * SECTION:uber-graph.h
  * @title: UberGraph
- * @short_description: 
+ * @short_description: Graphing of realtime data.
  *
- * Section overview.
+ * #UberGraph is an abstract base class for building realtime graphs.  It
+ * handles scrolling the graph based on the required time intervals and tries
+ * to render as little data as possible.
+ *
+ * Subclasses are responsible for acquiring data when #UberGraph notifies them
+ * of their next data sample.  Additionally, there are two rendering methods.
+ * UberGraph::render is a render of the full scene.  UberGraph::render_fast is
+ * a rendering of just a new data sample.  Ideally, UberGraph::render_fast is
+ * going to be called.
+ *
+ * #UberGraph uses a #GdkPixmap as a ring buffer to store the contents of the
+ * graph.  Upon destructive changes to the widget such as allocation changed
+ * or a new #GtkStyle set, a full rendering of the graph will be required.
  */
 
 G_DEFINE_ABSTRACT_TYPE(UberGraph, uber_graph, GTK_TYPE_DRAWING_AREA)
