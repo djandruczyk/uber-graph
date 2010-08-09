@@ -77,7 +77,10 @@ struct _UberGraphPrivate
 	                                 */
 	GtkWidget       *labels;        /* Container for graph labels. */
 	GtkWidget       *align;         /* Alignment for labels. */
+	gint             fps_count;     /* Track actual FPS. */
 };
+
+static gboolean show_fps = FALSE;
 
 /**
  * uber_graph_new:
@@ -613,6 +616,10 @@ uber_graph_dps_timeout (UberGraph *graph) /* IN */
 		 * XXX: How should we handle failed data retrieval.
 		 */
 	}
+	if (G_UNLIKELY(show_fps)) {
+		g_print("UberGraph[%p] %02d FPS\n", graph, priv->fps_count);
+	}
+	priv->fps_count = 0;
 	/*
 	 * Make sure the content is re-rendered.
 	 */
@@ -1593,6 +1600,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 
 	priv = UBER_GRAPH(widget)->priv;
 	gtk_widget_get_allocation(widget, &alloc);
+	priv->fps_count++;
 	/*
 	 * Ensure that the texture is initialized.
 	 */
@@ -1910,6 +1918,8 @@ uber_graph_class_init (UberGraphClass *klass) /* IN */
 	widget_class->unrealize = uber_graph_unrealize;
 	widget_class->size_request = uber_graph_size_request;
 	widget_class->button_press_event = uber_graph_button_press_event;
+
+	show_fps = !!g_getenv("UBER_SHOW_FPS");
 }
 
 /**
