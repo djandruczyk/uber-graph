@@ -522,15 +522,22 @@ main (gint   argc,   /* IN */
 	/*
 	 * Configure scatter.
 	 */
-	uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
-	gdk_color_parse(default_colors[3], &color);
-	uber_scatter_set_fg_color(UBER_SCATTER(scatter), &color);
 	if (want_blktrace) {
+		uber_graph_set_show_ylines(UBER_GRAPH(scatter), FALSE);
+		gdk_color_parse(default_colors[3], &color);
+		uber_scatter_set_fg_color(UBER_SCATTER(scatter), &color);
 		uber_scatter_set_data_func(UBER_SCATTER(scatter),
 #if 0
 								   //dummy_scatter_func, NULL, NULL);
 #endif
 								   (UberScatterFunc)uber_blktrace_get, NULL, NULL);
+		uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
+		uber_graph_set_show_xlabels(UBER_GRAPH(scatter), TRUE);
+		gtk_widget_show(scatter);
+
+		uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
+		uber_graph_set_show_xlabels(UBER_GRAPH(map), FALSE);
+		gtk_widget_show(map);
 	}
 	/*
 	 * Add graphs.
@@ -538,22 +545,16 @@ main (gint   argc,   /* IN */
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(cpu), "CPU");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(net), "Network");
 	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(line), "UI Events");
-	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(map), "IO Latency");
-	uber_window_add_graph(UBER_WINDOW(window), UBER_GRAPH(scatter), "IOPS By Size");
 	/*
 	 * Disable X tick labels by default (except last).
 	 */
 	uber_graph_set_show_xlabels(UBER_GRAPH(cpu), FALSE);
 	uber_graph_set_show_xlabels(UBER_GRAPH(net), FALSE);
 	uber_graph_set_show_xlabels(UBER_GRAPH(line), FALSE);
-	uber_graph_set_show_xlabels(UBER_GRAPH(map), FALSE);
-	uber_graph_set_show_xlabels(UBER_GRAPH(scatter), TRUE);
 	/*
 	 * Show widgets.
 	 */
-	gtk_widget_show(scatter);
 	gtk_widget_show(net);
-	gtk_widget_show(map);
 	gtk_widget_show(line);
 	gtk_widget_show(cpu);
 	gtk_widget_show(window);
