@@ -358,7 +358,7 @@ next_net_info (void)
 	g_free(buf);
 }
 
-static gpointer G_GNUC_NORETURN
+static void G_GNUC_NORETURN
 sample_thread (gpointer data)
 {
 	while (TRUE) {
@@ -581,7 +581,7 @@ main (gint   argc,   /* IN */
 	/*
 	 * Start sampling thread.
 	 */
-	g_thread_create(sample_thread, NULL, FALSE, NULL);
+	g_thread_create((GThreadFunc)sample_thread, NULL, FALSE, NULL);
 	gtk_main();
 	/*
 	 * Cleanup after blktrace.
