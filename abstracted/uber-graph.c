@@ -680,12 +680,16 @@ uber_graph_dps_timeout (UberGraph *graph) /* IN */
 	 * Try to downscale the graph.  We do this whether or not we are paused
 	 * as redrawing is deferred if we are in a paused state.
 	 */
-	if (UBER_GRAPH_GET_CLASS(graph)->downscale) {
-		if (UBER_GRAPH_GET_CLASS(graph)->downscale(graph)) {
-			if (!priv->paused) {
-				uber_graph_redraw(graph);
+	priv->dps_downscale++;
+	if (priv->dps_downscale >= 5) {
+		if (UBER_GRAPH_GET_CLASS(graph)->downscale) {
+			if (UBER_GRAPH_GET_CLASS(graph)->downscale(graph)) {
+				if (!priv->paused) {
+					uber_graph_redraw(graph);
+				}
 			}
 		}
+		priv->dps_downscale = 0;
 	}
 	return TRUE;
 }
