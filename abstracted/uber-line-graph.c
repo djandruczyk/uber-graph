@@ -452,9 +452,9 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 	UberRange pixel_range;
 	GdkRectangle vis;
 	guint x;
-	guint y;
 	guint last_x;
-	guint last_y;
+	gdouble y;
+	gdouble last_y;
 	gdouble val;
 	gint i;
 
@@ -462,7 +462,7 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 
 	priv = graph->priv;
 	uber_graph_get_content_area(UBER_GRAPH(graph), &vis);
-	pixel_range.begin = area->y;
+	pixel_range.begin = area->y + 1;
 	pixel_range.end = area->y + area->height;
 	pixel_range.range = area->height;
 	/*
@@ -497,7 +497,7 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 		/*
 		 * Calculate X/Y coordinate.
 		 */
-		y = RECT_BOTTOM(*area) - val;
+		y = (gint)(RECT_BOTTOM(*area) - val) - .5;
 		x = epoch - (each * i);
 		if (i == 0) {
 			/*
@@ -587,7 +587,7 @@ uber_line_graph_render_fast (UberGraph    *graph, /* IN */
 	g_return_if_fail(rect != NULL);
 
 	priv = UBER_LINE_GRAPH(graph)->priv;
-	pixel_range.begin = rect->y;
+	pixel_range.begin = rect->y + 1;
 	pixel_range.end = rect->y + rect->height;
 	pixel_range.range = rect->height;
 	/*
@@ -617,8 +617,8 @@ uber_line_graph_render_fast (UberGraph    *graph, /* IN */
 		/*
 		 * Translate position from bottom right corner.
 		 */
-		y = RECT_BOTTOM(*rect) - y;
-		last_y = RECT_BOTTOM(*rect) - last_y;
+		y = (gint)(RECT_BOTTOM(*rect) - y) - .5;
+		last_y = (gint)(RECT_BOTTOM(*rect) - last_y) - .5;
 		/*
 		 * Convert relative position to fixed from bottom pixel.
 		 */
