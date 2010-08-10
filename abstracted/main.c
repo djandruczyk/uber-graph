@@ -424,6 +424,7 @@ main (gint   argc,   /* IN */
 	gint i;
 	gint mod;
 
+	g_thread_init(NULL);
 	gtk_init(&argc, &argv);
 	nprocs = get_nprocs();
 	/*
