@@ -655,18 +655,17 @@ uber_graph_dps_timeout (UberGraph *graph) /* IN */
 	}
 	if (G_UNLIKELY(show_fps)) {
 		g_print("UberGraph[%p] %02d FPS\n", graph, priv->fps_count);
+		priv->fps_count = 0;
 	}
-	priv->fps_count = 0;
 	/*
 	 * Make sure the content is re-rendered.
 	 */
-	priv->fg_dirty = TRUE;
 	if (!priv->paused) {
-		gtk_widget_queue_draw_area(GTK_WIDGET(graph),
-		                           priv->content_rect.x,
-		                           priv->content_rect.y,
-		                           priv->content_rect.width,
-		                           priv->content_rect.height);
+		priv->fg_dirty = TRUE;
+		/*
+		 * We do not queue a draw here since the next FPS callback will happen
+		 * when it is the right time to show the frame.
+		 */
 	}
 	return TRUE;
 }
