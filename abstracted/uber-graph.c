@@ -70,7 +70,6 @@ G_DEFINE_ABSTRACT_TYPE(UberGraph, uber_graph, GTK_TYPE_DRAWING_AREA)
 
 struct _UberGraphPrivate
 {
-	cairo_t         *fg_cairo;      /* Cairo context for foreground. */
 	GdkPixmap       *fg_pixmap;     /* Server side pixmap for foreground. */
 	GdkPixmap       *bg_pixmap;     /* Server side pixmap for background. */
 	GdkRectangle     content_rect;  /* Content area rectangle. */
@@ -364,6 +363,7 @@ uber_graph_init_texture (UberGraph *graph) /* IN */
 	GdkDrawable *drawable;
 	GdkColormap *colormap;
 	GdkVisual *visual;
+	cairo_t *cr;
 	gint depth = -1;
 	gint width;
 
@@ -400,9 +400,11 @@ uber_graph_init_texture (UberGraph *graph) /* IN */
 		g_object_unref(colormap);
 	}
 	/*
-	 * Create cairo textures for drawing.
+	 * Clear foreground contents.
 	 */
-	priv->fg_cairo = gdk_cairo_create(priv->fg_pixmap);
+	cr = gdk_cairo_create(priv->fg_pixmap);
+	CLEAR_CAIRO(cr, alloc);
+	cairo_destroy(cr);
 }
 
 /**
@@ -456,38 +458,11 @@ uber_graph_init_bg (UberGraph *graph) /* IN */
 		g_object_unref(colormap);
 	}
 	/*
-	 * Create cairo texture for drawing.
+	 * Clear background contents.
 	 */
 	cr = gdk_cairo_create(priv->bg_pixmap);
 	CLEAR_CAIRO(cr, alloc);
 	cairo_destroy(cr);
-}
-
-/**
- * uber_graph_destroy_texture:
- * @graph: A #UberGraph.
- *
- * XXX
- *
- * Returns: None.
- * Side effects: None.
- */
-static void
-uber_graph_destroy_texture (UberGraph *graph) /* IN */
-{
-	UberGraphPrivate *priv;
-
-	g_return_if_fail(UBER_IS_GRAPH(graph));
-
-	priv = graph->priv;
-	if (priv->fg_cairo) {
-		cairo_destroy(priv->fg_cairo);
-		priv->fg_cairo = NULL;
-	}
-	if (priv->fg_pixmap) {
-		g_object_unref(priv->fg_pixmap);
-		priv->fg_pixmap = NULL;
-	}
 }
 
 /**
@@ -840,7 +815,7 @@ uber_graph_realize (GtkWidget *widget) /* IN */
 	 * Re-initialize textures for updated sizes.
 	 */
 	UNSET_PIXMAP(priv->bg_pixmap);
-	uber_graph_destroy_texture(graph);
+	UNSET_PIXMAP(priv->fg_pixmap);
 	uber_graph_init_bg(graph);
 	uber_graph_init_texture(graph);
 	/*
@@ -886,7 +861,7 @@ uber_graph_unrealize (GtkWidget *widget) /* IN */
 	 * Destroy textures.
 	 */
 	UNSET_PIXMAP(priv->bg_pixmap);
-	uber_graph_destroy_texture(graph);
+	UNSET_PIXMAP(priv->fg_pixmap);
 }
 
 /**
@@ -1000,6 +975,7 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 	UberGraphPrivate *priv;
 	GtkAllocation alloc;
 	GdkRectangle rect;
+	cairo_t *cr;
 	gfloat each;
 	gfloat x_epoch;
 
@@ -1011,6 +987,7 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	uber_graph_get_pixmap_rect(graph, &rect);
+	cr = gdk_cairo_create(priv->fg_pixmap);
 	/*
 	 * Render to texture if needed.
 	 */
@@ -1038,66 +1015,66 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 			/*
 			 * Clear content area.
 			 */
-			cairo_save(priv->fg_cairo);
-			cairo_set_operator(priv->fg_cairo, CAIRO_OPERATOR_CLEAR);
-			gdk_cairo_rectangle(priv->fg_cairo, &rect);
-			cairo_fill(priv->fg_cairo);
-			cairo_restore(priv->fg_cairo);
+			cairo_save(cr);
+			cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+			gdk_cairo_rectangle(cr, &rect);
+			cairo_fill(cr);
+			cairo_restore(cr);
 
 #if 0
 			/*
 			 * XXX: Draw line helper for debugging.
 			 */
-			cairo_save(priv->fg_cairo);
-			cairo_set_source_rgb(priv->fg_cairo, .3, .3, .3);
-			cairo_rectangle(priv->fg_cairo,
+			cairo_save(cr);
+			cairo_set_source_rgb(cr, .3, .3, .3);
+			cairo_rectangle(cr,
 			                rect.x,
 			                rect.y + (rect.height / (gfloat)priv->x_slots * priv->dps_slot),
 			                rect.width,
 			                rect.height / priv->x_slots);
-			cairo_fill(priv->fg_cairo);
-			cairo_restore(priv->fg_cairo);
+			cairo_fill(cr);
+			cairo_restore(cr);
 #endif
 
 			/*
 			 * Render new content clipped.
 			 */
-			cairo_save(priv->fg_cairo);
-			gdk_cairo_reset_clip(priv->fg_cairo, priv->fg_pixmap);
-			gdk_cairo_rectangle(priv->fg_cairo, &rect);
-			cairo_clip(priv->fg_cairo);
+			cairo_save(cr);
+			gdk_cairo_reset_clip(cr, priv->fg_pixmap);
+			gdk_cairo_rectangle(cr, &rect);
+			cairo_clip(cr);
 			/*
 			 * Determine area for this draw.
 			 */
 			UBER_GRAPH_GET_CLASS(graph)->render_fast(graph,
-			                                         priv->fg_cairo,
+			                                         cr,
 			                                         &rect,
 			                                         x_epoch,
 			                                         each + .5);
-			cairo_restore(priv->fg_cairo);
+			cairo_restore(cr);
 		} else {
 			/*
 			 * Clear content area.
 			 */
-			cairo_save(priv->fg_cairo);
-			cairo_set_operator(priv->fg_cairo, CAIRO_OPERATOR_CLEAR);
-			gdk_cairo_rectangle(priv->fg_cairo, &rect);
-			cairo_fill(priv->fg_cairo);
-			cairo_restore(priv->fg_cairo);
+			cairo_save(cr);
+			cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+			gdk_cairo_rectangle(cr, &rect);
+			cairo_fill(cr);
+			cairo_restore(cr);
 			/*
 			 * Draw the entire foreground.
 			 */
 			if (UBER_GRAPH_GET_CLASS(graph)->render) {
 				priv->dps_slot = 0;
-				cairo_save(priv->fg_cairo);
-				gdk_cairo_rectangle(priv->fg_cairo, &priv->nonvis_rect);
-				cairo_clip(priv->fg_cairo);
+				cairo_save(cr);
+				gdk_cairo_rectangle(cr, &priv->nonvis_rect);
+				cairo_clip(cr);
 				UBER_GRAPH_GET_CLASS(graph)->render(graph,
-				                                    priv->fg_cairo,
+				                                    cr,
 				                                    &priv->nonvis_rect,
 				                                    x_epoch,
 				                                    each);
-				cairo_restore(priv->fg_cairo);
+				cairo_restore(cr);
 			}
 		}
 	}
@@ -1106,6 +1083,10 @@ uber_graph_render_fg (UberGraph *graph) /* IN */
 	 */
 	priv->fg_dirty = FALSE;
 	priv->full_draw = FALSE;
+	/*
+	 * Cleanup.
+	 */
+	cairo_destroy(cr);
 }
 
 /**
@@ -1804,7 +1785,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	 * Recreate server side pixmaps.
 	 */
 	UNSET_PIXMAP(priv->bg_pixmap);
-	uber_graph_destroy_texture(graph);
+	UNSET_PIXMAP(priv->fg_pixmap);
 	uber_graph_init_bg(graph);
 	uber_graph_init_texture(graph);
 	/*
@@ -2025,8 +2006,8 @@ uber_graph_dispose (GObject *object) /* IN */
 	/*
 	 * Destroy textures.
 	 */
-	uber_graph_destroy_texture(graph);
 	UNSET_PIXMAP(priv->bg_pixmap);
+	UNSET_PIXMAP(priv->fg_pixmap);
 	/*
 	 * Call base class.
 	 */
