@@ -1699,7 +1699,7 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 	cairo_save(cr);
 	gdk_cairo_set_source_pixmap(cr, priv->bg_pixmap, 0, 0);
 	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
-	cairo_paint(cr);
+	cairo_fill(cr);
 	cairo_restore(cr);
 	/*
 	 * Draw the foreground.
@@ -1713,7 +1713,6 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		gdk_cairo_reset_clip(cr, expose->window);
 		gdk_cairo_rectangle(cr, &priv->content_rect);
 		cairo_clip(cr);
-
 		/*
 		 * Data in the fg pixmap is a ring bufer. Render the first portion
 		 * at its given offset.
@@ -1721,16 +1720,17 @@ uber_graph_expose_event (GtkWidget      *widget, /* IN */
 		x = ((priv->x_slots - priv->dps_slot) * priv->dps_each) - offset;
 		gdk_cairo_set_source_pixmap(cr, priv->fg_pixmap, (gint)x, 0);
 		gdk_cairo_rectangle(cr, &priv->content_rect);
-		cairo_paint(cr);
-
+		cairo_fill(cr);
 		/*
 		 * Render the second part of the ring pixmap buffer.
 		 */
 		x = (priv->dps_each * -priv->dps_slot) - offset;
 		gdk_cairo_set_source_pixmap(cr, priv->fg_pixmap, (gint)x, 0);
 		gdk_cairo_rectangle(cr, &priv->content_rect);
-		cairo_paint(cr);
-
+		cairo_fill(cr);
+		/*
+		 * Cleanup.
+		 */
 		cairo_restore(cr);
 	} else {
 		/*
