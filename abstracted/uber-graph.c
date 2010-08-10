@@ -30,6 +30,21 @@
 #define WIDGET_CLASS (GTK_WIDGET_CLASS(uber_graph_parent_class))
 #define RECT_RIGHT(r)  ((r).x + (r).width)
 #define RECT_BOTTOM(r) ((r).y + (r).height)
+#define UNSET_PIXMAP(p)        \
+    G_STMT_START {             \
+        if (p) {               \
+            g_object_unref(p); \
+            p = NULL;          \
+        }                      \
+    } G_STMT_END
+#define CLEAR_CAIRO(c, a)                             \
+    G_STMT_START {                                    \
+        cairo_save(c);                                \
+        cairo_rectangle(c, 0, 0, a.width, a.height);  \
+        cairo_set_operator(c, CAIRO_OPERATOR_CLEAR);  \
+        cairo_fill(c);                                \
+        cairo_restore(c);                             \
+    } G_STMT_END
 
 /**
  * SECTION:uber-graph.h
@@ -56,7 +71,6 @@ G_DEFINE_ABSTRACT_TYPE(UberGraph, uber_graph, GTK_TYPE_DRAWING_AREA)
 struct _UberGraphPrivate
 {
 	cairo_t         *fg_cairo;      /* Cairo context for foreground. */
-	cairo_t         *bg_cairo;      /* Cairo context for background. */
 	GdkPixmap       *fg_pixmap;     /* Server side pixmap for foreground. */
 	GdkPixmap       *bg_pixmap;     /* Server side pixmap for background. */
 	GdkRectangle     content_rect;  /* Content area rectangle. */
@@ -392,33 +406,6 @@ uber_graph_init_texture (UberGraph *graph) /* IN */
 }
 
 /**
- * uber_graph_destroy_bg:
- * @graph: A #UberGraph.
- *
- * XXX
- *
- * Returns: None.
- * Side effects: None.
- */
-static void
-uber_graph_destroy_bg (UberGraph *graph) /* IN */
-{
-	UberGraphPrivate *priv;
-
-	g_return_if_fail(UBER_IS_GRAPH(graph));
-
-	priv = graph->priv;
-	if (priv->bg_cairo) {
-		cairo_destroy(priv->bg_cairo);
-		priv->bg_cairo = NULL;
-	}
-	if (priv->bg_pixmap) {
-		g_object_unref(priv->bg_pixmap);
-		priv->bg_pixmap = NULL;
-	}
-}
-
-/**
  * uber_graph_init_bg:
  * @graph: A #UberGraph.
  *
@@ -435,6 +422,7 @@ uber_graph_init_bg (UberGraph *graph) /* IN */
 	GtkAllocation alloc;
 	GdkVisual *visual;
 	GdkColormap *colormap;
+	cairo_t *cr;
 	gint depth = 32;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
@@ -470,7 +458,9 @@ uber_graph_init_bg (UberGraph *graph) /* IN */
 	/*
 	 * Create cairo texture for drawing.
 	 */
-	priv->bg_cairo = gdk_cairo_create(priv->bg_pixmap);
+	cr = gdk_cairo_create(priv->bg_pixmap);
+	CLEAR_CAIRO(cr, alloc);
+	cairo_destroy(cr);
 }
 
 /**
@@ -849,7 +839,7 @@ uber_graph_realize (GtkWidget *widget) /* IN */
 	/*
 	 * Re-initialize textures for updated sizes.
 	 */
-	uber_graph_destroy_bg(graph);
+	UNSET_PIXMAP(priv->bg_pixmap);
 	uber_graph_destroy_texture(graph);
 	uber_graph_init_bg(graph);
 	uber_graph_init_texture(graph);
@@ -895,7 +885,7 @@ uber_graph_unrealize (GtkWidget *widget) /* IN */
 	/*
 	 * Destroy textures.
 	 */
-	uber_graph_destroy_bg(graph);
+	UNSET_PIXMAP(priv->bg_pixmap);
 	uber_graph_destroy_texture(graph);
 }
 
@@ -1187,7 +1177,8 @@ uber_graph_set_format (UberGraph       *graph, /* IN */
 }
 
 static void
-uber_graph_render_x_axis (UberGraph *graph) /* IN */
+uber_graph_render_x_axis (UberGraph *graph, /* IN */
+                          cairo_t   *cr)    /* IN */
 {
 	UberGraphPrivate *priv;
 	const gdouble dashes[] = { 1.0, 2.0 };
@@ -1213,15 +1204,15 @@ uber_graph_render_x_axis (UberGraph *graph) /* IN */
 	/*
 	 * Draw ticks.
 	 */
-	cairo_save(priv->bg_cairo);
-	pl = pango_cairo_create_layout(priv->bg_cairo);
+	cairo_save(cr);
+	pl = pango_cairo_create_layout(cr);
 	fd = pango_font_description_new();
 	pango_font_description_set_family_static(fd, "Monospace");
 	pango_font_description_set_size(fd, 6 * PANGO_SCALE);
 	pango_layout_set_font_description(pl, fd);
-	gdk_cairo_set_source_color(priv->bg_cairo, &style->fg[GTK_STATE_NORMAL]);
-	cairo_set_line_width(priv->bg_cairo, 1.0);
-	cairo_set_dash(priv->bg_cairo, dashes, G_N_ELEMENTS(dashes), 0);
+	gdk_cairo_set_source_color(cr, &style->fg[GTK_STATE_NORMAL]);
+	cairo_set_line_width(cr, 1.0);
+	cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0);
 	for (i = 0; i <= count; i++) {
 		x = RECT_RIGHT(priv->content_rect) - (gint)(i * each) + .5;
 		if (priv->show_xlines && (i != 0 && i != count)) {
@@ -1232,9 +1223,9 @@ uber_graph_render_x_axis (UberGraph *graph) /* IN */
 			h = priv->tick_len;
 		}
 		if (i != 0 && i != count) {
-			cairo_move_to(priv->bg_cairo, x, y);
-			cairo_line_to(priv->bg_cairo, x, y + h);
-			cairo_stroke(priv->bg_cairo);
+			cairo_move_to(cr, x, y);
+			cairo_line_to(cr, x, y + h);
+			cairo_stroke(cr);
 		}
 		/*
 		 * Render the label.
@@ -1244,22 +1235,22 @@ uber_graph_render_x_axis (UberGraph *graph) /* IN */
 			pango_layout_set_text(pl, text, -1);
 			pango_layout_get_pixel_size(pl, &wi, &hi);
 			if (i != 0 && i != count) {
-				cairo_move_to(priv->bg_cairo, x - (wi / 2), y + h);
+				cairo_move_to(cr, x - (wi / 2), y + h);
 			} else if (i == 0) {
-				cairo_move_to(priv->bg_cairo,
+				cairo_move_to(cr,
 				              RECT_RIGHT(priv->content_rect) - (wi / 2),
 				              RECT_BOTTOM(priv->content_rect) + priv->tick_len);
 			} else if (i == count) {
-				cairo_move_to(priv->bg_cairo,
+				cairo_move_to(cr,
 				              priv->content_rect.x - (wi / 2),
 				              RECT_BOTTOM(priv->content_rect) + priv->tick_len);
 			}
-			pango_cairo_show_layout(priv->bg_cairo, pl);
+			pango_cairo_show_layout(cr, pl);
 		}
 	}
 	g_object_unref(pl);
 	pango_font_description_free(fd);
-	cairo_restore(priv->bg_cairo);
+	cairo_restore(cr);
 }
 
 static inline void G_GNUC_PRINTF(6, 7)
@@ -1340,6 +1331,7 @@ uber_graph_render_y_line (UberGraph   *graph,     /* IN */
 
 static void
 uber_graph_render_y_axis_percent (UberGraph *graph,       /* IN */
+                                  cairo_t   *cr,          /* IN */
                                   UberRange *range,       /* IN */
                                   UberRange *pixel_range, /* IN */
                                   gint       n_lines)     /* IN */
@@ -1360,10 +1352,10 @@ uber_graph_render_y_axis_percent (UberGraph *graph,       /* IN */
 	/*
 	 * Render top and bottom lines.
 	 */
-	uber_graph_render_y_line(graph, priv->bg_cairo,
+	uber_graph_render_y_line(graph, cr,
 	                         priv->content_rect.y - 1,
 	                         TRUE, FALSE, format, 100.);
-	uber_graph_render_y_line(graph, priv->bg_cairo,
+	uber_graph_render_y_line(graph, cr,
 	                         RECT_BOTTOM(priv->content_rect),
 	                         TRUE, FALSE, format, 0.);
 	/*
@@ -1373,7 +1365,7 @@ uber_graph_render_y_axis_percent (UberGraph *graph,       /* IN */
 		value = (n_lines - i) / (gfloat)n_lines;
 		y = pixel_range->end - (pixel_range->range * value);
 		value *= 100.;
-		uber_graph_render_y_line(graph, priv->bg_cairo, y,
+		uber_graph_render_y_line(graph, cr, y,
 		                         !priv->show_ylines, FALSE,
 		                         format, value);
 	}
@@ -1390,6 +1382,7 @@ uber_graph_render_y_axis_percent (UberGraph *graph,       /* IN */
  */
 static void
 uber_graph_render_y_axis_direct (UberGraph *graph,       /* IN */
+                                 cairo_t   *cr,          /* IN */
                                  UberRange *range,       /* IN */
                                  UberRange *pixel_range, /* IN */
                                  gint       n_lines,     /* IN */
@@ -1441,12 +1434,12 @@ G_STMT_START { \
 	 */
 	value = range->end;
 	CONDENSE(value);
-	uber_graph_render_y_line(graph, priv->bg_cairo,
+	uber_graph_render_y_line(graph, cr,
 	                         priv->content_rect.y - 1,
 	                         TRUE, FALSE, format, value, modifier);
 	value = range->begin;
 	CONDENSE(value);
-	uber_graph_render_y_line(graph, priv->bg_cairo,
+	uber_graph_render_y_line(graph, cr,
 	                         RECT_BOTTOM(priv->content_rect),
 	                         TRUE, FALSE, format, value, modifier);
 	/*
@@ -1463,7 +1456,7 @@ G_STMT_START { \
 		}
 		y = pixel_range->end - y;
 		CONDENSE(value);
-		uber_graph_render_y_line(graph, priv->bg_cairo, y,
+		uber_graph_render_y_line(graph, cr, y,
 		                         !priv->show_ylines,
 		                         (range->begin == range->end),
 		                         format, value, modifier);
@@ -1480,7 +1473,8 @@ G_STMT_START { \
  * Side effects: None.
  */
 static void
-uber_graph_render_y_axis (UberGraph *graph) /* IN */
+uber_graph_render_y_axis (UberGraph *graph, /* IN */
+                          cairo_t   *cr)    /* IN */
 {
 	UberGraphPrivate *priv;
 	UberRange pixel_range;
@@ -1503,14 +1497,15 @@ uber_graph_render_y_axis (UberGraph *graph) /* IN */
 	n_lines = MIN(priv->content_rect.height / 25, 5);
 	switch (priv->format) {
 	case UBER_GRAPH_FORMAT_PERCENT:
-		uber_graph_render_y_axis_percent(graph, &range, &pixel_range, n_lines);
+		uber_graph_render_y_axis_percent(graph, cr, &range, &pixel_range,
+		                                 n_lines);
 		break;
 	case UBER_GRAPH_FORMAT_DIRECT:
-		uber_graph_render_y_axis_direct(graph, &range, &pixel_range,
+		uber_graph_render_y_axis_direct(graph, cr, &range, &pixel_range,
 		                                n_lines, FALSE);
 		break;
 	case UBER_GRAPH_FORMAT_DIRECT1024:
-		uber_graph_render_y_axis_direct(graph, &range, &pixel_range,
+		uber_graph_render_y_axis_direct(graph, cr, &range, &pixel_range,
 		                                n_lines, TRUE);
 		break;
 	default:
@@ -1534,6 +1529,7 @@ uber_graph_render_bg (UberGraph *graph) /* IN */
 	UberGraphPrivate *priv;
 	GtkAllocation alloc;
 	GtkStyle *style;
+	cairo_t *cr;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
@@ -1543,53 +1539,57 @@ uber_graph_render_bg (UberGraph *graph) /* IN */
 	priv = graph->priv;
 	gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
 	style = gtk_widget_get_style(GTK_WIDGET(graph));
+	cr = gdk_cairo_create(priv->bg_pixmap);
 	/*
 	 * Ensure valid resources.
 	 */
 	g_assert(style);
-	g_assert(priv->bg_cairo);
 	g_assert(priv->bg_pixmap);
 	/*
 	 * Clear entire background.  Hopefully this looks okay for RGBA themes
 	 * that are translucent.
 	 */
-	cairo_save(priv->bg_cairo);
-	cairo_set_operator(priv->bg_cairo, CAIRO_OPERATOR_CLEAR);
-	cairo_rectangle(priv->bg_cairo, 0, 0, alloc.width, alloc.height);
-	cairo_fill(priv->bg_cairo);
-	cairo_restore(priv->bg_cairo);
+	cairo_save(cr);
+	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+	cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
+	cairo_fill(cr);
+	cairo_restore(cr);
 	/*
 	 * Paint the content area background.
 	 */
-	cairo_save(priv->bg_cairo);
-	gdk_cairo_set_source_color(priv->bg_cairo, &style->light[GTK_STATE_NORMAL]);
-	gdk_cairo_rectangle(priv->bg_cairo, &priv->content_rect);
-	cairo_fill(priv->bg_cairo);
-	cairo_restore(priv->bg_cairo);
+	cairo_save(cr);
+	gdk_cairo_set_source_color(cr, &style->light[GTK_STATE_NORMAL]);
+	gdk_cairo_rectangle(cr, &priv->content_rect);
+	cairo_fill(cr);
+	cairo_restore(cr);
 	/*
 	 * Stroke the border around the content area.
 	 */
-	cairo_save(priv->bg_cairo);
-	gdk_cairo_set_source_color(priv->bg_cairo, &style->fg[GTK_STATE_NORMAL]);
-	cairo_set_line_width(priv->bg_cairo, 1.0);
-	cairo_set_dash(priv->bg_cairo, dashes, G_N_ELEMENTS(dashes), 0);
-	cairo_set_antialias(priv->bg_cairo, CAIRO_ANTIALIAS_NONE);
-	cairo_rectangle(priv->bg_cairo,
+	cairo_save(cr);
+	gdk_cairo_set_source_color(cr, &style->fg[GTK_STATE_NORMAL]);
+	cairo_set_line_width(cr, 1.0);
+	cairo_set_dash(cr, dashes, G_N_ELEMENTS(dashes), 0);
+	cairo_set_antialias(cr, CAIRO_ANTIALIAS_NONE);
+	cairo_rectangle(cr,
 	                priv->content_rect.x - .5,
 	                priv->content_rect.y - .5,
 	                priv->content_rect.width + 1.0,
 	                priv->content_rect.height + 1.0);
-	cairo_stroke(priv->bg_cairo);
-	cairo_restore(priv->bg_cairo);
+	cairo_stroke(cr);
+	cairo_restore(cr);
 	/*
 	 * Render the axis ticks.
 	 */
-	uber_graph_render_y_axis(graph);
-	uber_graph_render_x_axis(graph);
+	uber_graph_render_y_axis(graph, cr);
+	uber_graph_render_x_axis(graph, cr);
 	/*
 	 * Background is no longer dirty.
 	 */
 	priv->bg_dirty = FALSE;
+	/*
+	 * Cleanup.
+	 */
+	cairo_destroy(cr);
 }
 
 static inline void
@@ -1803,7 +1803,7 @@ uber_graph_size_allocate (GtkWidget     *widget, /* IN */
 	/*
 	 * Recreate server side pixmaps.
 	 */
-	uber_graph_destroy_bg(graph);
+	UNSET_PIXMAP(priv->bg_pixmap);
 	uber_graph_destroy_texture(graph);
 	uber_graph_init_bg(graph);
 	uber_graph_init_texture(graph);
@@ -2026,17 +2026,10 @@ uber_graph_dispose (GObject *object) /* IN */
 	 * Destroy textures.
 	 */
 	uber_graph_destroy_texture(graph);
+	UNSET_PIXMAP(priv->bg_pixmap);
 	/*
-	 * Destroy background resources.
+	 * Call base class.
 	 */
-	if (priv->bg_cairo) {
-		cairo_destroy(priv->bg_cairo);
-		priv->bg_cairo = NULL;
-	}
-	if (priv->bg_pixmap) {
-		g_object_unref(priv->bg_pixmap);
-		priv->bg_pixmap = NULL;
-	}
 	G_OBJECT_CLASS(uber_graph_parent_class)->dispose(object);
 }
 
