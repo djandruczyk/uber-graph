@@ -20,6 +20,7 @@
 #include "config.h"
 #endif
 
+#include <glib/gi18n.h>
 #include <math.h>
 #include <string.h>
 
@@ -1850,6 +1851,102 @@ uber_graph_add_label (UberGraph *graph, /* IN */
 }
 
 /**
+ * uber_graph_take_screenshot:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_take_screenshot (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+	GtkWidget *widget;
+	GtkWidget *dialog;
+	GdkPixmap *snapshot;
+	GtkAllocation alloc;
+	const gchar *filename;
+	cairo_status_t status;
+	cairo_surface_t *surface;
+	cairo_t *cr;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	widget = GTK_WIDGET(graph);
+	gtk_widget_get_allocation(widget, &alloc);
+	dialog = gtk_file_chooser_dialog_new(_("Save As"),
+	                                     GTK_WINDOW(gtk_widget_get_toplevel(widget)),
+	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
+	                                     GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+	                                     GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
+	                                     NULL);
+	if (GTK_RESPONSE_ACCEPT == gtk_dialog_run(GTK_DIALOG(dialog))) {
+		if (!(snapshot = gtk_widget_get_snapshot(widget, NULL))) {
+			g_critical("Failed to retrieve widget snapshot.");
+			goto cleanup;
+		}
+		/*
+		 * Create surface and cairo context.
+		 */
+		surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+		                                     alloc.width, alloc.height);
+		cr = cairo_create(surface);
+		gdk_cairo_set_source_pixmap(cr, snapshot, 0, 0);
+		cairo_rectangle(cr, 0, 0, alloc.width, alloc.height);
+		cairo_paint(cr);
+		/*
+		 * Save surface to png.
+		 */
+		filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+		status = cairo_surface_write_to_png(surface, filename);
+		if (status != CAIRO_STATUS_SUCCESS) {
+			g_critical("Failed to save pixmap to file.");
+			goto cleanup;
+		}
+		/*
+		 * Cleanup resources.
+		 */
+	  cleanup:
+		cairo_destroy(cr);
+		cairo_surface_destroy(surface);
+		g_object_unref(snapshot);
+	}
+	gtk_widget_destroy(dialog);
+}
+
+/**
+ * uber_graph_toggle_paused:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static void
+uber_graph_toggle_paused (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	priv->paused = !priv->paused;
+	if (priv->fps_handler) {
+		g_source_remove(priv->fps_handler);
+		priv->fps_handler = 0;
+	} else {
+		if (!priv->paused) {
+			uber_graph_redraw(graph);
+		}
+		uber_graph_register_fps_handler(graph);
+	}
+}
+
+/**
  * uber_graph_button_press:
  * @widget: A #GtkWidget.
  *
@@ -1870,15 +1967,10 @@ uber_graph_button_press_event (GtkWidget      *widget, /* IN */
 
 	switch (button->button) {
 	case 2: /* Middle Click */
-		priv->paused = !priv->paused;
-		if (priv->fps_handler) {
-			g_source_remove(priv->fps_handler);
-			priv->fps_handler = 0;
+		if (button->state & GDK_CONTROL_MASK) {
+			uber_graph_take_screenshot(UBER_GRAPH(widget));
 		} else {
-			if (!priv->paused) {
-				uber_graph_redraw(UBER_GRAPH(widget));
-			}
-			uber_graph_register_fps_handler(UBER_GRAPH(widget));
+			uber_graph_toggle_paused(UBER_GRAPH(widget));
 		}
 		break;
 	default:
