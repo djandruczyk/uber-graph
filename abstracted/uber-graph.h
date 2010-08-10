@@ -96,6 +96,7 @@ void       uber_graph_set_show_xlabels (UberGraph       *graph,
 gboolean   uber_graph_get_show_ylines  (UberGraph       *graph);
 void       uber_graph_set_show_ylines  (UberGraph       *graph,
                                         gboolean         show_ylines);
+void       uber_graph_scale_changed    (UberGraph       *graph);
 
 G_END_DECLS
 

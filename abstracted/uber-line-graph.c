@@ -317,7 +317,7 @@ static gboolean
 uber_line_graph_get_next_data (UberGraph *graph) /* IN */
 {
 	UberLineGraphPrivate *priv;
-	gboolean redraw = FALSE;
+	gboolean scale_changed = FALSE;
 	gboolean ret = FALSE;
 	LineInfo *line;
 	gdouble val;
@@ -343,17 +343,17 @@ uber_line_graph_get_next_data (UberGraph *graph) /* IN */
 				if (val < priv->range.begin) {
 					priv->range.begin = val - (val * SCALE_FACTOR);
 					priv->range.range = priv->range.end - priv->range.begin;
-					redraw = TRUE;
+					scale_changed = TRUE;
 				} else if (val > priv->range.end) {
 					priv->range.end = val + (val * SCALE_FACTOR);
 					priv->range.range = priv->range.end - priv->range.begin;
-					redraw = TRUE;
+					scale_changed = TRUE;
 				}
 			}
 		}
 	}
-	if (redraw) {
-		uber_graph_redraw(graph);
+	if (scale_changed) {
+		uber_graph_scale_changed(graph);
 	}
 	return ret;
 }

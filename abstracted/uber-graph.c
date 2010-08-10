@@ -267,6 +267,31 @@ uber_graph_get_labels (UberGraph *graph) /* IN */
 }
 
 /**
+ * uber_graph_scale_changed:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+void
+uber_graph_scale_changed (UberGraph *graph) /* IN */
+{
+	UberGraphPrivate *priv;
+
+	g_return_if_fail(UBER_IS_GRAPH(graph));
+
+	priv = graph->priv;
+	if (!priv->paused) {
+		priv->fg_dirty = TRUE;
+		priv->bg_dirty = TRUE;
+		priv->full_draw = TRUE;
+		gtk_widget_queue_draw(GTK_WIDGET(graph));
+	}
+}
+
+/**
  * uber_graph_get_next_data:
  * @graph: A #UberGraph.
  *
@@ -1827,8 +1852,9 @@ uber_graph_button_press_event (GtkWidget      *widget, /* IN */
 			g_source_remove(priv->fps_handler);
 			priv->fps_handler = 0;
 		} else {
-			priv->fg_dirty = TRUE;
-			priv->full_draw = TRUE;
+			if (!priv->paused) {
+				uber_graph_redraw(UBER_GRAPH(widget));
+			}
 			uber_graph_register_fps_handler(UBER_GRAPH(widget));
 		}
 		break;
