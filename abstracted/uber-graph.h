@@ -57,6 +57,7 @@ struct _UberGraphClass
 {
 	GtkDrawingAreaClass parent_class;
 
+	gboolean   (*downscale)     (UberGraph    *graph);
 	gboolean   (*get_next_data) (UberGraph    *graph);
 	void       (*get_yrange)    (UberGraph    *graph,
 	                             UberRange    *range);

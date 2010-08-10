@@ -811,6 +811,58 @@ uber_line_graph_set_line_width (UberLineGraph *graph, /* IN */
 }
 
 /**
+ * uber_line_graph_downscale:
+ * @graph: A #UberGraph.
+ *
+ * XXX
+ *
+ * Returns: None.
+ * Side effects: None.
+ */
+static gboolean
+uber_line_graph_downscale (UberGraph *graph) /* IN */
+{
+	UberLineGraphPrivate *priv;
+	gboolean ret = FALSE;
+	gdouble val = 0;
+	gdouble cur;
+	LineInfo *line;
+	gint i;
+	gint j;
+
+	g_return_val_if_fail(UBER_IS_LINE_GRAPH(graph), FALSE);
+
+	priv = UBER_LINE_GRAPH(graph)->priv;
+	/*
+	 * If we are set to autoscale, ignore request.
+	 */
+	if (!priv->autoscale) {
+		return FALSE;
+	}
+	/*
+	 * Determine the largest value available.
+	 */
+	for (i = 0; i < priv->lines->len; i++) {
+		line = &g_array_index(priv->lines, LineInfo, i);
+		for (j = 0; j < line->raw_data->len; j++) {
+			cur = g_ring_get_index(line->raw_data, gdouble, j);
+			val = (cur > val) ? cur : val;
+		}
+	}
+	/*
+	 * Downscale if we can.
+	 */
+	if (val != priv->range.begin) {
+		if ((val * (1. + SCALE_FACTOR)) < priv->range.end) {
+			priv->range.end = val * (1. + SCALE_FACTOR);
+			priv->range.range = priv->range.end - priv->range.begin;
+			ret = TRUE;
+		}
+	}
+	return ret;
+}
+
+/**
  * uber_line_graph_finalize:
  * @object: A #UberLineGraph.
  *
@@ -859,6 +911,7 @@ uber_line_graph_class_init (UberLineGraphClass *klass) /* IN */
 	g_type_class_add_private(object_class, sizeof(UberLineGraphPrivate));
 
 	graph_class = UBER_GRAPH_CLASS(klass);
+	graph_class->downscale = uber_line_graph_downscale;
 	graph_class->get_next_data = uber_line_graph_get_next_data;
 	graph_class->get_yrange = uber_line_graph_get_yrange;
 	graph_class->render = uber_line_graph_render;

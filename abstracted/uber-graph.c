@@ -77,6 +77,7 @@ struct _UberGraphPrivate
 	gfloat           dps_each;      /* How many pixels between data points. */
 	GTimeVal         dps_tv;        /* Timeval of last data point. */
 	guint            dps_handler;   /* Timeout for getting new data. */
+	guint            dps_downscale; /* Count since last downscale. */
 	gboolean         fg_dirty;      /* Does the foreground need to be redrawn. */
 	gboolean         bg_dirty;      /* Does the background need to be redrawn. */
 	guint            tick_len;      /* How long should axis-ticks be. */
@@ -279,6 +280,8 @@ void
 uber_graph_scale_changed (UberGraph *graph) /* IN */
 {
 	UberGraphPrivate *priv;
+	GtkAllocation alloc;
+	GdkRectangle rect;
 
 	g_return_if_fail(UBER_IS_GRAPH(graph));
 
@@ -287,7 +290,13 @@ uber_graph_scale_changed (UberGraph *graph) /* IN */
 		priv->fg_dirty = TRUE;
 		priv->bg_dirty = TRUE;
 		priv->full_draw = TRUE;
-		gtk_widget_queue_draw(GTK_WIDGET(graph));
+		gtk_widget_get_allocation(GTK_WIDGET(graph), &alloc);
+		rect.x = 0;
+		rect.y = 0;
+		rect.width = alloc.width;
+		rect.height = alloc.height;
+		gdk_window_invalidate_rect(gtk_widget_get_window(GTK_WIDGET(graph)),
+		                           &rect, TRUE);
 	}
 }
 
@@ -666,6 +675,17 @@ uber_graph_dps_timeout (UberGraph *graph) /* IN */
 		 * We do not queue a draw here since the next FPS callback will happen
 		 * when it is the right time to show the frame.
 		 */
+	}
+	/*
+	 * Try to downscale the graph.  We do this whether or not we are paused
+	 * as redrawing is deferred if we are in a paused state.
+	 */
+	if (UBER_GRAPH_GET_CLASS(graph)->downscale) {
+		if (UBER_GRAPH_GET_CLASS(graph)->downscale(graph)) {
+			if (!priv->paused) {
+				uber_graph_redraw(graph);
+			}
+		}
 	}
 	return TRUE;
 }

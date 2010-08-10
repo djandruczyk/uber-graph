@@ -457,6 +457,7 @@ main (gint   argc,   /* IN */
 	/*
 	 * Configure CPU graph.
 	 */
+	uber_line_graph_set_autoscale(UBER_LINE_GRAPH(cpu), FALSE);
 	uber_graph_set_format(UBER_GRAPH(cpu), UBER_GRAPH_FORMAT_PERCENT);
 	uber_line_graph_set_range(UBER_LINE_GRAPH(cpu), &cpu_range);
 	uber_line_graph_set_data_func(UBER_LINE_GRAPH(cpu),
