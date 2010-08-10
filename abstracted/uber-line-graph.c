@@ -464,7 +464,7 @@ uber_line_graph_render_line (UberLineGraph *graph, /* IN */
 	uber_graph_get_content_area(UBER_GRAPH(graph), &vis);
 	pixel_range.begin = area->y + 1;
 	pixel_range.end = area->y + area->height;
-	pixel_range.range = area->height;
+	pixel_range.range = pixel_range.end - pixel_range.begin;
 	/*
 	 * Prepare cairo settings.
 	 */
@@ -589,7 +589,7 @@ uber_line_graph_render_fast (UberGraph    *graph, /* IN */
 	priv = UBER_LINE_GRAPH(graph)->priv;
 	pixel_range.begin = rect->y + 1;
 	pixel_range.end = rect->y + rect->height;
-	pixel_range.range = rect->height;
+	pixel_range.range = pixel_range.end - pixel_range.begin;
 	/*
 	 * Render most recent data point for each line.
 	 */
