@@ -1858,6 +1858,16 @@ uber_graph_take_screenshot (UberGraph *graph) /* IN */
 	priv = graph->priv;
 	widget = GTK_WIDGET(graph);
 	gtk_widget_get_allocation(widget, &alloc);
+	/*
+	 * Take screenshot immediately.
+	 */
+	if (!(snapshot = gtk_widget_get_snapshot(widget, NULL))) {
+		g_critical("Failed to retrieve widget snapshot.");
+		goto cleanup;
+	}
+	/*
+	 * Create save dialog and ask user for filename.
+	 */
 	dialog = gtk_file_chooser_dialog_new(_("Save As"),
 	                                     GTK_WINDOW(gtk_widget_get_toplevel(widget)),
 	                                     GTK_FILE_CHOOSER_ACTION_SAVE,
@@ -1865,10 +1875,6 @@ uber_graph_take_screenshot (UberGraph *graph) /* IN */
 	                                     GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
 	                                     NULL);
 	if (GTK_RESPONSE_ACCEPT == gtk_dialog_run(GTK_DIALOG(dialog))) {
-		if (!(snapshot = gtk_widget_get_snapshot(widget, NULL))) {
-			g_critical("Failed to retrieve widget snapshot.");
-			goto cleanup;
-		}
 		/*
 		 * Create surface and cairo context.
 		 */
@@ -1893,9 +1899,9 @@ uber_graph_take_screenshot (UberGraph *graph) /* IN */
 	  cleanup:
 		cairo_destroy(cr);
 		cairo_surface_destroy(surface);
-		g_object_unref(snapshot);
 	}
 	gtk_widget_destroy(dialog);
+	g_object_unref(snapshot);
 }
 
 /**
