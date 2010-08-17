@@ -50,6 +50,8 @@ OBJECTS =								\
 	uber-scale.o							\
 	uber-label.o							\
 	uber-blktrace.o							\
+	uber-frame-source.o						\
+	uber-timeout-interval.o						\
 	main.o								\
 	g-ring.o							\
 	$(NULL)

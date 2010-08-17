@@ -26,6 +26,7 @@
 
 #include "uber-graph.h"
 #include "uber-scale.h"
+#include "uber-frame-source.h"
 
 #define WIDGET_CLASS (GTK_WIDGET_CLASS(uber_graph_parent_class))
 #define RECT_RIGHT(r)  ((r).x + (r).width)
@@ -545,7 +546,7 @@ uber_graph_calculate_rects (UberGraph *graph) /* IN */
 	 */
 	if (priv->fps_handler) {
 		g_source_remove(priv->fps_handler);
-		priv->fps_handler = g_timeout_add(priv->fps_real,
+		priv->fps_handler = uber_frame_source_add(priv->fps,
 		                                  (GSourceFunc)uber_graph_fps_timeout,
 		                                  graph);
 	}
@@ -727,7 +728,7 @@ uber_graph_register_fps_handler (UberGraph *graph) /* IN */
 	/*
 	 * Install the FPS timeout.
 	 */
-	priv->fps_handler = g_timeout_add(priv->fps_real,
+	priv->fps_handler = uber_frame_source_add(priv->fps,
 	                                  (GSourceFunc)uber_graph_fps_timeout,
 	                                  graph);
 }
